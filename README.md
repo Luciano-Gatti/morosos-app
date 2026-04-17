@@ -120,6 +120,25 @@ mvn spring-boot:run
 - API base: `http://localhost:8081/api/v1`
 - El servicio utiliza PostgreSQL como única base de datos.
 
+### Documentación OpenAPI (Swagger UI + Scalar)
+Por defecto en local, la documentación está habilitada.
+
+- OpenAPI JSON: `http://localhost:8081/v3/api-docs`
+- Swagger UI: `http://localhost:8081/swagger-ui.html` (o `.../swagger-ui/index.html`)
+- Scalar: `http://localhost:8081/scalar`
+
+Para apagar documentación por variables:
+```bash
+export SPRINGDOC_API_DOCS_ENABLED=false
+export SPRINGDOC_SWAGGER_UI_ENABLED=false
+export SPRINGDOC_SCALAR_ENABLED=false
+```
+
+Para apagar documentación en producción, activar perfil `prod` (ya viene deshabilitado en `application-prod.yml`):
+```bash
+export SPRING_PROFILES_ACTIVE=prod
+```
+
 ## Migraciones de esquema (Flyway)
 Flyway es la estrategia oficial para evolucionar el esquema de base de datos en este microservicio.
 
