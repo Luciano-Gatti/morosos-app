@@ -101,7 +101,7 @@ class EstadoDeudaServiceImplTest {
         EstadoDeudaImportResponse response = service.importExcel(file, "Carga inicial");
 
         assertThat(response.totalProcesados()).isEqualTo(1);
-        assertThat(response.totalActualizados()).isEqualTo(2);
+        assertThat(response.actualizados()).isEqualTo(2);
 
         org.mockito.Mockito.verify(estadoDeudaRepository).saveAll(estadosCaptor.capture());
         List<EstadoDeuda> estados = estadosCaptor.getValue();
