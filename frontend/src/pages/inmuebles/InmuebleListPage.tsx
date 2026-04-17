@@ -58,6 +58,11 @@ export function InmuebleListPage() {
     [editingInmueble]
   );
 
+  const distritoOptions = useMemo(() => {
+    const options = new Set((inmueblesQuery.data ?? []).map((inmueble) => inmueble.distrito).filter(Boolean));
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [inmueblesQuery.data]);
+
   const resetForm = () => {
     setEditingInmueble(null);
     setInmuebleForm(emptyInmuebleForm);
@@ -194,6 +199,7 @@ export function InmuebleListPage() {
       {activeSection === 'listado' && (
         <InmuebleListSearchSection
           filters={filters}
+          distritoOptions={distritoOptions}
           onFiltersChange={setFilters}
           onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
