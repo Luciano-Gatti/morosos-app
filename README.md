@@ -120,6 +120,25 @@ mvn spring-boot:run
 - API base: `http://localhost:8081/api/v1`
 - El servicio utiliza PostgreSQL como única base de datos.
 
+## Migraciones de esquema (Flyway)
+Flyway es la estrategia oficial para evolucionar el esquema de base de datos en este microservicio.
+
+### Estructura
+- Las migraciones SQL están en `src/main/resources/db/migration`.
+- Migraciones iniciales de esquema: `V1__init.sql` a `V10__create_registro_corte_table.sql`.
+
+### Convención para nuevas migraciones
+1. Crear un archivo con nombre `V<numero>__<descripcion>.sql`.
+2. Usar un número incremental único (ejemplo: `V11__add_index_to_inmuebles.sql`).
+3. Incluir únicamente cambios de esquema/datos necesarios para esa versión.
+4. Al arrancar la app, Flyway aplicará automáticamente las migraciones pendientes en orden.
+
+Ejemplo:
+```sql
+-- src/main/resources/db/migration/V11__add_index_to_inmuebles.sql
+CREATE INDEX idx_inmuebles_numero_cuenta ON inmuebles(numero_cuenta);
+```
+
 ## Nota de arquitectura
 - En operaciones masivas, se respetan las mismas reglas de negocio del flujo individual: sin retrocesos, casos `CERRADO` no operables, casos `PAUSADO` no avanzan, y casos en `CORTE` no avanzan a etapa posterior.
 - En `RegistroCorte`, solo se permiten nuevos registros cuando el caso está en etapa `CORTE`; un caso puede tener múltiples registros y se valida que `MotivoCorte` esté activo para nuevos registros.
