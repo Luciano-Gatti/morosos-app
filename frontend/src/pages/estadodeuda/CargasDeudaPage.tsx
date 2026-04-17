@@ -15,7 +15,7 @@ export function CargasDeudaPage() {
 
   const cargasOrdenadas = useMemo(() => {
     const rows = [...(cargasQuery.data ?? [])];
-    rows.sort((a, b) => new Date(a.fechaCarga).getTime() - new Date(b.fechaCarga).getTime());
+    rows.sort((a, b) => new Date(b.fechaCarga).getTime() - new Date(a.fechaCarga).getTime());
     return rows;
   }, [cargasQuery.data]);
 
@@ -23,9 +23,15 @@ export function CargasDeudaPage() {
     <section>
       <h2>Cargas de deuda</h2>
       <p>Listado histórico de cargas importadas de estado de deuda.</p>
+      <div className="toolbar">
+        <Link to="/estados-deuda/importacion">Nueva importación</Link>
+        <Link to="/estados-deuda/reportes/morosos-historico">Ver reporte histórico</Link>
+      </div>
 
       {cargasQuery.isLoading && <p>Cargando cargas de deuda...</p>}
-      {cargasQuery.isError && <p className="feedback error">{getErrorMessage(cargasQuery.error)}</p>}
+      {cargasQuery.isError && (
+        <p className="feedback error">No se pudo obtener el listado de cargas. {getErrorMessage(cargasQuery.error)}</p>
+      )}
 
       {!cargasQuery.isLoading && !cargasQuery.isError && cargasOrdenadas.length === 0 && (
         <p>No hay cargas de deuda históricas registradas.</p>

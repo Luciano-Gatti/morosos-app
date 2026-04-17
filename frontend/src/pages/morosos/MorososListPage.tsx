@@ -8,6 +8,10 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
 }
 
+function formatFecha(fecha: string) {
+  return new Date(fecha).toLocaleString();
+}
+
 const emptyFilters: MorososFilters = {
   numeroCuenta: '',
   propietarioNombre: '',
@@ -109,11 +113,11 @@ export function MorososListPage() {
       });
 
       setFeedback(
-        `Casos creados. Solicitados: ${result.totalSolicitados}, exitosos: ${result.exitosos}, errores: ${result.errores}.`
+        `Creación masiva completada. Solicitados: ${result.totalSolicitados}, exitosos: ${result.exitosos}, errores: ${result.errores}.`
       );
       setSelectedIds([]);
     } catch (error) {
-      setFeedbackError(getErrorMessage(error));
+      setFeedbackError(`No se pudieron crear casos para los inmuebles seleccionados. ${getErrorMessage(error)}`);
     }
   };
 
@@ -297,6 +301,7 @@ export function MorososListPage() {
                 <th>Monto</th>
                 <th>Seg. habilitado</th>
                 <th>Apto</th>
+                <th>Estado actualizado</th>
               </tr>
             </thead>
             <tbody>
@@ -318,6 +323,7 @@ export function MorososListPage() {
                   <td>{moroso.montoAdeudado}</td>
                   <td>{moroso.seguimientoHabilitado ? 'Sí' : 'No'}</td>
                   <td>{moroso.aptoParaSeguimiento ? 'Sí' : 'No'}</td>
+                  <td>{formatFecha(moroso.fechaActualizacion)}</td>
                 </tr>
               ))}
             </tbody>

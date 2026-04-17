@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useReporteMorososPorCarga } from '../../modules/estadoDeuda/hooks';
 
 function getErrorMessage(error: unknown) {
@@ -13,18 +14,27 @@ export function ReporteMorososHistoricoPage() {
   const reporteQuery = useReporteMorososPorCarga();
 
   const cargasOrdenadas = useMemo(() => {
-    const rows = [...(reporteQuery.data ?? [])];
-    rows.sort((a, b) => new Date(a.fechaCarga).getTime() - new Date(b.fechaCarga).getTime());
-    return rows;
+    return [...(reporteQuery.data ?? [])]
+      .map((carga) => ({
+        ...carga,
+        detallePorGrupo: [...carga.detallePorGrupo].sort((a, b) => a.grupoNombre.localeCompare(b.grupoNombre))
+      }))
+      .sort((a, b) => new Date(b.fechaCarga).getTime() - new Date(a.fechaCarga).getTime());
   }, [reporteQuery.data]);
 
   return (
     <section>
       <h2>Reporte histórico de morosos</h2>
       <p>Evolución de morosos por carga, con detalle de clasificación por grupo.</p>
+      <div className="toolbar">
+        <Link to="/estados-deuda/importacion">Ir a importación</Link>
+        <Link to="/estados-deuda/cargas">Ver cargas</Link>
+      </div>
 
       {reporteQuery.isLoading && <p>Cargando reporte histórico...</p>}
-      {reporteQuery.isError && <p className="feedback error">{getErrorMessage(reporteQuery.error)}</p>}
+      {reporteQuery.isError && (
+        <p className="feedback error">No se pudo obtener el reporte histórico. {getErrorMessage(reporteQuery.error)}</p>
+      )}
 
       {!reporteQuery.isLoading && !reporteQuery.isError && cargasOrdenadas.length === 0 && (
         <p>No hay datos históricos de morosos para mostrar.</p>

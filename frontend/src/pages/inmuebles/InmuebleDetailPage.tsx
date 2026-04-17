@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMemo } from 'react';
 import { useInmueble } from '../../modules/inmuebles/hooks';
 import { useHistorialDeudaByInmueble } from '../../modules/estadoDeuda/hooks';
@@ -20,7 +20,7 @@ export function InmuebleDetailPage() {
 
   const historialCronologico = useMemo(() => {
     const rows = [...(historialQuery.data ?? [])];
-    rows.sort((a, b) => new Date(a.fechaCarga).getTime() - new Date(b.fechaCarga).getTime());
+    rows.sort((a, b) => new Date(b.fechaCarga).getTime() - new Date(a.fechaCarga).getTime());
     return rows;
   }, [historialQuery.data]);
 
@@ -46,9 +46,15 @@ export function InmuebleDetailPage() {
 
       <h3>Historial de deuda</h3>
       <p>Evolución financiera del inmueble según cada carga histórica de estado de deuda.</p>
+      <div className="toolbar">
+        <Link to="/estados-deuda/cargas">Ver cargas</Link>
+        <Link to="/estados-deuda/reportes/morosos-historico">Ver reporte histórico</Link>
+      </div>
 
       {historialQuery.isLoading && <p>Cargando historial de deuda...</p>}
-      {historialQuery.isError && <p className="feedback error">{getErrorMessage(historialQuery.error)}</p>}
+      {historialQuery.isError && (
+        <p className="feedback error">No se pudo obtener el historial de deuda del inmueble. {getErrorMessage(historialQuery.error)}</p>
+      )}
 
       {!historialQuery.isLoading && !historialQuery.isError && historialCronologico.length === 0 && (
         <p>No hay historial de deuda registrado para este inmueble.</p>
