@@ -76,8 +76,8 @@ export function CargaDeudaDetailPage() {
         <strong>ID carga:</strong> {cargaId}
       </p>
       <div className="toolbar">
-        <Link to="/estados-deuda/importacion">Ir a importación</Link>
-        <Link to="/estados-deuda/reportes/morosos-historico">Ver reporte histórico</Link>
+        <Link to="/estados-deuda/cargas?tab=importar">Ir a importar carga</Link>
+        <Link to="/estados-deuda/cargas?tab=reportes">Ver reportes</Link>
       </div>
 
       <form className="simple-form" onSubmit={(event) => event.preventDefault()}>

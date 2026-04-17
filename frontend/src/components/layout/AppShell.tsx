@@ -11,11 +11,9 @@ const navSections: NavSection[] = [
     items: [
       { to: '/inmuebles', label: 'Inmuebles' },
       { to: '/estados-deuda', label: 'Estado de deuda' },
-      { to: '/estados-deuda/importacion', label: 'Importación de deuda' },
       { to: '/estados-deuda/cargas', label: 'Cargas de deuda' },
-      { to: '/estados-deuda/reportes/morosos-historico', label: 'Reporte histórico de morosos' },
-      { to: '/morosos', label: 'Morosos' },
-      { to: '/bandejas', label: 'Bandejas por etapa' }
+      { to: '/morosos', label: 'Morosos (consulta)' },
+      { to: '/bandejas', label: 'Bandeja por etapa' }
     ]
   },
   {
