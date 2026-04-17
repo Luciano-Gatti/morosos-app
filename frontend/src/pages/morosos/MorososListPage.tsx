@@ -1,6 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useCrearCasosMasivo } from '../../modules/seguimientoMasivo/hooks';
-import type { EtapaInicial } from '../../modules/seguimientoMasivo/types';
+import { FormEvent, useMemo, useState } from 'react';
 import { useMorosos } from '../../modules/morosos/hooks';
 import type { Moroso, MorososFilters, MorososSortableFields } from '../../modules/morosos/types';
 
@@ -24,8 +22,6 @@ const emptyFilters: MorososFilters = {
   aptoParaSeguimiento: undefined
 };
 
-const etapaOptions: EtapaInicial[] = ['AVISO_DEUDA', 'INTIMACION', 'AVISO_CORTE', 'CORTE'];
-
 export function MorososListPage() {
   const [filters, setFilters] = useState<MorososFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<MorososFilters>(emptyFilters);
@@ -33,13 +29,6 @@ export function MorososListPage() {
 
   const [sortBy, setSortBy] = useState<MorososSortableFields>('cuotasAdeudadas');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [etapaInicial, setEtapaInicial] = useState<EtapaInicial>('AVISO_DEUDA');
-  const createCasosMutation = useCrearCasosMasivo();
-
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   const sortedMorosos = useMemo(() => {
     const rows = [...(morososQuery.data ?? [])];
@@ -61,72 +50,24 @@ export function MorososListPage() {
     return rows;
   }, [morososQuery.data, sortBy, sortDirection]);
 
-  const visibleIds = sortedMorosos.map((moroso) => moroso.inmuebleId);
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-
-  useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => visibleIds.includes(id)));
-  }, [morososQuery.data, sortBy, sortDirection]);
-
   const handleApplyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAppliedFilters({ ...filters });
-    setSelectedIds([]);
-    setFeedback(null);
-    setFeedbackError(null);
   };
 
   const handleResetFilters = () => {
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
-    setSelectedIds([]);
-    setFeedback(null);
-    setFeedbackError(null);
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
-  };
-
-  const toggleSelectAllVisible = () => {
-    if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
-      return;
-    }
-
-    setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-  };
-
-  const handleCreateCases = async () => {
-    setFeedback(null);
-    setFeedbackError(null);
-
-    if (selectedIds.length === 0) {
-      setFeedbackError('Seleccioná al menos un inmueble moroso.');
-      return;
-    }
-
-    try {
-      const result = await createCasosMutation.mutateAsync({
-        inmuebleIds: selectedIds,
-        etapaInicial
-      });
-
-      setFeedback(
-        `Creación masiva completada. Solicitados: ${result.totalSolicitados}, exitosos: ${result.exitosos}, errores: ${result.errores}.`
-      );
-      setSelectedIds([]);
-    } catch (error) {
-      setFeedbackError(`No se pudieron crear casos para los inmuebles seleccionados. ${getErrorMessage(error)}`);
-    }
   };
 
   return (
     <section>
-      <h2>Lista general de morosos</h2>
-      <p>Filtrá, ordená, seleccioná y creá casos en lote desde una vista única.</p>
+      <div className="page-header">
+        <h2>Lista general de morosos</h2>
+        <p>Vista de consulta general para filtrar, ordenar y analizar morosos.</p>
+      </div>
 
-      <form className="simple-form" onSubmit={handleApplyFilters}>
+      <form className="simple-form form-grid-two card-block" onSubmit={handleApplyFilters}>
         <label>
           Número de cuenta
           <input
@@ -227,7 +168,7 @@ export function MorososListPage() {
           </select>
         </label>
 
-        <div className="actions">
+        <div className="actions align-right">
           <button type="submit">Aplicar filtros</button>
           <button type="button" className="secondary" onClick={handleResetFilters}>
             Limpiar
@@ -235,7 +176,7 @@ export function MorososListPage() {
         </div>
       </form>
 
-      <div className="toolbar">
+      <div className="toolbar card-toolbar">
         <label>
           Ordenar por
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MorososSortableFields)}>
@@ -256,30 +197,8 @@ export function MorososListPage() {
           </select>
         </label>
 
-        <button type="button" className="secondary" onClick={toggleSelectAllVisible}>
-          {allVisibleSelected ? 'Deseleccionar visibles' : 'Seleccionar visibles'}
-        </button>
+        <strong>Total resultados: {sortedMorosos.length}</strong>
       </div>
-
-      <div className="toolbar">
-        <label>
-          Etapa inicial
-          <select value={etapaInicial} onChange={(event) => setEtapaInicial(event.target.value as EtapaInicial)}>
-            {etapaOptions.map((etapa) => (
-              <option key={etapa} value={etapa}>
-                {etapa}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <button type="button" onClick={handleCreateCases} disabled={createCasosMutation.isPending}>
-          Crear casos para seleccionados ({selectedIds.length})
-        </button>
-      </div>
-
-      {feedback && <p className="feedback success">{feedback}</p>}
-      {feedbackError && <p className="feedback error">{feedbackError}</p>}
 
       {morososQuery.isLoading && <p>Cargando morosos...</p>}
       {morososQuery.isError && <p className="feedback error">{getErrorMessage(morososQuery.error)}</p>}
@@ -289,9 +208,6 @@ export function MorososListPage() {
           <table className="simple-table">
             <thead>
               <tr>
-                <th>
-                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
-                </th>
                 <th>Número cuenta</th>
                 <th>Propietario</th>
                 <th>Dirección</th>
@@ -307,13 +223,6 @@ export function MorososListPage() {
             <tbody>
               {sortedMorosos.map((moroso: Moroso) => (
                 <tr key={moroso.inmuebleId}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(moroso.inmuebleId)}
-                      onChange={() => toggleSelect(moroso.inmuebleId)}
-                    />
-                  </td>
                   <td>{moroso.numeroCuenta}</td>
                   <td>{moroso.propietarioNombre}</td>
                   <td>{moroso.direccionCompleta}</td>

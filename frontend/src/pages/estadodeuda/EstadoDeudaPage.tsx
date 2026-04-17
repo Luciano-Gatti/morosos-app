@@ -95,15 +95,17 @@ export function EstadoDeudaPage() {
 
   return (
     <section>
-      <h2>Estado de deuda</h2>
-      <p>Carga y edición de cuotas adeudadas y monto adeudado por inmueble.</p>
-      <div className="toolbar">
-        <Link to="/estados-deuda/importacion">Importación de deuda</Link>
-        <Link to="/estados-deuda/cargas">Cargas de deuda</Link>
-        <Link to="/estados-deuda/reportes/morosos-historico">Reporte histórico de morosos</Link>
+      <div className="page-header">
+        <h2>Estado de deuda</h2>
+        <p>Carga y edición de cuotas adeudadas y monto adeudado por inmueble.</p>
+      </div>
+      <div className="toolbar card-toolbar">
+        <Link to="/estados-deuda/cargas?tab=importar">Importar carga</Link>
+        <Link to="/estados-deuda/cargas?tab=historico">Histórico de cargas</Link>
+        <Link to="/estados-deuda/cargas?tab=reportes">Reportes</Link>
       </div>
 
-      <form className="simple-form" onSubmit={handleSubmit}>
+      <form className="simple-form form-grid-two card-block" onSubmit={handleSubmit}>
         <label>
           Inmueble
           <select value={inmuebleId} onChange={(event) => handleSelectInmueble(event.target.value)}>
@@ -138,11 +140,11 @@ export function EstadoDeudaPage() {
           />
         </label>
 
-        <p>
+        <p className="full-width">
           <strong>Última actualización:</strong> {fechaActualizacion}
         </p>
 
-        <div className="actions">
+        <div className="actions align-right">
           <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
             {estadoDeuda ? 'Guardar cambios' : 'Cargar estado de deuda'}
           </button>

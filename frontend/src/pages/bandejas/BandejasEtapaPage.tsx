@@ -1,122 +1,208 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  useAvanzarEtapaCasos,
-  useCasosSeguimiento,
-  useRepetirEtapaCasos
-} from '../../modules/casosSeguimiento/hooks';
-import type { CasoSeguimiento, EtapaSeguimiento } from '../../modules/casosSeguimiento/types';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useAvanzarEtapaCasos, useCasosSeguimiento, useRepetirEtapaCasos } from '../../modules/casosSeguimiento/hooks';
+import type { EtapaSeguimiento } from '../../modules/casosSeguimiento/types';
+import { useInmuebles } from '../../modules/inmuebles/hooks';
+import { useMorosos } from '../../modules/morosos/hooks';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
 }
 
-type FiltroEstado = 'TODOS' | 'ACTIVO' | 'PAUSADO';
-
-type BandejaSectionProps = {
-  titulo: string;
+type BandejaFilters = {
   etapa: EtapaSeguimiento;
-  casos: CasoSeguimiento[];
+  cuentaInmueble: string;
+  propietario: string;
+  grupo: string;
 };
 
-function BandejaSection({ titulo, etapa, casos }: BandejaSectionProps) {
-  const navigate = useNavigate();
+const defaultFilters: BandejaFilters = {
+  etapa: 'AVISO_DEUDA',
+  cuentaInmueble: '',
+  propietario: '',
+  grupo: ''
+};
+
+export function BandejasEtapaPage() {
+  const casosQuery = useCasosSeguimiento();
+  const inmueblesQuery = useInmuebles({});
+  const morososQuery = useMorosos({});
+
   const avanzarMutation = useAvanzarEtapaCasos();
   const repetirMutation = useRepetirEtapaCasos();
 
-  const [filtroNumeroCuenta, setFiltroNumeroCuenta] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('TODOS');
-  const [seleccionados, setSeleccionados] = useState<string[]>([]);
+  const [filters, setFilters] = useState<BandejaFilters>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState<BandejaFilters>(defaultFilters);
+  const [selectedCasoIds, setSelectedCasoIds] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
-  const casosVisibles = useMemo(() => {
-    return casos
-      .filter((caso) => caso.etapaActual === etapa)
+  const rows = useMemo(() => {
+    const inmueblesById = new Map((inmueblesQuery.data ?? []).map((inmueble) => [inmueble.id, inmueble]));
+    const morososByInmuebleId = new Map((morososQuery.data ?? []).map((moroso) => [moroso.inmuebleId, moroso]));
+
+    return (casosQuery.data ?? [])
       .filter((caso) => caso.estadoSeguimiento !== 'CERRADO')
-      .filter((caso) =>
-        filtroNumeroCuenta.trim()
-          ? caso.numeroCuenta.toLowerCase().includes(filtroNumeroCuenta.trim().toLowerCase())
-          : true
-      )
-      .filter((caso) => {
-        if (filtroEstado === 'TODOS') {
+      .map((caso) => {
+        const inmueble = inmueblesById.get(caso.inmuebleId);
+        const moroso = morososByInmuebleId.get(caso.inmuebleId);
+
+        return {
+          casoId: caso.id,
+          inmuebleId: caso.inmuebleId,
+          numeroCuenta: caso.numeroCuenta,
+          propietarioNombre: inmueble?.propietarioNombre ?? moroso?.propietarioNombre ?? '-',
+          direccionCompleta: inmueble?.direccionCompleta ?? moroso?.direccionCompleta ?? '-',
+          grupoNombre: inmueble?.grupoNombre ?? moroso?.grupo ?? '-',
+          etapaActual: caso.etapaActual,
+          seguimientoHabilitado:
+            moroso?.seguimientoHabilitado ?? (inmueble ? (inmueble.seguimientoHabilitado ? 'Sí' : 'No') : '-'),
+          aptoParaSeguimiento: moroso ? (moroso.aptoParaSeguimiento ? 'Sí' : 'No') : '-'
+        };
+      });
+  }, [casosQuery.data, inmueblesQuery.data, morososQuery.data]);
+
+  const filteredRows = useMemo(() => {
+    return rows
+      .filter((row) => row.etapaActual === appliedFilters.etapa)
+      .filter((row) => {
+        if (!appliedFilters.cuentaInmueble.trim()) {
           return true;
         }
-        return caso.estadoSeguimiento === filtroEstado;
-      });
-  }, [casos, etapa, filtroNumeroCuenta, filtroEstado]);
 
-  const visibleIds = casosVisibles.map((caso) => caso.id);
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => seleccionados.includes(id));
+        const search = appliedFilters.cuentaInmueble.trim().toLowerCase();
+        return row.numeroCuenta.toLowerCase().includes(search) || row.inmuebleId.toLowerCase().includes(search);
+      })
+      .filter((row) =>
+        appliedFilters.propietario.trim()
+          ? row.propietarioNombre.toLowerCase().includes(appliedFilters.propietario.trim().toLowerCase())
+          : true
+      )
+      .filter((row) =>
+        appliedFilters.grupo.trim() ? row.grupoNombre.toLowerCase().includes(appliedFilters.grupo.trim().toLowerCase()) : true
+      );
+  }, [rows, appliedFilters]);
+
+  const visibleCasoIds = filteredRows.map((row) => row.casoId);
+  const allVisibleSelected =
+    visibleCasoIds.length > 0 && visibleCasoIds.every((casoId) => selectedCasoIds.includes(casoId));
 
   useEffect(() => {
-    setSeleccionados((prev) => prev.filter((id) => visibleIds.includes(id)));
-  }, [casosVisibles]);
+    setSelectedCasoIds((prev) => prev.filter((casoId) => visibleCasoIds.includes(casoId)));
+  }, [visibleCasoIds]);
 
-  const toggleSeleccion = (id: string) => {
-    setSeleccionados((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
+  const handleApplyFilters = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAppliedFilters({ ...filters });
+    setSelectedCasoIds([]);
+    setFeedback(null);
+    setFeedbackError(null);
   };
 
-  const toggleSeleccionTodosVisibles = () => {
+  const handleResetFilters = () => {
+    setFilters(defaultFilters);
+    setAppliedFilters(defaultFilters);
+    setSelectedCasoIds([]);
+    setFeedback(null);
+    setFeedbackError(null);
+  };
+
+  const toggleSelectCaso = (casoId: string) => {
+    setSelectedCasoIds((prev) =>
+      prev.includes(casoId) ? prev.filter((selectedId) => selectedId !== casoId) : [...prev, casoId]
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
     if (allVisibleSelected) {
-      setSeleccionados((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      setSelectedCasoIds((prev) => prev.filter((casoId) => !visibleCasoIds.includes(casoId)));
       return;
     }
 
-    setSeleccionados((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    setSelectedCasoIds((prev) => Array.from(new Set([...prev, ...visibleCasoIds])));
   };
 
-  const ejecutarOperacion = async (tipo: 'avanzar' | 'repetir') => {
+  const executeMassAction = async (action: 'avanzar' | 'repetir') => {
     setFeedback(null);
     setFeedbackError(null);
 
-    if (seleccionados.length === 0) {
-      setFeedbackError('Seleccioná al menos un caso.');
+    if (selectedCasoIds.length === 0) {
+      setFeedbackError('Seleccioná al menos un inmueble/caso para operar.');
       return;
     }
 
     try {
       const result =
-        tipo === 'avanzar'
-          ? await avanzarMutation.mutateAsync({ casoIds: seleccionados })
-          : await repetirMutation.mutateAsync({ casoIds: seleccionados });
+        action === 'avanzar'
+          ? await avanzarMutation.mutateAsync({ casoIds: selectedCasoIds })
+          : await repetirMutation.mutateAsync({ casoIds: selectedCasoIds });
 
       setFeedback(
-        `${tipo === 'avanzar' ? 'Avance' : 'Repetición'} completada. Exitosos: ${result.exitosos}, errores: ${result.errores}.`
+        `${action === 'avanzar' ? 'Avance' : 'Repetición'} completada. Exitosos: ${result.exitosos}, errores: ${result.errores}.`
       );
-      setSeleccionados([]);
+      setSelectedCasoIds([]);
     } catch (error) {
       setFeedbackError(getErrorMessage(error));
     }
   };
 
   return (
-    <article className="bandeja-section">
-      <h3>{titulo}</h3>
-
-      <div className="toolbar">
-        <label>
-          Número de cuenta
-          <input value={filtroNumeroCuenta} onChange={(event) => setFiltroNumeroCuenta(event.target.value)} />
-        </label>
-        <label>
-          Estado
-          <select value={filtroEstado} onChange={(event) => setFiltroEstado(event.target.value as FiltroEstado)}>
-            <option value="TODOS">Todos (activos y pausados)</option>
-            <option value="ACTIVO">Solo activos</option>
-            <option value="PAUSADO">Solo pausados</option>
-          </select>
-        </label>
-        <button type="button" className="secondary" onClick={toggleSeleccionTodosVisibles}>
-          {allVisibleSelected ? 'Deseleccionar visibles' : 'Seleccionar visibles'}
-        </button>
+    <section>
+      <div className="page-header">
+        <h2>Bandeja por etapa</h2>
+        <p>Vista operativa para filtrar por etapa, seleccionar inmuebles y ejecutar acciones masivas.</p>
       </div>
 
-      <div className="toolbar">
+      <form className="simple-form form-grid-two card-block" onSubmit={handleApplyFilters}>
+        <label>
+          Etapa
+          <select
+            value={filters.etapa}
+            onChange={(event) => setFilters((prev) => ({ ...prev, etapa: event.target.value as EtapaSeguimiento }))}
+          >
+            <option value="AVISO_DEUDA">Aviso de deuda</option>
+            <option value="INTIMACION">Intimación</option>
+            <option value="AVISO_CORTE">Aviso de corte</option>
+            <option value="CORTE">Corte</option>
+          </select>
+        </label>
+
+        <label>
+          Número de cuenta o inmueble
+          <input
+            value={filters.cuentaInmueble}
+            onChange={(event) => setFilters((prev) => ({ ...prev, cuentaInmueble: event.target.value }))}
+          />
+        </label>
+
+        <label>
+          Propietario
+          <input
+            value={filters.propietario}
+            onChange={(event) => setFilters((prev) => ({ ...prev, propietario: event.target.value }))}
+          />
+        </label>
+
+        <label>
+          Grupo
+          <input value={filters.grupo} onChange={(event) => setFilters((prev) => ({ ...prev, grupo: event.target.value }))} />
+        </label>
+
+        <div className="actions align-right">
+          <button type="submit">Buscar</button>
+          <button type="button" className="secondary" onClick={handleResetFilters}>
+            Limpiar
+          </button>
+        </div>
+      </form>
+
+      <div className="toolbar card-toolbar">
+        <strong>Seleccionados: {selectedCasoIds.length}</strong>
+        <button type="button" className="secondary" onClick={toggleSelectAllVisible}>
+          {allVisibleSelected ? 'Deseleccionar visibles' : 'Seleccionar visibles'}
+        </button>
         <button
           type="button"
-          onClick={() => ejecutarOperacion('avanzar')}
+          onClick={() => executeMassAction('avanzar')}
           disabled={avanzarMutation.isPending || repetirMutation.isPending}
         >
           Pasar a siguiente etapa
@@ -124,51 +210,61 @@ function BandejaSection({ titulo, etapa, casos }: BandejaSectionProps) {
         <button
           type="button"
           className="secondary"
-          onClick={() => ejecutarOperacion('repetir')}
+          onClick={() => executeMassAction('repetir')}
           disabled={avanzarMutation.isPending || repetirMutation.isPending}
         >
-          Repetir etapa actual
+          Repetir etapa
+        </button>
+        <button type="button" className="secondary" onClick={() => setSelectedCasoIds([])}>
+          Deseleccionar todo
         </button>
       </div>
 
       {feedback && <p className="feedback success">{feedback}</p>}
       {feedbackError && <p className="feedback error">{feedbackError}</p>}
 
-      {casosVisibles.length > 0 && (
+      {casosQuery.isLoading && <p>Cargando casos...</p>}
+      {inmueblesQuery.isLoading && <p>Completando datos de inmuebles...</p>}
+      {morososQuery.isLoading && <p>Completando datos de seguimiento...</p>}
+
+      {casosQuery.isError && <p className="feedback error">{getErrorMessage(casosQuery.error)}</p>}
+      {inmueblesQuery.isError && <p className="feedback error">No se pudieron completar datos de inmuebles.</p>}
+      {morososQuery.isError && <p className="feedback error">No se pudieron completar datos de aptitud de seguimiento.</p>}
+
+      {filteredRows.length > 0 && (
         <div className="table-container">
           <table className="simple-table">
             <thead>
               <tr>
                 <th>
-                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSeleccionTodosVisibles} />
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
                 </th>
-                <th>Número cuenta</th>
-                <th>Estado</th>
-                <th>Inicio</th>
-                <th>Acciones</th>
+                <th>Número de cuenta</th>
+                <th>Propietario</th>
+                <th>Dirección</th>
+                <th>Grupo</th>
+                <th>Etapa actual</th>
+                <th>Seguimiento habilitado</th>
+                <th>Apto para seguimiento</th>
               </tr>
             </thead>
             <tbody>
-              {casosVisibles.map((caso) => (
-                <tr key={caso.id} className={caso.estadoSeguimiento === 'PAUSADO' ? 'row-paused' : undefined}>
+              {filteredRows.map((row) => (
+                <tr key={row.casoId}>
                   <td>
                     <input
                       type="checkbox"
-                      checked={seleccionados.includes(caso.id)}
-                      onChange={() => toggleSeleccion(caso.id)}
+                      checked={selectedCasoIds.includes(row.casoId)}
+                      onChange={() => toggleSelectCaso(row.casoId)}
                     />
                   </td>
-                  <td>{caso.numeroCuenta}</td>
-                  <td>
-                    {caso.estadoSeguimiento}
-                    {caso.estadoSeguimiento === 'PAUSADO' ? ' (pausado)' : ''}
-                  </td>
-                  <td>{new Date(caso.fechaInicio).toLocaleDateString()}</td>
-                  <td>
-                    <button type="button" className="secondary" onClick={() => navigate(`/casos/${caso.id}`)}>
-                      Abrir detalle
-                    </button>
-                  </td>
+                  <td>{row.numeroCuenta}</td>
+                  <td>{row.propietarioNombre}</td>
+                  <td>{row.direccionCompleta}</td>
+                  <td>{row.grupoNombre}</td>
+                  <td>{row.etapaActual}</td>
+                  <td>{row.seguimientoHabilitado}</td>
+                  <td>{row.aptoParaSeguimiento}</td>
                 </tr>
               ))}
             </tbody>
@@ -176,29 +272,8 @@ function BandejaSection({ titulo, etapa, casos }: BandejaSectionProps) {
         </div>
       )}
 
-      {casosVisibles.length === 0 && <p>No hay casos visibles en esta bandeja.</p>}
-    </article>
-  );
-}
-
-export function BandejasEtapaPage() {
-  const casosQuery = useCasosSeguimiento();
-
-  return (
-    <section>
-      <h2>Bandejas por etapa</h2>
-      <p>Casos cerrados no aparecen en bandejas activas. Los pausados se pueden diferenciar y filtrar.</p>
-
-      {casosQuery.isLoading && <p>Cargando casos...</p>}
-      {casosQuery.isError && <p className="feedback error">{getErrorMessage(casosQuery.error)}</p>}
-
-      {casosQuery.data && (
-        <div className="bandejas-grid">
-          <BandejaSection titulo="Aviso de deuda" etapa="AVISO_DEUDA" casos={casosQuery.data} />
-          <BandejaSection titulo="Intimación" etapa="INTIMACION" casos={casosQuery.data} />
-          <BandejaSection titulo="Aviso de corte" etapa="AVISO_CORTE" casos={casosQuery.data} />
-          <BandejaSection titulo="Corte" etapa="CORTE" casos={casosQuery.data} />
-        </div>
+      {!casosQuery.isLoading && filteredRows.length === 0 && (
+        <p>No hay inmuebles/casos para la etapa y filtros aplicados.</p>
       )}
     </section>
   );

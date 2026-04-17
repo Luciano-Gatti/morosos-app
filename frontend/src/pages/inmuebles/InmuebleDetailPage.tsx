@@ -47,8 +47,8 @@ export function InmuebleDetailPage() {
       <h3>Historial de deuda</h3>
       <p>Evolución financiera del inmueble según cada carga histórica de estado de deuda.</p>
       <div className="toolbar">
-        <Link to="/estados-deuda/cargas">Ver cargas</Link>
-        <Link to="/estados-deuda/reportes/morosos-historico">Ver reporte histórico</Link>
+        <Link to="/estados-deuda/cargas?tab=historico">Ver histórico de cargas</Link>
+        <Link to="/estados-deuda/cargas?tab=reportes">Ver reportes</Link>
       </div>
 
       {historialQuery.isLoading && <p>Cargando historial de deuda...</p>}
