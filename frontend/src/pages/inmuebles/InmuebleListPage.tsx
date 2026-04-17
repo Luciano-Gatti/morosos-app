@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useGrupos } from '../../modules/grupos/hooks';
 import {
   useCreateInmueble,
@@ -338,6 +339,7 @@ export function InmuebleListPage() {
                 <td>{inmueble.activo ? 'Sí' : 'No'}</td>
                 <td>{inmueble.seguimientoHabilitado ? 'Sí' : 'No'}</td>
                 <td>
+                  <Link to={`/inmuebles/${inmueble.id}`}>Ver ficha</Link>{' '}
                   <button type="button" className="secondary" onClick={() => handleEdit(inmueble)}>
                     Editar
                   </button>

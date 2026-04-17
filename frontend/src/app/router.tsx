@@ -9,6 +9,10 @@ import { ConfiguracionGeneralPage } from '../pages/catalogos/ConfiguracionGenera
 import { TiposCortePage } from '../pages/catalogos/TiposCortePage';
 import { MotivosCortePage } from '../pages/catalogos/MotivosCortePage';
 import { EstadoDeudaPage } from '../pages/estadodeuda/EstadoDeudaPage';
+import { ImportacionDeudaPage } from '../pages/estadodeuda/ImportacionDeudaPage';
+import { CargasDeudaPage } from '../pages/estadodeuda/CargasDeudaPage';
+import { CargaDeudaDetailPage } from '../pages/estadodeuda/CargaDeudaDetailPage';
+import { ReporteMorososHistoricoPage } from '../pages/estadodeuda/ReporteMorososHistoricoPage';
 import { MorososListPage } from '../pages/morosos/MorososListPage';
 import { BandejasEtapaPage } from '../pages/bandejas/BandejasEtapaPage';
 import { CasoDetailPage } from '../pages/casos/CasoDetailPage';
@@ -28,6 +32,10 @@ export const router = createBrowserRouter([
       { path: 'tipos-corte', element: <TiposCortePage /> },
       { path: 'motivos-corte', element: <MotivosCortePage /> },
       { path: 'estados-deuda', element: <EstadoDeudaPage /> },
+      { path: 'estados-deuda/importacion', element: <ImportacionDeudaPage /> },
+      { path: 'estados-deuda/cargas', element: <CargasDeudaPage /> },
+      { path: 'estados-deuda/cargas/:cargaId', element: <CargaDeudaDetailPage /> },
+      { path: 'estados-deuda/reportes/morosos-historico', element: <ReporteMorososHistoricoPage /> },
       { path: 'morosos', element: <MorososListPage /> },
       { path: 'bandejas', element: <BandejasEtapaPage /> },
       { path: 'casos/:casoId', element: <CasoDetailPage /> }

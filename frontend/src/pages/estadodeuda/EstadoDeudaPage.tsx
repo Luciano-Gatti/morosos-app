@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   useCreateEstadoDeuda,
   useEstadoDeudaByInmueble,
@@ -96,6 +97,11 @@ export function EstadoDeudaPage() {
     <section>
       <h2>Estado de deuda</h2>
       <p>Carga y edición de cuotas adeudadas y monto adeudado por inmueble.</p>
+      <div className="toolbar">
+        <Link to="/estados-deuda/importacion">Importación de deuda</Link>
+        <Link to="/estados-deuda/cargas">Cargas de deuda</Link>
+        <Link to="/estados-deuda/reportes/morosos-historico">Reporte histórico de morosos</Link>
+      </div>
 
       <form className="simple-form" onSubmit={handleSubmit}>
         <label>
