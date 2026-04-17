@@ -1,9 +1,17 @@
 package com.tuorg.morososcontrol.inmueble.api;
 
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleCreateRequest;
+import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleImportExcelRequest;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleImportResponse;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleResponse;
 import com.tuorg.morososcontrol.inmueble.application.InmuebleService;
+import com.tuorg.morososcontrol.shared.dto.ApiErrorResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
@@ -39,8 +47,21 @@ public class InmuebleController {
         return inmuebleService.create(request);
     }
 
-    @PostMapping("/importacion/excel")
-    public InmuebleImportResponse importExcel(@RequestParam("file") MultipartFile file) {
+    @PostMapping(value = "/importacion/excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Importar inmuebles desde Excel")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    schema = @Schema(implementation = InmuebleImportExcelRequest.class)
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Importación procesada"),
+            @ApiResponse(responseCode = "400", description = "Archivo inválido o vacío",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public InmuebleImportResponse importExcel(@Parameter(hidden = true) @RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El archivo Excel está vacío");
         }
