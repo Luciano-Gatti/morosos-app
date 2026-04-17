@@ -168,12 +168,9 @@ public class EstadoDeudaServiceImpl implements EstadoDeudaService {
     }
 
     private int obtenerMinimoCuotasSeguimiento() {
-        List<ConfiguracionGeneral> configuraciones = configuracionGeneralRepository.findAll();
-        if (configuraciones.isEmpty()) {
-            return MINIMO_CUOTAS_DEFAULT;
-        }
-
-        Integer valor = configuraciones.get(0).getMinimoCuotasSeguimiento();
+        Integer valor = configuracionGeneralRepository.findTopByOrderByIdAsc()
+                .map(ConfiguracionGeneral::getMinimoCuotasSeguimiento)
+                .orElse(MINIMO_CUOTAS_DEFAULT);
         if (valor == null || valor < 1) {
             return MINIMO_CUOTAS_DEFAULT;
         }

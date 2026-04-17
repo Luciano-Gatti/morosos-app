@@ -7,6 +7,7 @@ import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleImportResponse;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleResponse;
 import com.tuorg.morososcontrol.inmueble.domain.Inmueble;
 import com.tuorg.morososcontrol.inmueble.infrastructure.InmuebleRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +38,8 @@ public class InmuebleServiceImpl implements InmuebleService {
 
     @Override
     public InmuebleResponse create(InmuebleCreateRequest request) {
-        if (inmuebleRepository.existsByNumeroCuenta(request.numeroCuenta())) {
+        String numeroCuenta = TextNormalizer.normalizeRequired(request.numeroCuenta());
+        if (inmuebleRepository.existsByNumeroCuentaIgnoreCase(numeroCuenta)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un inmueble con ese número de cuenta");
         }
 
@@ -45,10 +47,10 @@ public class InmuebleServiceImpl implements InmuebleService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grupo no encontrado"));
 
         Inmueble inmueble = new Inmueble();
-        inmueble.setNumeroCuenta(request.numeroCuenta());
-        inmueble.setPropietarioNombre(request.propietarioNombre());
-        inmueble.setDistrito(request.distrito());
-        inmueble.setDireccionCompleta(request.direccionCompleta());
+        inmueble.setNumeroCuenta(numeroCuenta);
+        inmueble.setPropietarioNombre(TextNormalizer.normalizeRequired(request.propietarioNombre()));
+        inmueble.setDistrito(TextNormalizer.normalizeRequired(request.distrito()));
+        inmueble.setDireccionCompleta(TextNormalizer.normalizeRequired(request.direccionCompleta()));
         inmueble.setGrupo(grupo);
         inmueble.setActivo(request.activo());
         inmueble.setSeguimientoHabilitado(grupo.isSeguimientoActivo());
@@ -89,17 +91,18 @@ public class InmuebleServiceImpl implements InmuebleService {
         Inmueble inmueble = inmuebleRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inmueble no encontrado"));
 
-        if (inmuebleRepository.existsByNumeroCuentaAndIdNot(request.numeroCuenta(), id)) {
+        String numeroCuenta = TextNormalizer.normalizeRequired(request.numeroCuenta());
+        if (inmuebleRepository.existsByNumeroCuentaIgnoreCaseAndIdNot(numeroCuenta, id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un inmueble con ese número de cuenta");
         }
 
         Grupo grupo = grupoRepository.findById(request.grupoId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grupo no encontrado"));
 
-        inmueble.setNumeroCuenta(request.numeroCuenta());
-        inmueble.setPropietarioNombre(request.propietarioNombre());
-        inmueble.setDistrito(request.distrito());
-        inmueble.setDireccionCompleta(request.direccionCompleta());
+        inmueble.setNumeroCuenta(numeroCuenta);
+        inmueble.setPropietarioNombre(TextNormalizer.normalizeRequired(request.propietarioNombre()));
+        inmueble.setDistrito(TextNormalizer.normalizeRequired(request.distrito()));
+        inmueble.setDireccionCompleta(TextNormalizer.normalizeRequired(request.direccionCompleta()));
         inmueble.setGrupo(grupo);
         inmueble.setActivo(request.activo());
         inmueble.setSeguimientoHabilitado(grupo.isSeguimientoActivo());

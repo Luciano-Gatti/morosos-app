@@ -24,6 +24,12 @@ public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralServ
 
     @Override
     public ConfiguracionGeneralResponse create(ConfiguracionGeneralRequest request) {
+        if (configuracionGeneralRepository.count() > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Ya existe una configuración general; use actualización sobre el registro existente"
+            );
+        }
         ConfiguracionGeneral configuracion = new ConfiguracionGeneral();
         configuracion.setMinimoCuotasSeguimiento(request.minimoCuotasSeguimiento());
         return toResponse(configuracionGeneralRepository.save(configuracion));

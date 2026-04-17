@@ -13,6 +13,7 @@ import com.tuorg.morososcontrol.seguimiento.domain.EstadoSeguimiento;
 import com.tuorg.morososcontrol.seguimiento.domain.EtapaSeguimiento;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.CasoSeguimientoRepository;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.CompromisoPagoRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -126,7 +127,7 @@ public class CasoSeguimientoServiceImpl implements CasoSeguimientoService {
 
         caso.setEstadoSeguimiento(EstadoSeguimiento.CERRADO);
         caso.setFechaCierre(LocalDateTime.now());
-        caso.setMotivoCierre(request.motivoCierre().trim());
+        caso.setMotivoCierre(TextNormalizer.normalizeRequired(request.motivoCierre()));
 
         return toResponse(casoSeguimientoRepository.save(caso));
     }
