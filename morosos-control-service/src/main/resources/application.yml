@@ -37,6 +37,7 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
+    path: /swagger-ui.html
   scalar:
     enabled: ${SPRINGDOC_SCALAR_ENABLED:true}
     path: /scalar

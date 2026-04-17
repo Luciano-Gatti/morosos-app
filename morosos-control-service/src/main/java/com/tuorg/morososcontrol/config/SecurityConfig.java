@@ -11,10 +11,13 @@ public class SecurityConfig {
 
     private static final String[] OPENAPI_DOC_PATHS = {
             "/swagger-ui.html",
+            "/swagger-ui/index.html",
             "/swagger-ui/**",
+            "/v3/api-docs",
             "/v3/api-docs/**",
             "/v3/api-docs.yaml",
             "/scalar",
+            "/scalar.html",
             "/scalar/**"
     };
 
