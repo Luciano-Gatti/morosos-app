@@ -1,8 +1,14 @@
 package com.tuorg.morososcontrol.estadodeuda.application;
 
+import com.tuorg.morososcontrol.estadodeuda.api.dto.CargaDeudaDetalleItemResponse;
+import com.tuorg.morososcontrol.estadodeuda.api.dto.CargaDeudaListadoResponse;
+import com.tuorg.morososcontrol.estadodeuda.api.dto.EstadoDeudaImportResponse;
 import com.tuorg.morososcontrol.estadodeuda.api.dto.EstadoDeudaRequest;
 import com.tuorg.morososcontrol.estadodeuda.api.dto.EstadoDeudaResponse;
+import com.tuorg.morososcontrol.estadodeuda.api.dto.InmuebleEvolucionDeudaResponse;
 import com.tuorg.morososcontrol.estadodeuda.api.dto.MorosoListadoResponse;
+import com.tuorg.morososcontrol.estadodeuda.api.dto.ReporteMorososPorCargaResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,4 +37,16 @@ public interface EstadoDeudaService {
             Boolean seguimientoHabilitado,
             Boolean aptoParaSeguimiento
     );
+
+    EstadoDeudaImportResponse importExcel(MultipartFile file, String observacion);
+
+    List<CargaDeudaListadoResponse> listarCargas();
+
+    List<CargaDeudaDetalleItemResponse> detalleCarga(UUID cargaId);
+
+    List<InmuebleEvolucionDeudaResponse> evolucionInmueble(UUID inmuebleId);
+
+    List<InmuebleEvolucionDeudaResponse> evolucionInmueblePorNumeroCuenta(String numeroCuenta);
+
+    List<ReporteMorososPorCargaResponse> reporteMorososPorCarga();
 }
