@@ -128,3 +128,30 @@ mvn spring-boot:run
 - En `Inmueble`, `seguimientoHabilitado` se calcula desde `grupo.seguimientoActivo` al crear/actualizar.
 - Importación Excel de inmuebles: usa `numeroCuenta` como clave de negocio para crear/actualizar, crea `Grupo` automáticamente a partir de `Segmento` si no existe y recalcula `seguimientoHabilitado` desde `grupo.seguimientoActivo`.
 - Este microservicio permanece desacoplado de autenticación/autorización para integrarse en una fase posterior con un AuthService externo.
+
+## Frontend V1 (base)
+Se agregó una base de frontend en `frontend/` usando React + TypeScript + Vite.
+
+### Ejecutar frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Configuración
+- Copiar `.env.example` a `.env`.
+- `VITE_API_URL` define la URL base del backend (por defecto `http://localhost:8081/api/v1`).
+
+### Mantenimientos V1 ya disponibles
+- Grupos: listado, creación y edición.
+- Configuración general: visualización/edición de `minimoCuotasSeguimiento`.
+- Tipos de corte: listado, creación y edición.
+- Motivos de corte: listado, creación, edición, activar/desactivar y eliminación (sujeta a validación del backend).
+- Inmuebles: listado, búsqueda por `numeroCuenta`/`propietarioNombre`/`direccionCompleta`/`distrito`, creación, edición e importación Excel con resumen de resultados.
+- Estado de deuda: carga/edición de `cuotasAdeudadas` y `montoAdeudado`, mostrando `fechaActualizacion`.
+- Lista general de morosos: filtros operativos, ordenamiento, selección múltiple (incluyendo seleccionar visibles), asignación de etapa inicial y creación masiva de casos.
+- Bandejas por etapa (`Aviso de deuda`, `Intimación`, `Aviso de corte`, `Corte`): filtros básicos, selección múltiple, seleccionar visibles, avanzar/repetir etapa y acceso a detalle de caso; casos cerrados excluidos y pausados diferenciados/filtrables.
+- Detalle de caso: datos del inmueble, estado/etapa, fechas, historial de etapas (vista operativa), compromisos, registros de corte en etapa `CORTE` y acciones de avanzar/repetir, pausar por compromiso, cerrar caso y registrar corte.
+- Compromisos en detalle de caso: alta (`fechaDesde` obligatoria, `fechaHasta`/`observacion` opcionales), listado y acción para marcar incumplido/reactivar caso; al registrar compromiso se visualiza estado `PAUSADO`.
+- Registros de corte en detalle de caso: formulario (fecha, tipo, motivo y observación opcional), visibilidad solo en etapa `CORTE` y historial de múltiples cortes del caso en orden operativo.
