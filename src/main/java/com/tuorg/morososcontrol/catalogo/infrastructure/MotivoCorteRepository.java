@@ -13,4 +13,8 @@ public interface MotivoCorteRepository extends JpaRepository<MotivoCorte, UUID> 
     boolean existsByNombre(String nombre);
 
     boolean existsByNombreAndIdNot(String nombre, UUID id);
+
+    boolean existsByNombreIgnoreCase(String nombre);
+
+    boolean existsByNombreIgnoreCaseAndIdNot(String nombre, UUID id);
 }

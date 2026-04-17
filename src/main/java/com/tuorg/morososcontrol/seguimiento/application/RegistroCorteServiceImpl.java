@@ -12,6 +12,7 @@ import com.tuorg.morososcontrol.seguimiento.domain.EtapaSeguimiento;
 import com.tuorg.morososcontrol.seguimiento.domain.RegistroCorte;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.CasoSeguimientoRepository;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.RegistroCorteRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,7 +70,7 @@ public class RegistroCorteServiceImpl implements RegistroCorteService {
         registro.setFecha(request.fecha());
         registro.setTipoCorte(tipoCorte);
         registro.setMotivoCorte(motivoCorte);
-        registro.setObservacion(request.observacion());
+        registro.setObservacion(TextNormalizer.normalizeNullable(request.observacion()));
 
         return toResponse(registroCorteRepository.save(registro));
     }

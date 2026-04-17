@@ -4,6 +4,7 @@ import com.tuorg.morososcontrol.catalogo.api.dto.MotivoCorteRequest;
 import com.tuorg.morososcontrol.catalogo.api.dto.MotivoCorteResponse;
 import com.tuorg.morososcontrol.catalogo.domain.MotivoCorte;
 import com.tuorg.morososcontrol.catalogo.infrastructure.MotivoCorteRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,12 +30,13 @@ public class MotivoCorteServiceImpl implements MotivoCorteService {
 
     @Override
     public MotivoCorteResponse create(MotivoCorteRequest request) {
-        if (motivoCorteRepository.existsByNombre(request.nombre())) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+        if (motivoCorteRepository.existsByNombreIgnoreCase(nombre)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un motivo de corte con ese nombre");
         }
 
         MotivoCorte motivoCorte = new MotivoCorte();
-        motivoCorte.setNombre(request.nombre());
+        motivoCorte.setNombre(nombre);
         motivoCorte.setActivo(request.activo());
 
         return toResponse(motivoCorteRepository.save(motivoCorte));
@@ -65,11 +67,12 @@ public class MotivoCorteServiceImpl implements MotivoCorteService {
         MotivoCorte motivoCorte = motivoCorteRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Motivo de corte no encontrado"));
 
-        if (motivoCorteRepository.existsByNombreAndIdNot(request.nombre(), id)) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+        if (motivoCorteRepository.existsByNombreIgnoreCaseAndIdNot(nombre, id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un motivo de corte con ese nombre");
         }
 
-        motivoCorte.setNombre(request.nombre());
+        motivoCorte.setNombre(nombre);
         motivoCorte.setActivo(request.activo());
 
         return toResponse(motivoCorteRepository.save(motivoCorte));

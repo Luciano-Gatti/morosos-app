@@ -2,14 +2,15 @@ package com.tuorg.morososcontrol.inmueble.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
 public record InmuebleCreateRequest(
-        @NotBlank String numeroCuenta,
-        @NotBlank String propietarioNombre,
-        @NotBlank String distrito,
-        @NotBlank String direccionCompleta,
+        @NotBlank @Size(max = 40) String numeroCuenta,
+        @NotBlank @Size(max = 120) String propietarioNombre,
+        @NotBlank @Size(max = 80) String distrito,
+        @NotBlank @Size(max = 220) String direccionCompleta,
         @NotNull UUID grupoId,
         @NotNull Boolean activo
 ) {

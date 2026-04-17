@@ -5,6 +5,7 @@ import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleImportResponse;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleResponse;
 import com.tuorg.morososcontrol.inmueble.application.InmuebleService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +41,15 @@ public class InmuebleController {
 
     @PostMapping("/importacion/excel")
     public InmuebleImportResponse importExcel(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El archivo Excel está vacío");
+        }
+        String contentType = file.getContentType();
+        if (contentType != null && !MediaType.APPLICATION_OCTET_STREAM_VALUE.equals(contentType)
+                && !contentType.equals("application/vnd.ms-excel")
+                && !contentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Formato de archivo no soportado");
+        }
         return inmuebleService.importExcel(file);
     }
 

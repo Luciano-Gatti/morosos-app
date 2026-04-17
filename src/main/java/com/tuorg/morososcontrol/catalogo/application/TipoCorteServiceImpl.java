@@ -4,6 +4,7 @@ import com.tuorg.morososcontrol.catalogo.api.dto.TipoCorteRequest;
 import com.tuorg.morososcontrol.catalogo.api.dto.TipoCorteResponse;
 import com.tuorg.morososcontrol.catalogo.domain.TipoCorte;
 import com.tuorg.morososcontrol.catalogo.infrastructure.TipoCorteRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +25,13 @@ public class TipoCorteServiceImpl implements TipoCorteService {
 
     @Override
     public TipoCorteResponse create(TipoCorteRequest request) {
-        if (tipoCorteRepository.existsByNombre(request.nombre())) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+        if (tipoCorteRepository.existsByNombreIgnoreCase(nombre)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un tipo de corte con ese nombre");
         }
 
         TipoCorte tipoCorte = new TipoCorte();
-        tipoCorte.setNombre(request.nombre());
+        tipoCorte.setNombre(nombre);
 
         return toResponse(tipoCorteRepository.save(tipoCorte));
     }
@@ -53,11 +55,12 @@ public class TipoCorteServiceImpl implements TipoCorteService {
         TipoCorte tipoCorte = tipoCorteRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tipo de corte no encontrado"));
 
-        if (tipoCorteRepository.existsByNombreAndIdNot(request.nombre(), id)) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+        if (tipoCorteRepository.existsByNombreIgnoreCaseAndIdNot(nombre, id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un tipo de corte con ese nombre");
         }
 
-        tipoCorte.setNombre(request.nombre());
+        tipoCorte.setNombre(nombre);
         return toResponse(tipoCorteRepository.save(tipoCorte));
     }
 

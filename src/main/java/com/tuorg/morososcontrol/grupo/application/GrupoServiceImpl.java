@@ -4,6 +4,7 @@ import com.tuorg.morososcontrol.grupo.api.dto.GrupoRequest;
 import com.tuorg.morososcontrol.grupo.api.dto.GrupoResponse;
 import com.tuorg.morososcontrol.grupo.domain.Grupo;
 import com.tuorg.morososcontrol.grupo.infrastructure.GrupoRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,12 +26,14 @@ public class GrupoServiceImpl implements GrupoService {
 
     @Override
     public GrupoResponse create(GrupoRequest request) {
-        if (grupoRepository.existsByNombre(request.nombre())) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+
+        if (grupoRepository.existsByNombreIgnoreCase(nombre)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un grupo con ese nombre");
         }
 
         Grupo grupo = new Grupo();
-        grupo.setNombre(request.nombre());
+        grupo.setNombre(nombre);
         grupo.setSeguimientoActivo(request.seguimientoActivo());
 
         return toResponse(grupoRepository.save(grupo));
@@ -55,13 +58,15 @@ public class GrupoServiceImpl implements GrupoService {
         Grupo grupo = grupoRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grupo no encontrado"));
 
-        if (grupoRepository.existsByNombreAndIdNot(request.nombre(), id)) {
+        String nombre = TextNormalizer.normalizeRequired(request.nombre());
+
+        if (grupoRepository.existsByNombreIgnoreCaseAndIdNot(nombre, id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un grupo con ese nombre");
         }
 
         boolean seguimientoCambio = grupo.isSeguimientoActivo() != request.seguimientoActivo();
 
-        grupo.setNombre(request.nombre());
+        grupo.setNombre(nombre);
         grupo.setSeguimientoActivo(request.seguimientoActivo());
 
         Grupo actualizado = grupoRepository.save(grupo);

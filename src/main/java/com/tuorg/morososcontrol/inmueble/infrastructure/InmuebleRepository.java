@@ -15,6 +15,10 @@ public interface InmuebleRepository extends JpaRepository<Inmueble, UUID> {
 
     boolean existsByNumeroCuentaAndIdNot(String numeroCuenta, UUID id);
 
+    boolean existsByNumeroCuentaIgnoreCase(String numeroCuenta);
+
+    boolean existsByNumeroCuentaIgnoreCaseAndIdNot(String numeroCuenta, UUID id);
+
     List<Inmueble> findByNumeroCuentaContainingIgnoreCaseAndPropietarioNombreContainingIgnoreCaseAndDireccionCompletaContainingIgnoreCaseAndDistritoContainingIgnoreCase(
             String numeroCuenta,
             String propietarioNombre,

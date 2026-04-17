@@ -8,6 +8,7 @@ import com.tuorg.morososcontrol.seguimiento.domain.EstadoCompromiso;
 import com.tuorg.morososcontrol.seguimiento.domain.EstadoSeguimiento;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.CasoSeguimientoRepository;
 import com.tuorg.morososcontrol.seguimiento.infrastructure.CompromisoPagoRepository;
+import com.tuorg.morososcontrol.shared.util.TextNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +43,7 @@ public class CompromisoPagoServiceImpl implements CompromisoPagoService {
         compromiso.setCasoSeguimiento(caso);
         compromiso.setFechaDesde(request.fechaDesde());
         compromiso.setFechaHasta(request.fechaHasta());
-        compromiso.setObservacion(request.observacion());
+        compromiso.setObservacion(TextNormalizer.normalizeNullable(request.observacion()));
         compromiso.setEstadoCompromiso(EstadoCompromiso.PENDIENTE);
 
         caso.setEstadoSeguimiento(EstadoSeguimiento.PAUSADO);
