@@ -5,3 +5,8 @@ springdoc:
     enabled: false
   scalar:
     enabled: false
+
+app:
+  security:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
