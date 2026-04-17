@@ -101,7 +101,8 @@ export function GrupoListPage() {
       {gruposQuery.isError && <p className="feedback error">{getErrorMessage(gruposQuery.error)}</p>}
 
       {gruposQuery.data && (
-        <table className="simple-table">
+        <div className="table-container">
+          <table className="simple-table">
           <thead>
             <tr>
               <th>Nombre</th>
@@ -127,7 +128,8 @@ export function GrupoListPage() {
               </tr>
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </section>
   );

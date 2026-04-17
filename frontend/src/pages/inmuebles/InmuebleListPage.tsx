@@ -190,6 +190,7 @@ export function InmuebleListPage() {
         <label>
           Número de cuenta
           <input
+            required
             maxLength={40}
             value={inmuebleForm.numeroCuenta}
             onChange={(event) => setInmuebleForm((prev) => ({ ...prev, numeroCuenta: event.target.value }))}
@@ -198,6 +199,7 @@ export function InmuebleListPage() {
         <label>
           Propietario
           <input
+            required
             maxLength={120}
             value={inmuebleForm.propietarioNombre}
             onChange={(event) =>
@@ -208,6 +210,7 @@ export function InmuebleListPage() {
         <label>
           Distrito
           <input
+            required
             maxLength={80}
             value={inmuebleForm.distrito}
             onChange={(event) => setInmuebleForm((prev) => ({ ...prev, distrito: event.target.value }))}
@@ -216,6 +219,7 @@ export function InmuebleListPage() {
         <label>
           Dirección completa
           <input
+            required
             maxLength={220}
             value={inmuebleForm.direccionCompleta}
             onChange={(event) =>
@@ -226,6 +230,7 @@ export function InmuebleListPage() {
         <label>
           Grupo
           <select
+            required
             value={inmuebleForm.grupoId}
             onChange={(event) => setInmuebleForm((prev) => ({ ...prev, grupoId: event.target.value }))}
           >
@@ -308,7 +313,8 @@ export function InmuebleListPage() {
       {inmueblesQuery.isError && <p className="feedback error">{getErrorMessage(inmueblesQuery.error)}</p>}
 
       {inmueblesQuery.data && (
-        <table className="simple-table">
+        <div className="table-container">
+          <table className="simple-table">
           <thead>
             <tr>
               <th>Número cuenta</th>
@@ -345,6 +351,7 @@ export function InmuebleListPage() {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

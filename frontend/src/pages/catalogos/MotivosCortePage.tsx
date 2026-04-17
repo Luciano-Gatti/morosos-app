@@ -133,7 +133,8 @@ export function MotivosCortePage() {
       {motivosQuery.isError && <p className="feedback error">{getErrorMessage(motivosQuery.error)}</p>}
 
       {motivosQuery.data && (
-        <table className="simple-table">
+        <div className="table-container">
+          <table className="simple-table">
           <thead>
             <tr>
               <th>Nombre</th>
@@ -173,7 +174,8 @@ export function MotivosCortePage() {
               </tr>
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </section>
   );

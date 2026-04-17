@@ -76,7 +76,8 @@ export function TiposCortePage() {
       {tiposCorteQuery.isError && <p className="feedback error">{getErrorMessage(tiposCorteQuery.error)}</p>}
 
       {tiposCorteQuery.data && (
-        <table className="simple-table">
+        <div className="table-container">
+          <table className="simple-table">
           <thead>
             <tr>
               <th>Nombre</th>
@@ -107,7 +108,8 @@ export function TiposCortePage() {
               </tr>
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </section>
   );
