@@ -30,3 +30,13 @@ management:
     web:
       exposure:
         include: health,info
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
+  scalar:
+    enabled: ${SPRINGDOC_SCALAR_ENABLED:true}
+    path: /scalar
