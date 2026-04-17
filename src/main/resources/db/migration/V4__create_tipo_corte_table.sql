@@ -1,0 +1,4 @@
+CREATE TABLE tipos_corte (
+    id UUID PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL UNIQUE
+);
