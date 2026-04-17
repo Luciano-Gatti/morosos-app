@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   useCreateEstadoDeuda,
   useEstadoDeudaByInmueble,
@@ -12,8 +12,11 @@ function getErrorMessage(error: unknown) {
 }
 
 export function EstadoDeudaPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const inmueblesQuery = useInmuebles({});
   const [inmuebleId, setInmuebleId] = useState('');
+  const [inmuebleSearch, setInmuebleSearch] = useState('');
 
   const estadoDeudaQuery = useEstadoDeudaByInmueble(inmuebleId);
   const createMutation = useCreateEstadoDeuda();
@@ -25,6 +28,27 @@ export function EstadoDeudaPage() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   const estadoDeuda = estadoDeudaQuery.data;
+  const subnavItems = [
+    { tab: 'importar', label: 'Importar carga' },
+    { tab: 'historico', label: 'Histórico de cargas' },
+    { tab: 'reportes', label: 'Reportes' }
+  ];
+
+  const activeTab = new URLSearchParams(location.search).get('tab') ?? 'importar';
+
+  const inmuebleOptions = useMemo(
+    () =>
+      (inmueblesQuery.data ?? []).map((inmueble) => ({
+        id: inmueble.id,
+        label: `${inmueble.numeroCuenta} - ${inmueble.propietarioNombre}`
+      })),
+    [inmueblesQuery.data]
+  );
+
+  useEffect(() => {
+    const selected = inmuebleOptions.find((option) => option.id === inmuebleId);
+    setInmuebleSearch(selected?.label ?? '');
+  }, [inmuebleId, inmuebleOptions]);
 
   useEffect(() => {
     if (!estadoDeuda) {
@@ -49,6 +73,13 @@ export function EstadoDeudaPage() {
     setInmuebleId(nextInmuebleId);
     setFeedback(null);
     setFeedbackError(null);
+  };
+
+  const handleInmuebleSearchChange = (value: string) => {
+    setInmuebleSearch(value);
+
+    const selectedOption = inmuebleOptions.find((option) => option.label === value);
+    handleSelectInmueble(selectedOption?.id ?? '');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -99,23 +130,34 @@ export function EstadoDeudaPage() {
         <h2>Estado de deuda</h2>
         <p>Carga y edición de cuotas adeudadas y monto adeudado por inmueble.</p>
       </div>
-      <div className="toolbar card-toolbar">
-        <Link to="/estados-deuda/cargas?tab=importar">Importar carga</Link>
-        <Link to="/estados-deuda/cargas?tab=historico">Histórico de cargas</Link>
-        <Link to="/estados-deuda/cargas?tab=reportes">Reportes</Link>
+      <div className="toolbar card-toolbar estado-deuda-subnav">
+        {subnavItems.map((item) => (
+          <button
+            key={item.tab}
+            type="button"
+            className={`tab-button ${activeTab === item.tab ? 'active' : ''}`}
+            onClick={() => navigate(`/estados-deuda/cargas?tab=${item.tab}`)}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
-      <form className="simple-form form-grid-two card-block" onSubmit={handleSubmit}>
+      <form className="simple-form form-grid-two card-block estado-deuda-form" onSubmit={handleSubmit}>
         <label>
           Inmueble
-          <select value={inmuebleId} onChange={(event) => handleSelectInmueble(event.target.value)}>
-            <option value="">Seleccionar inmueble</option>
-            {(inmueblesQuery.data ?? []).map((inmueble) => (
-              <option key={inmueble.id} value={inmueble.id}>
-                {inmueble.numeroCuenta} - {inmueble.propietarioNombre}
-              </option>
+          <input
+            type="text"
+            list="estado-deuda-inmuebles"
+            value={inmuebleSearch}
+            placeholder="Buscar por cuenta o propietario"
+            onChange={(event) => handleInmuebleSearchChange(event.target.value)}
+          />
+          <datalist id="estado-deuda-inmuebles">
+            {inmuebleOptions.map((option) => (
+              <option key={option.id} value={option.label} />
             ))}
-          </select>
+          </datalist>
         </label>
 
         <label>
@@ -144,7 +186,7 @@ export function EstadoDeudaPage() {
           <strong>Última actualización:</strong> {fechaActualizacion}
         </p>
 
-        <div className="actions align-right">
+        <div className="actions align-right estado-deuda-submit">
           <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
             {estadoDeuda ? 'Guardar cambios' : 'Cargar estado de deuda'}
           </button>

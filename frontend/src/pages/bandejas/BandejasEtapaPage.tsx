@@ -78,9 +78,19 @@ export function BandejasEtapaPage() {
           : true
       )
       .filter((row) =>
-        appliedFilters.grupo.trim() ? row.grupoNombre.toLowerCase().includes(appliedFilters.grupo.trim().toLowerCase()) : true
+        appliedFilters.grupo.trim() ? row.grupoNombre.toLowerCase() === appliedFilters.grupo.trim().toLowerCase() : true
       );
   }, [rows, appliedFilters]);
+
+  const grupoOptions = useMemo(() => {
+    const options = new Set(
+      rows
+        .map((row) => row.grupoNombre)
+        .filter((grupo) => grupo && grupo !== '-')
+    );
+
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
 
   const visibleCasoIds = filteredRows.map((row) => row.casoId);
   const allVisibleSelected =
@@ -121,6 +131,10 @@ export function BandejasEtapaPage() {
     setSelectedCasoIds((prev) => Array.from(new Set([...prev, ...visibleCasoIds])));
   };
 
+  const handleSelectAll = () => {
+    setSelectedCasoIds((prev) => Array.from(new Set([...prev, ...visibleCasoIds])));
+  };
+
   const executeMassAction = async (action: 'avanzar' | 'repetir') => {
     setFeedback(null);
     setFeedbackError(null);
@@ -152,7 +166,7 @@ export function BandejasEtapaPage() {
         <p>Vista operativa para filtrar por etapa, seleccionar inmuebles y ejecutar acciones masivas.</p>
       </div>
 
-      <form className="simple-form form-grid-two card-block" onSubmit={handleApplyFilters}>
+      <form className="simple-form form-grid-two card-block bandeja-filters" onSubmit={handleApplyFilters}>
         <label>
           Etapa
           <select
@@ -184,7 +198,14 @@ export function BandejasEtapaPage() {
 
         <label>
           Grupo
-          <input value={filters.grupo} onChange={(event) => setFilters((prev) => ({ ...prev, grupo: event.target.value }))} />
+          <select value={filters.grupo} onChange={(event) => setFilters((prev) => ({ ...prev, grupo: event.target.value }))}>
+            <option value="">Todos</option>
+            {grupoOptions.map((grupo) => (
+              <option key={grupo} value={grupo}>
+                {grupo}
+              </option>
+            ))}
+          </select>
         </label>
 
         <div className="actions align-right">
@@ -195,10 +216,10 @@ export function BandejasEtapaPage() {
         </div>
       </form>
 
-      <div className="toolbar card-toolbar">
+      <div className="toolbar card-toolbar bandeja-actions">
         <strong>Seleccionados: {selectedCasoIds.length}</strong>
-        <button type="button" className="secondary" onClick={toggleSelectAllVisible}>
-          {allVisibleSelected ? 'Deseleccionar visibles' : 'Seleccionar visibles'}
+        <button type="button" className="secondary" onClick={handleSelectAll}>
+          Seleccionar todos
         </button>
         <button
           type="button"

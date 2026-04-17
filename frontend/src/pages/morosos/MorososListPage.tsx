@@ -25,13 +25,34 @@ const emptyFilters: MorososFilters = {
 export function MorososListPage() {
   const [filters, setFilters] = useState<MorososFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<MorososFilters>(emptyFilters);
+  const [montoAdeudadoMin, setMontoAdeudadoMin] = useState<number | undefined>(undefined);
+  const [montoAdeudadoMax, setMontoAdeudadoMax] = useState<number | undefined>(undefined);
   const morososQuery = useMorosos(appliedFilters);
 
   const [sortBy, setSortBy] = useState<MorososSortableFields>('cuotasAdeudadas');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
+  const distritoOptions = useMemo(() => {
+    const options = new Set((morososQuery.data ?? []).map((moroso) => moroso.distrito).filter(Boolean));
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [morososQuery.data]);
+
+  const grupoOptions = useMemo(() => {
+    const options = new Set((morososQuery.data ?? []).map((moroso) => moroso.grupo).filter(Boolean));
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [morososQuery.data]);
+
   const sortedMorosos = useMemo(() => {
-    const rows = [...(morososQuery.data ?? [])];
+    const rows = [...(morososQuery.data ?? [])].filter((moroso) => {
+      const monto = Number(moroso.montoAdeudado);
+      if (montoAdeudadoMin !== undefined && monto < montoAdeudadoMin) {
+        return false;
+      }
+      if (montoAdeudadoMax !== undefined && monto > montoAdeudadoMax) {
+        return false;
+      }
+      return true;
+    });
 
     rows.sort((a, b) => {
       const direction = sortDirection === 'asc' ? 1 : -1;
@@ -48,16 +69,23 @@ export function MorososListPage() {
     });
 
     return rows;
-  }, [morososQuery.data, sortBy, sortDirection]);
+  }, [morososQuery.data, sortBy, sortDirection, montoAdeudadoMin, montoAdeudadoMax]);
 
   const handleApplyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setAppliedFilters({ ...filters });
+    setAppliedFilters({
+      ...filters,
+      seguimientoHabilitado: undefined,
+      aptoParaSeguimiento: undefined,
+      montoAdeudado: undefined
+    });
   };
 
   const handleResetFilters = () => {
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
+    setMontoAdeudadoMin(undefined);
+    setMontoAdeudadoMax(undefined);
   };
 
   return (
@@ -67,7 +95,7 @@ export function MorososListPage() {
         <p>Vista de consulta general para filtrar, ordenar y analizar morosos.</p>
       </div>
 
-      <form className="simple-form form-grid-two card-block" onSubmit={handleApplyFilters}>
+      <form className="simple-form form-grid-two card-block morosos-filters" onSubmit={handleApplyFilters}>
         <label>
           Número de cuenta
           <input
@@ -91,17 +119,31 @@ export function MorososListPage() {
         </label>
         <label>
           Distrito
-          <input
+          <select
             value={filters.distrito ?? ''}
             onChange={(event) => setFilters((prev) => ({ ...prev, distrito: event.target.value }))}
-          />
+          >
+            <option value="">Todos</option>
+            {distritoOptions.map((distrito) => (
+              <option key={distrito} value={distrito}>
+                {distrito}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Grupo
-          <input
+          <select
             value={filters.grupo ?? ''}
             onChange={(event) => setFilters((prev) => ({ ...prev, grupo: event.target.value }))}
-          />
+          >
+            <option value="">Todos</option>
+            {grupoOptions.map((grupo) => (
+              <option key={grupo} value={grupo}>
+                {grupo}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Cuotas adeudadas
@@ -119,53 +161,28 @@ export function MorososListPage() {
           />
         </label>
         <label>
-          Monto adeudado
+          Monto mínimo
           <input
             type="number"
             min={0}
             step="0.01"
-            value={filters.montoAdeudado ?? ''}
+            value={montoAdeudadoMin ?? ''}
             onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                montoAdeudado: event.target.value ? Number(event.target.value) : undefined
-              }))
+              setMontoAdeudadoMin(event.target.value ? Number(event.target.value) : undefined)
             }
           />
         </label>
         <label>
-          Seguimiento habilitado
-          <select
-            value={
-              filters.seguimientoHabilitado === undefined ? '' : filters.seguimientoHabilitado ? 'true' : 'false'
-            }
+          Monto máximo
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={montoAdeudadoMax ?? ''}
             onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                seguimientoHabilitado: event.target.value === '' ? undefined : event.target.value === 'true'
-              }))
+              setMontoAdeudadoMax(event.target.value ? Number(event.target.value) : undefined)
             }
-          >
-            <option value="">Todos</option>
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
-        </label>
-        <label>
-          Apto para seguimiento
-          <select
-            value={filters.aptoParaSeguimiento === undefined ? '' : filters.aptoParaSeguimiento ? 'true' : 'false'}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                aptoParaSeguimiento: event.target.value === '' ? undefined : event.target.value === 'true'
-              }))
-            }
-          >
-            <option value="">Todos</option>
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
+          />
         </label>
 
         <div className="actions align-right">
@@ -176,28 +193,30 @@ export function MorososListPage() {
         </div>
       </form>
 
-      <div className="toolbar card-toolbar">
-        <label>
-          Ordenar por
-          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MorososSortableFields)}>
-            <option value="cuotasAdeudadas">Cuotas adeudadas</option>
-            <option value="montoAdeudado">Monto adeudado</option>
-            <option value="propietarioNombre">Propietario</option>
-            <option value="numeroCuenta">Número de cuenta</option>
-            <option value="direccionCompleta">Dirección</option>
-            <option value="grupo">Grupo</option>
-          </select>
-        </label>
+      <div className="toolbar card-toolbar morosos-sortbar">
+        <div className="morosos-sortbar-controls">
+          <label>
+            Ordenar por
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MorososSortableFields)}>
+              <option value="cuotasAdeudadas">Cuotas adeudadas</option>
+              <option value="montoAdeudado">Monto adeudado</option>
+              <option value="propietarioNombre">Propietario</option>
+              <option value="numeroCuenta">Número de cuenta</option>
+              <option value="direccionCompleta">Dirección</option>
+              <option value="grupo">Grupo</option>
+            </select>
+          </label>
 
-        <label>
-          Dirección
-          <select value={sortDirection} onChange={(event) => setSortDirection(event.target.value as 'asc' | 'desc')}>
-            <option value="asc">Ascendente</option>
-            <option value="desc">Descendente</option>
-          </select>
-        </label>
+          <label>
+            Dirección
+            <select value={sortDirection} onChange={(event) => setSortDirection(event.target.value as 'asc' | 'desc')}>
+              <option value="asc">Ascendente</option>
+              <option value="desc">Descendente</option>
+            </select>
+          </label>
+        </div>
 
-        <strong>Total resultados: {sortedMorosos.length}</strong>
+        <strong className="morosos-results-count">Total resultados: {sortedMorosos.length}</strong>
       </div>
 
       {morososQuery.isLoading && <p>Cargando morosos...</p>}

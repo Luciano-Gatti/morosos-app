@@ -4,6 +4,7 @@ import type { Inmueble, InmuebleFilters } from '../../../modules/inmuebles/types
 
 type InmuebleListSearchSectionProps = {
   filters: InmuebleFilters;
+  distritoOptions: string[];
   onFiltersChange: (filters: InmuebleFilters) => void;
   onApplyFilters: (event: FormEvent<HTMLFormElement>) => void;
   onResetFilters: () => void;
@@ -16,6 +17,7 @@ type InmuebleListSearchSectionProps = {
 
 export function InmuebleListSearchSection({
   filters,
+  distritoOptions,
   onFiltersChange,
   onApplyFilters,
   onResetFilters,
@@ -52,10 +54,17 @@ export function InmuebleListSearchSection({
         </label>
         <label>
           Distrito
-          <input
+          <select
             value={filters.distrito ?? ''}
             onChange={(event) => onFiltersChange({ ...filters, distrito: event.target.value })}
-          />
+          >
+            <option value="">Todos</option>
+            {distritoOptions.map((distrito) => (
+              <option key={distrito} value={distrito}>
+                {distrito}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="actions align-right">
           <button type="submit">Buscar</button>
