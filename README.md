@@ -9,7 +9,7 @@ Base de backend para V1 del microservicio de control de morosos.
 - Spring Web
 - Spring Data JPA
 - Validation
-- H2 (relacional para entorno local)
+- PostgreSQL (única base de datos para local y servidor)
 
 ## Alcance V1 actual
 - Estructura de proyecto y capas base.
@@ -105,12 +105,20 @@ Base de backend para V1 del microservicio de control de morosos.
 - `POST /api/v1/casos-seguimiento/masivo/repetir-etapa`
 
 ## Ejecución local
+1. Levantar PostgreSQL (local o contenedor) y crear la base de datos.
+2. Configurar variables de entorno del datasource.
+
 ```bash
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=morososdb
+export DB_USERNAME=postgres
+export DB_PASSWORD=postgres
 mvn spring-boot:run
 ```
 
 - API base: `http://localhost:8081/api/v1`
-- H2 Console: `http://localhost:8081/h2-console`
+- El servicio utiliza PostgreSQL como única base de datos.
 
 ## Nota de arquitectura
 - En operaciones masivas, se respetan las mismas reglas de negocio del flujo individual: sin retrocesos, casos `CERRADO` no operables, casos `PAUSADO` no avanzan, y casos en `CORTE` no avanzan a etapa posterior.
