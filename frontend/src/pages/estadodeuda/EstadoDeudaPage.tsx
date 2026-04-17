@@ -1,5 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useCreateEstadoDeuda, useEstadoDeudaByInmueble, useUpdateEstadoDeuda } from '../../modules/estadoDeuda/hooks';
+import {
+  useCreateEstadoDeuda,
+  useEstadoDeudaByInmueble,
+  useUpdateEstadoDeuda
+} from '../../modules/estadoDeuda/hooks';
 import { useInmuebles } from '../../modules/inmuebles/hooks';
 
 function getErrorMessage(error: unknown) {
@@ -40,6 +44,12 @@ export function EstadoDeudaPage() {
     return new Date(estadoDeuda.fechaActualizacion).toLocaleString();
   }, [estadoDeuda]);
 
+  const handleSelectInmueble = (nextInmuebleId: string) => {
+    setInmuebleId(nextInmuebleId);
+    setFeedback(null);
+    setFeedbackError(null);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
@@ -54,12 +64,12 @@ export function EstadoDeudaPage() {
     const monto = Number(montoAdeudado);
 
     if (!Number.isInteger(cuotas) || cuotas < 0) {
-      setFeedbackError('cuotasAdeudadas debe ser entero mayor o igual a 0.');
+      setFeedbackError('Las cuotas adeudadas deben ser un entero mayor o igual a 0.');
       return;
     }
 
     if (Number.isNaN(monto) || monto < 0) {
-      setFeedbackError('montoAdeudado debe ser mayor o igual a 0.');
+      setFeedbackError('El monto adeudado debe ser mayor o igual a 0.');
       return;
     }
 
@@ -90,7 +100,7 @@ export function EstadoDeudaPage() {
       <form className="simple-form" onSubmit={handleSubmit}>
         <label>
           Inmueble
-          <select value={inmuebleId} onChange={(event) => setInmuebleId(event.target.value)}>
+          <select value={inmuebleId} onChange={(event) => handleSelectInmueble(event.target.value)}>
             <option value="">Seleccionar inmueble</option>
             {(inmueblesQuery.data ?? []).map((inmueble) => (
               <option key={inmueble.id} value={inmueble.id}>
@@ -101,7 +111,7 @@ export function EstadoDeudaPage() {
         </label>
 
         <label>
-          cuotasAdeudadas
+          Cuotas adeudadas
           <input
             type="number"
             min={0}
@@ -112,7 +122,7 @@ export function EstadoDeudaPage() {
         </label>
 
         <label>
-          montoAdeudado
+          Monto adeudado
           <input
             type="number"
             min={0}
@@ -123,7 +133,7 @@ export function EstadoDeudaPage() {
         </label>
 
         <p>
-          <strong>fechaActualizacion:</strong> {fechaActualizacion}
+          <strong>Última actualización:</strong> {fechaActualizacion}
         </p>
 
         <div className="actions">
@@ -141,7 +151,7 @@ export function EstadoDeudaPage() {
 
       {inmuebleId && estadoDeudaQuery.isLoading && <p>Cargando estado de deuda...</p>}
       {inmuebleId && estadoDeudaQuery.isError && (
-        <p className="feedback error">No existe estado de deuda cargado para este inmueble todavía.</p>
+        <p className="feedback error">No se pudo obtener el estado de deuda de este inmueble.</p>
       )}
     </section>
   );

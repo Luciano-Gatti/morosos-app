@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCrearCasosMasivo } from '../../modules/seguimientoMasivo/hooks';
 import type { EtapaInicial } from '../../modules/seguimientoMasivo/types';
 import { useMorosos } from '../../modules/morosos/hooks';
@@ -60,16 +60,24 @@ export function MorososListPage() {
   const visibleIds = sortedMorosos.map((moroso) => moroso.inmuebleId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
 
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => visibleIds.includes(id)));
+  }, [morososQuery.data, sortBy, sortDirection]);
+
   const handleApplyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAppliedFilters({ ...filters });
     setSelectedIds([]);
+    setFeedback(null);
+    setFeedbackError(null);
   };
 
   const handleResetFilters = () => {
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setSelectedIds([]);
+    setFeedback(null);
+    setFeedbackError(null);
   };
 
   const toggleSelect = (id: string) => {
@@ -189,8 +197,7 @@ export function MorososListPage() {
             onChange={(event) =>
               setFilters((prev) => ({
                 ...prev,
-                seguimientoHabilitado:
-                  event.target.value === '' ? undefined : event.target.value === 'true'
+                seguimientoHabilitado: event.target.value === '' ? undefined : event.target.value === 'true'
               }))
             }
           >
@@ -228,12 +235,12 @@ export function MorososListPage() {
         <label>
           Ordenar por
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MorososSortableFields)}>
-            <option value="cuotasAdeudadas">cuotasAdeudadas</option>
-            <option value="montoAdeudado">montoAdeudado</option>
-            <option value="propietarioNombre">propietarioNombre</option>
-            <option value="numeroCuenta">numeroCuenta</option>
-            <option value="direccionCompleta">direccionCompleta</option>
-            <option value="grupo">grupo</option>
+            <option value="cuotasAdeudadas">Cuotas adeudadas</option>
+            <option value="montoAdeudado">Monto adeudado</option>
+            <option value="propietarioNombre">Propietario</option>
+            <option value="numeroCuenta">Número de cuenta</option>
+            <option value="direccionCompleta">Dirección</option>
+            <option value="grupo">Grupo</option>
           </select>
         </label>
 
@@ -274,46 +281,48 @@ export function MorososListPage() {
       {morososQuery.isError && <p className="feedback error">{getErrorMessage(morososQuery.error)}</p>}
 
       {sortedMorosos.length > 0 && (
-        <table className="simple-table">
-          <thead>
-            <tr>
-              <th>
-                <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
-              </th>
-              <th>Número cuenta</th>
-              <th>Propietario</th>
-              <th>Dirección</th>
-              <th>Distrito</th>
-              <th>Grupo</th>
-              <th>Cuotas</th>
-              <th>Monto</th>
-              <th>Seg. habilitado</th>
-              <th>Apto</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedMorosos.map((moroso: Moroso) => (
-              <tr key={moroso.inmuebleId}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(moroso.inmuebleId)}
-                    onChange={() => toggleSelect(moroso.inmuebleId)}
-                  />
-                </td>
-                <td>{moroso.numeroCuenta}</td>
-                <td>{moroso.propietarioNombre}</td>
-                <td>{moroso.direccionCompleta}</td>
-                <td>{moroso.distrito}</td>
-                <td>{moroso.grupo}</td>
-                <td>{moroso.cuotasAdeudadas}</td>
-                <td>{moroso.montoAdeudado}</td>
-                <td>{moroso.seguimientoHabilitado ? 'Sí' : 'No'}</td>
-                <td>{moroso.aptoParaSeguimiento ? 'Sí' : 'No'}</td>
+        <div className="table-container">
+          <table className="simple-table">
+            <thead>
+              <tr>
+                <th>
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+                </th>
+                <th>Número cuenta</th>
+                <th>Propietario</th>
+                <th>Dirección</th>
+                <th>Distrito</th>
+                <th>Grupo</th>
+                <th>Cuotas</th>
+                <th>Monto</th>
+                <th>Seg. habilitado</th>
+                <th>Apto</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sortedMorosos.map((moroso: Moroso) => (
+                <tr key={moroso.inmuebleId}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(moroso.inmuebleId)}
+                      onChange={() => toggleSelect(moroso.inmuebleId)}
+                    />
+                  </td>
+                  <td>{moroso.numeroCuenta}</td>
+                  <td>{moroso.propietarioNombre}</td>
+                  <td>{moroso.direccionCompleta}</td>
+                  <td>{moroso.distrito}</td>
+                  <td>{moroso.grupo}</td>
+                  <td>{moroso.cuotasAdeudadas}</td>
+                  <td>{moroso.montoAdeudado}</td>
+                  <td>{moroso.seguimientoHabilitado ? 'Sí' : 'No'}</td>
+                  <td>{moroso.aptoParaSeguimiento ? 'Sí' : 'No'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {sortedMorosos.length === 0 && !morososQuery.isLoading && <p>No hay morosos para los filtros actuales.</p>}

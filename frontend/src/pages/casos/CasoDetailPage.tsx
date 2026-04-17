@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   useAvanzarCaso,
   useCasoSeguimiento,
@@ -24,6 +24,7 @@ const etapasOrdenadas: EtapaSeguimiento[] = ['AVISO_DEUDA', 'INTIMACION', 'AVISO
 
 export function CasoDetailPage() {
   const { casoId = '' } = useParams();
+  const navigate = useNavigate();
 
   const casoQuery = useCasoSeguimiento(casoId);
   const caso = casoQuery.data;
@@ -186,7 +187,12 @@ export function CasoDetailPage() {
 
   return (
     <section>
-      <h2>Detalle del caso</h2>
+      <div className="section-title">
+        <h2>Detalle del caso</h2>
+        <button type="button" className="secondary" onClick={() => navigate('/bandejas')}>
+          Volver a bandejas
+        </button>
+      </div>
 
       {casoQuery.isLoading && <p>Cargando caso...</p>}
       {casoQuery.isError && <p className="feedback error">{getErrorMessage(casoQuery.error)}</p>}
@@ -323,7 +329,8 @@ export function CasoDetailPage() {
 
             {compromisosQuery.isLoading && <p>Cargando compromisos...</p>}
             {compromisosQuery.data && compromisosQuery.data.length > 0 && (
-              <table className="simple-table">
+              <div className="table-container">
+                <table className="simple-table">
                 <thead>
                   <tr>
                     <th>Desde</th>
@@ -353,7 +360,8 @@ export function CasoDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </article>
 
