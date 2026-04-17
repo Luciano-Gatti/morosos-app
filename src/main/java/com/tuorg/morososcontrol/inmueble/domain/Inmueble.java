@@ -1,10 +1,14 @@
 package com.tuorg.morososcontrol.inmueble.domain;
 
+import com.tuorg.morososcontrol.grupo.domain.Grupo;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.util.UUID;
@@ -29,8 +33,15 @@ public class Inmueble {
     @Column(name = "direccion_completa", nullable = false)
     private String direccionCompleta;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "grupo_id", nullable = false)
+    private Grupo grupo;
+
     @Column(name = "activo", nullable = false)
     private boolean activo;
+
+    @Column(name = "seguimiento_habilitado", nullable = false)
+    private boolean seguimientoHabilitado;
 
     public UUID getId() {
         return id;
@@ -68,11 +79,27 @@ public class Inmueble {
         this.direccionCompleta = direccionCompleta;
     }
 
+    public Grupo getGrupo() {
+        return grupo;
+    }
+
+    public void setGrupo(Grupo grupo) {
+        this.grupo = grupo;
+    }
+
     public boolean isActivo() {
         return activo;
     }
 
     public void setActivo(boolean activo) {
         this.activo = activo;
+    }
+
+    public boolean isSeguimientoHabilitado() {
+        return seguimientoHabilitado;
+    }
+
+    public void setSeguimientoHabilitado(boolean seguimientoHabilitado) {
+        this.seguimientoHabilitado = seguimientoHabilitado;
     }
 }

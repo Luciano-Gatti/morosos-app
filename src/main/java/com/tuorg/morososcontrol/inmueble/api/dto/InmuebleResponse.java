@@ -8,6 +8,9 @@ public record InmuebleResponse(
         String propietarioNombre,
         String distrito,
         String direccionCompleta,
-        boolean activo
+        UUID grupoId,
+        String grupoNombre,
+        boolean activo,
+        boolean seguimientoHabilitado
 ) {
 }

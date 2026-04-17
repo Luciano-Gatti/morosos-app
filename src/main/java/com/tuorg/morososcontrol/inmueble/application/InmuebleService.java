@@ -12,5 +12,14 @@ public interface InmuebleService {
 
     InmuebleResponse findById(UUID id);
 
-    List<InmuebleResponse> findAll();
+    List<InmuebleResponse> findAll(
+            String numeroCuenta,
+            String propietarioNombre,
+            String direccionCompleta,
+            String distrito
+    );
+
+    InmuebleResponse update(UUID id, InmuebleCreateRequest request);
+
+    void delete(UUID id);
 }

@@ -59,6 +59,14 @@ Base de backend para V1 del microservicio de control de morosos.
 - `PUT /api/v1/motivos-corte/{id}`
 - `DELETE /api/v1/motivos-corte/{id}`
 
+
+### Inmueble (`/api/v1/inmuebles`)
+- `POST /api/v1/inmuebles`
+- `GET /api/v1/inmuebles/{id}`
+- `GET /api/v1/inmuebles?numeroCuenta=&propietarioNombre=&direccionCompleta=&distrito=`
+- `PUT /api/v1/inmuebles/{id}`
+- `DELETE /api/v1/inmuebles/{id}`
+
 ## Ejecución local
 ```bash
 mvn spring-boot:run
@@ -73,4 +81,6 @@ mvn spring-boot:run
 - Si cambia `seguimientoActivo`, el servicio deja preparado el método `recalcularInmueblesAsociados(...)` como punto de extensión (sin lógica implementada todavía).
 - En `MotivoCorte`, si `activo=false` no aparece en selección operativa (`/operativos`).
 - En `MotivoCorte`, la eliminación valida uso mediante `MotivoCorteUsageChecker` (preparado para integrar con RegistroCorte en próxima iteración).
+- En `Inmueble`, `numeroCuenta` es único y `grupo` es relación a `Grupo` (no se guarda segmento como string).
+- En `Inmueble`, `seguimientoHabilitado` se calcula desde `grupo.seguimientoActivo` al crear/actualizar.
 - Este microservicio permanece desacoplado de autenticación/autorización para integrarse en una fase posterior con un AuthService externo.
