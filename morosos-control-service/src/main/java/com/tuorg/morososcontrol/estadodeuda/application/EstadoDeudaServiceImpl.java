@@ -228,14 +228,16 @@ public class EstadoDeudaServiceImpl implements EstadoDeudaService {
             estadoActual.setFechaActualizacion(fechaActualizacion);
             estadosAActualizar.add(estadoActual);
 
-            EstadoDeudaHistorico historico = new EstadoDeudaHistorico();
-            historico.setCargaDeuda(cargaDeuda);
-            historico.setInmueble(inmueble);
-            historico.setCuotasAdeudadas(cuotas);
-            historico.setMontoAdeudado(monto);
-            historico.setAptoParaSeguimiento(aptoParaSeguimiento);
-            historico.setSeguimientoHabilitadoEnEseMomento(inmueble.isSeguimientoHabilitado());
-            historicosAGuardar.add(historico);
+            if (row != null) {
+                EstadoDeudaHistorico historico = new EstadoDeudaHistorico();
+                historico.setCargaDeuda(cargaDeuda);
+                historico.setInmueble(inmueble);
+                historico.setCuotasAdeudadas(cuotas);
+                historico.setMontoAdeudado(monto);
+                historico.setAptoParaSeguimiento(aptoParaSeguimiento);
+                historico.setSeguimientoHabilitadoEnEseMomento(inmueble.isSeguimientoHabilitado());
+                historicosAGuardar.add(historico);
+            }
         }
 
         estadoDeudaRepository.saveAll(estadosAActualizar);
