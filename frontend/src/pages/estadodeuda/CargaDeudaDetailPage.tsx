@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCargaDeudaDetalle } from '../../modules/estadoDeuda/hooks';
 import { useInmuebles } from '../../modules/inmuebles/hooks';
 
@@ -26,7 +26,7 @@ export function CargaDeudaDetailPage() {
         ...item,
         propietarioNombre: inmueble?.propietarioNombre ?? '',
         identificacionVisible: inmueble?.propietarioNombre?.trim() || item.inmuebleId,
-        grupoNombre: inmueble?.grupo ?? ''
+        grupoNombre: inmueble?.grupoNombre ?? ''
       };
     });
   }, [detalleQuery.data, inmueblesQuery.data]);
@@ -75,6 +75,10 @@ export function CargaDeudaDetailPage() {
       <p>
         <strong>ID carga:</strong> {cargaId}
       </p>
+      <div className="toolbar">
+        <Link to="/estados-deuda/importacion">Ir a importación</Link>
+        <Link to="/estados-deuda/reportes/morosos-historico">Ver reporte histórico</Link>
+      </div>
 
       <form className="simple-form" onSubmit={(event) => event.preventDefault()}>
         <label>
@@ -105,7 +109,9 @@ export function CargaDeudaDetailPage() {
       </form>
 
       {detalleQuery.isLoading && <p>Cargando detalle de carga...</p>}
-      {detalleQuery.isError && <p className="feedback error">{getErrorMessage(detalleQuery.error)}</p>}
+      {detalleQuery.isError && (
+        <p className="feedback error">No se pudo cargar el detalle de esta carga. {getErrorMessage(detalleQuery.error)}</p>
+      )}
       {inmueblesQuery.isLoading && <p>Cargando información de inmuebles...</p>}
       {inmueblesQuery.isError && (
         <p className="feedback error">No se pudo completar propietario/grupo para todos los registros.</p>

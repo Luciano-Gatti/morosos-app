@@ -13,11 +13,13 @@ export function ImportacionDeudaPage() {
   const [result, setResult] = useState<EstadoDeudaImportResult | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
     setFeedbackError(null);
+    setResult(null);
 
     if (!selectedFile) {
       setFeedbackError('Seleccioná un archivo Excel para importar.');
@@ -30,13 +32,16 @@ export function ImportacionDeudaPage() {
         observacion
       });
       setResult(importResult);
-      setFeedback('Importación de deuda finalizada correctamente.');
+      setFeedback(
+        `Importación finalizada: ${importResult.totalProcesados} procesados, ${importResult.actualizados} actualizados y ${importResult.errores} errores.`
+      );
       setSelectedFile(null);
       setObservacion('');
+      setFileInputKey((prev) => prev + 1);
       event.currentTarget.reset();
     } catch (error) {
       setResult(null);
-      setFeedbackError(getErrorMessage(error));
+      setFeedbackError(`No se pudo importar la deuda histórica. ${getErrorMessage(error)}`);
     }
   };
 
@@ -49,6 +54,7 @@ export function ImportacionDeudaPage() {
         <label>
           Archivo Excel (.xlsx / .xls)
           <input
+            key={fileInputKey}
             type="file"
             accept=".xlsx,.xls"
             onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
