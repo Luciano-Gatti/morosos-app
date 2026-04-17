@@ -11,6 +11,8 @@ public interface InmuebleRepository extends JpaRepository<Inmueble, UUID> {
 
     Optional<Inmueble> findByNumeroCuenta(String numeroCuenta);
 
+    Optional<Inmueble> findByNumeroCuentaIgnoreCase(String numeroCuenta);
+
     boolean existsByNumeroCuenta(String numeroCuenta);
 
     boolean existsByNumeroCuentaAndIdNot(String numeroCuenta, UUID id);
