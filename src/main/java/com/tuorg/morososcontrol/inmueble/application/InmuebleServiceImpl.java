@@ -3,14 +3,17 @@ package com.tuorg.morososcontrol.inmueble.application;
 import com.tuorg.morososcontrol.grupo.domain.Grupo;
 import com.tuorg.morososcontrol.grupo.infrastructure.GrupoRepository;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleCreateRequest;
+import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleImportResponse;
 import com.tuorg.morososcontrol.inmueble.api.dto.InmuebleResponse;
 import com.tuorg.morososcontrol.inmueble.domain.Inmueble;
 import com.tuorg.morososcontrol.inmueble.infrastructure.InmuebleRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,10 +23,16 @@ public class InmuebleServiceImpl implements InmuebleService {
 
     private final InmuebleRepository inmuebleRepository;
     private final GrupoRepository grupoRepository;
+    private final InmuebleExcelParser inmuebleExcelParser;
 
-    public InmuebleServiceImpl(InmuebleRepository inmuebleRepository, GrupoRepository grupoRepository) {
+    public InmuebleServiceImpl(
+            InmuebleRepository inmuebleRepository,
+            GrupoRepository grupoRepository,
+            InmuebleExcelParser inmuebleExcelParser
+    ) {
         this.inmuebleRepository = inmuebleRepository;
         this.grupoRepository = grupoRepository;
+        this.inmuebleExcelParser = inmuebleExcelParser;
     }
 
     @Override
@@ -104,6 +113,57 @@ public class InmuebleServiceImpl implements InmuebleService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Inmueble no encontrado");
         }
         inmuebleRepository.deleteById(id);
+    }
+
+    @Override
+    public InmuebleImportResponse importExcel(MultipartFile file) {
+        InmuebleExcelParseResult parseResult = inmuebleExcelParser.parse(file);
+
+        int creados = 0;
+        int actualizados = 0;
+        List<String> errores = new ArrayList<>(parseResult.errores());
+
+        for (InmuebleExcelRowData row : parseResult.rowsValidas()) {
+            try {
+                Grupo grupo = obtenerOCrearGrupoPorSegmento(row.segmento());
+                Inmueble inmueble = inmuebleRepository.findByNumeroCuenta(row.numeroCuenta()).orElseGet(Inmueble::new);
+                boolean esNuevo = inmueble.getId() == null;
+
+                inmueble.setNumeroCuenta(row.numeroCuenta());
+                inmueble.setPropietarioNombre(row.propietarioNombre());
+                inmueble.setDistrito(row.distrito());
+                inmueble.setDireccionCompleta(row.direccionCompleta());
+                inmueble.setGrupo(grupo);
+                inmueble.setActivo(row.activo());
+                inmueble.setSeguimientoHabilitado(grupo.isSeguimientoActivo());
+
+                inmuebleRepository.save(inmueble);
+                if (esNuevo) {
+                    creados++;
+                } else {
+                    actualizados++;
+                }
+            } catch (Exception ex) {
+                errores.add("Fila " + row.rowNumber() + ": " + ex.getMessage());
+            }
+        }
+
+        return new InmuebleImportResponse(
+                parseResult.totalProcesados(),
+                creados,
+                actualizados,
+                errores.size(),
+                errores
+        );
+    }
+
+    private Grupo obtenerOCrearGrupoPorSegmento(String segmento) {
+        return grupoRepository.findByNombre(segmento).orElseGet(() -> {
+            Grupo nuevoGrupo = new Grupo();
+            nuevoGrupo.setNombre(segmento);
+            nuevoGrupo.setSeguimientoActivo(false);
+            return grupoRepository.save(nuevoGrupo);
+        });
     }
 
     private InmuebleResponse toResponse(Inmueble inmueble) {

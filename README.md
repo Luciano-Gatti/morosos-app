@@ -62,10 +62,47 @@ Base de backend para V1 del microservicio de control de morosos.
 
 ### Inmueble (`/api/v1/inmuebles`)
 - `POST /api/v1/inmuebles`
+- `POST /api/v1/inmuebles/importacion/excel` (multipart `.xlsx`)
 - `GET /api/v1/inmuebles/{id}`
 - `GET /api/v1/inmuebles?numeroCuenta=&propietarioNombre=&direccionCompleta=&distrito=`
 - `PUT /api/v1/inmuebles/{id}`
 - `DELETE /api/v1/inmuebles/{id}`
+
+
+### EstadoDeuda (`/api/v1/estados-deuda`)
+- `POST /api/v1/estados-deuda`
+- `PUT /api/v1/estados-deuda/{id}`
+- `GET /api/v1/estados-deuda/{id}`
+- `GET /api/v1/estados-deuda?inmuebleId=`
+- `GET /api/v1/estados-deuda/inmuebles/{inmuebleId}/aptitud`
+- `GET /api/v1/estados-deuda/morosos?numeroCuenta=&propietarioNombre=&direccionCompleta=&distrito=&grupo=&cuotasAdeudadas=&montoAdeudado=&seguimientoHabilitado=&aptoParaSeguimiento=`
+
+
+### CasoSeguimiento (`/api/v1/casos-seguimiento`)
+- `POST /api/v1/casos-seguimiento` (creación manual indicando etapa inicial)
+- `GET /api/v1/casos-seguimiento/{id}`
+- `GET /api/v1/casos-seguimiento?inmuebleId=&estadoSeguimiento=`
+- `POST /api/v1/casos-seguimiento/{id}/avanzar-etapa`
+- `POST /api/v1/casos-seguimiento/{id}/repetir-etapa`
+- `POST /api/v1/casos-seguimiento/{id}/cerrar`
+
+
+### CompromisoPago (`/api/v1`)
+- `POST /api/v1/casos-seguimiento/{casoId}/compromisos-pago`
+- `POST /api/v1/compromisos-pago/{compromisoId}/incumplir`
+- `GET /api/v1/casos-seguimiento/{casoId}/compromisos-pago`
+
+
+### RegistroCorte (`/api/v1/casos-seguimiento/{casoId}/registros-corte`)
+- `POST /api/v1/casos-seguimiento/{casoId}/registros-corte`
+- `GET /api/v1/casos-seguimiento/{casoId}/registros-corte`
+
+
+### Operaciones masivas de seguimiento (`/api/v1/casos-seguimiento/masivo`)
+- `POST /api/v1/casos-seguimiento/masivo/validar-inmuebles-aptos`
+- `POST /api/v1/casos-seguimiento/masivo/crear`
+- `POST /api/v1/casos-seguimiento/masivo/avanzar-etapa`
+- `POST /api/v1/casos-seguimiento/masivo/repetir-etapa`
 
 ## Ejecución local
 ```bash
@@ -76,6 +113,12 @@ mvn spring-boot:run
 - H2 Console: `http://localhost:8081/h2-console`
 
 ## Nota de arquitectura
+- En operaciones masivas, se respetan las mismas reglas de negocio del flujo individual: sin retrocesos, casos `CERRADO` no operables, casos `PAUSADO` no avanzan, y casos en `CORTE` no avanzan a etapa posterior.
+- En `RegistroCorte`, solo se permiten nuevos registros cuando el caso está en etapa `CORTE`; un caso puede tener múltiples registros y se valida que `MotivoCorte` esté activo para nuevos registros.
+- En `CompromisoPago`, al registrar compromiso el caso pasa a `PAUSADO`; si vence sin cumplimiento el compromiso pasa a `INCUMPLIDO` y el caso vuelve a `ACTIVO` (sin job programado, evaluación en operaciones del caso/listado de compromisos).
+- En `CasoSeguimiento`, no se permite crear caso para inmueble no apto; no hay retroceso normal de etapa, sí repetición de etapa actual, y la etapa inicial se define manualmente al crear.
+- En `CasoSeguimiento`, el cierre manual recibe motivo libre (por ejemplo: pago total o plan de pago), completa `fechaCierre`, cambia estado a `CERRADO` y no permite reapertura en esta V1.
+- En `EstadoDeuda`, la aptitud para seguimiento operativo se calcula como: `seguimientoHabilitado=true` y `cuotasAdeudadas >= minimoCuotasSeguimiento` de `ConfiguracionGeneral` (sin crear casos automáticamente).
 - `Grupo.nombre` se corresponde con el campo **Segmento** del Excel.
 - `Grupo.seguimientoActivo` define si los inmuebles de ese grupo pueden entrar al seguimiento operativo.
 - Si cambia `seguimientoActivo`, el servicio deja preparado el método `recalcularInmueblesAsociados(...)` como punto de extensión (sin lógica implementada todavía).
@@ -83,4 +126,5 @@ mvn spring-boot:run
 - En `MotivoCorte`, la eliminación valida uso mediante `MotivoCorteUsageChecker` (preparado para integrar con RegistroCorte en próxima iteración).
 - En `Inmueble`, `numeroCuenta` es único y `grupo` es relación a `Grupo` (no se guarda segmento como string).
 - En `Inmueble`, `seguimientoHabilitado` se calcula desde `grupo.seguimientoActivo` al crear/actualizar.
+- Importación Excel de inmuebles: usa `numeroCuenta` como clave de negocio para crear/actualizar, crea `Grupo` automáticamente a partir de `Segmento` si no existe y recalcula `seguimientoHabilitado` desde `grupo.seguimientoActivo`.
 - Este microservicio permanece desacoplado de autenticación/autorización para integrarse en una fase posterior con un AuthService externo.
