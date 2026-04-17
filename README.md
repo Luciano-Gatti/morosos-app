@@ -15,7 +15,9 @@ Base de backend para V1 del microservicio de control de morosos.
 - Estructura de proyecto y capas base.
 - Configuración local lista para levantar.
 - Convención uniforme por módulo (`api`, `application`, `domain`, `infrastructure`).
-- Módulo funcional 1 implementado: **Grupos** y **Configuración General**.
+- Módulos funcionales implementados:
+  - **Grupos** y **Configuración General**
+  - **Catálogos de corte**: TipoCorte y MotivoCorte
 - Sin seguridad/login/roles/permisos.
 - Sin auditoría.
 
@@ -42,6 +44,21 @@ Base de backend para V1 del microservicio de control de morosos.
 - `PUT /api/v1/configuraciones-generales/{id}`
 - `DELETE /api/v1/configuraciones-generales/{id}`
 
+### TipoCorte (`/api/v1/tipos-corte`)
+- `POST /api/v1/tipos-corte`
+- `GET /api/v1/tipos-corte/{id}`
+- `GET /api/v1/tipos-corte`
+- `PUT /api/v1/tipos-corte/{id}`
+- `DELETE /api/v1/tipos-corte/{id}`
+
+### MotivoCorte (`/api/v1/motivos-corte`)
+- `POST /api/v1/motivos-corte`
+- `GET /api/v1/motivos-corte/{id}`
+- `GET /api/v1/motivos-corte`
+- `GET /api/v1/motivos-corte/operativos` (solo `activo=true`)
+- `PUT /api/v1/motivos-corte/{id}`
+- `DELETE /api/v1/motivos-corte/{id}`
+
 ## Ejecución local
 ```bash
 mvn spring-boot:run
@@ -54,4 +71,6 @@ mvn spring-boot:run
 - `Grupo.nombre` se corresponde con el campo **Segmento** del Excel.
 - `Grupo.seguimientoActivo` define si los inmuebles de ese grupo pueden entrar al seguimiento operativo.
 - Si cambia `seguimientoActivo`, el servicio deja preparado el método `recalcularInmueblesAsociados(...)` como punto de extensión (sin lógica implementada todavía).
+- En `MotivoCorte`, si `activo=false` no aparece en selección operativa (`/operativos`).
+- En `MotivoCorte`, la eliminación valida uso mediante `MotivoCorteUsageChecker` (preparado para integrar con RegistroCorte en próxima iteración).
 - Este microservicio permanece desacoplado de autenticación/autorización para integrarse en una fase posterior con un AuthService externo.
