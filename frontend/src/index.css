@@ -1,0 +1,181 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   AOSC — Ente Regulador
+   Sistema de diseño institucional. Todos los colores en HSL.
+   Paleta inspirada en el logo: azul marino + acento coral.
+   ========================================================= */
+
+@layer base {
+  :root {
+    /* Superficies neutras frías (institucionales) */
+    --background: 210 25% 98%;
+    --foreground: 215 35% 15%;
+
+    --surface: 0 0% 100%;
+    --surface-muted: 215 25% 96%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 35% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 35% 15%;
+
+    /* Azul institucional AOSC */
+    --primary: 215 65% 22%;
+    --primary-foreground: 210 40% 98%;
+    --primary-hover: 215 65% 18%;
+    --primary-soft: 215 55% 94%;
+
+    /* Acento coral / rojo del logo (uso medido) */
+    --accent: 8 78% 56%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 8 80% 96%;
+
+    --secondary: 215 25% 94%;
+    --secondary-foreground: 215 40% 22%;
+
+    --muted: 215 25% 96%;
+    --muted-foreground: 215 16% 45%;
+
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Estados administrativos */
+    --status-active: 215 75% 38%;          /* serio y visible */
+    --status-active-foreground: 0 0% 100%;
+    --status-active-soft: 215 70% 94%;
+
+    --status-paused: 38 88% 48%;           /* advertencia suave */
+    --status-paused-foreground: 30 50% 15%;
+    --status-paused-soft: 42 90% 94%;
+
+    --status-closed: 145 35% 38%;          /* confirmación neutra */
+    --status-closed-foreground: 0 0% 100%;
+    --status-closed-soft: 145 30% 94%;
+
+    --status-debt: 8 78% 50%;              /* morosidad */
+    --status-debt-foreground: 0 0% 100%;
+    --status-debt-soft: 8 75% 96%;
+
+    --border: 215 20% 88%;
+    --border-strong: 215 20% 78%;
+    --input: 215 20% 88%;
+    --ring: 215 65% 32%;
+
+    --radius: 0.5rem;
+
+    /* Sombras institucionales (sutiles, planas) */
+    --shadow-sm: 0 1px 2px 0 hsl(215 40% 15% / 0.04);
+    --shadow-md: 0 1px 3px 0 hsl(215 40% 15% / 0.06), 0 1px 2px -1px hsl(215 40% 15% / 0.04);
+    --shadow-lg: 0 10px 24px -12px hsl(215 50% 20% / 0.18);
+
+    /* Sidebar institucional — fondo azul profundo, texto claro */
+    --sidebar-background: 215 55% 16%;
+    --sidebar-foreground: 210 30% 88%;
+    --sidebar-muted: 210 20% 70%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 215 65% 22%;
+    --sidebar-accent: 215 50% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 45% 24%;
+    --sidebar-ring: 8 78% 56%;
+  }
+
+  .dark {
+    --background: 215 35% 8%;
+    --foreground: 210 30% 92%;
+    --surface: 215 35% 11%;
+    --surface-muted: 215 30% 14%;
+    --card: 215 35% 11%;
+    --card-foreground: 210 30% 92%;
+    --popover: 215 35% 11%;
+    --popover-foreground: 210 30% 92%;
+    --primary: 210 60% 70%;
+    --primary-foreground: 215 65% 12%;
+    --primary-hover: 210 60% 75%;
+    --primary-soft: 215 40% 18%;
+    --accent: 8 78% 60%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 8 50% 18%;
+    --secondary: 215 30% 18%;
+    --secondary-foreground: 210 30% 92%;
+    --muted: 215 30% 16%;
+    --muted-foreground: 215 15% 65%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --status-active: 215 70% 60%;
+    --status-active-foreground: 215 65% 10%;
+    --status-active-soft: 215 40% 20%;
+    --status-paused: 38 80% 55%;
+    --status-paused-foreground: 30 50% 10%;
+    --status-paused-soft: 38 40% 18%;
+    --status-closed: 145 35% 50%;
+    --status-closed-foreground: 145 30% 10%;
+    --status-closed-soft: 145 25% 16%;
+    --status-debt: 8 75% 60%;
+    --status-debt-foreground: 0 0% 100%;
+    --status-debt-soft: 8 40% 18%;
+    --border: 215 30% 22%;
+    --border-strong: 215 30% 30%;
+    --input: 215 30% 22%;
+    --ring: 210 60% 60%;
+    --sidebar-background: 215 45% 10%;
+    --sidebar-foreground: 210 25% 85%;
+    --sidebar-muted: 210 15% 60%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 215 65% 22%;
+    --sidebar-accent: 215 40% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 40% 18%;
+    --sidebar-ring: 8 78% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: "Source Serif 4", ui-serif, Georgia, serif;
+    @apply tracking-tight text-foreground;
+  }
+
+  /* Tipografía numérica tabular para tablas de deuda */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer components {
+  /* Etiqueta de sección institucional */
+  .section-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  /* Línea divisoria sutil bajo headers */
+  .institutional-divider {
+    @apply border-b border-border;
+  }
+}

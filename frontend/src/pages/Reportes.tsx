@@ -1,0 +1,1158 @@
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  CalendarIcon,
+  FileBarChart2,
+  FileDown,
+  FileSpreadsheet,
+  Building2,
+  Bell,
+  HandCoins,
+  ListChecks,
+  CalendarRange,
+  PieChart as PieChartIcon,
+  Filter,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Cell,
+  PieChart,
+  Pie,
+  Legend,
+  LineChart,
+  Line,
+} from "recharts";
+import {
+  conteoPorTipo,
+  filtrarAcciones,
+  getEstadoInmuebles,
+  getMorosidadTotal,
+  getMorososPorDistrito,
+  getMorososPorGrupo,
+  serieDiaria,
+  TIPOS_NOTIFICACION,
+  TIPOS_REGULARIZACION,
+  type AccionRegistro,
+  type AccionTipo,
+} from "@/data/reportes";
+import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
+
+/* ---------- Helpers ---------- */
+
+const numberFmt = new Intl.NumberFormat("es-AR");
+const moneyFmt = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  maximumFractionDigits: 0,
+});
+const pctFmt = (n: number) => `${n.toFixed(1)}%`;
+const dateFmt = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const ORGANISMO = "AOSC — Administración de Obras Sanitarias";
+
+type ReporteId =
+  | "morosos-grupo-distrito"
+  | "acciones-notificacion"
+  | "acciones-regularizacion"
+  | "estado-inmuebles"
+  | "acciones-fechas"
+  | "porcentajes-morosidad";
+
+interface ReporteDef {
+  id: ReporteId;
+  titulo: string;
+  descripcion: string;
+  icono: React.ComponentType<{ className?: string }>;
+  conFechas: boolean;
+}
+
+const REPORTES: ReporteDef[] = [
+  {
+    id: "morosos-grupo-distrito",
+    titulo: "Morosos por grupo y distrito",
+    descripcion: "Distribución actual de inmuebles morosos.",
+    icono: Building2,
+    conFechas: false,
+  },
+  {
+    id: "acciones-notificacion",
+    titulo: "Avisos, intimaciones y cortes",
+    descripcion: "Acciones de notificación realizadas.",
+    icono: Bell,
+    conFechas: true,
+  },
+  {
+    id: "acciones-regularizacion",
+    titulo: "Regularizaciones y planes",
+    descripcion: "Regularizaciones, planes de pago y compromisos.",
+    icono: HandCoins,
+    conFechas: true,
+  },
+  {
+    id: "estado-inmuebles",
+    titulo: "Estado actual de inmuebles",
+    descripcion: "Listado completo del padrón con su estado.",
+    icono: ListChecks,
+    conFechas: false,
+  },
+  {
+    id: "acciones-fechas",
+    titulo: "Acciones entre fechas",
+    descripcion: "Detalle de todas las acciones en el período.",
+    icono: CalendarRange,
+    conFechas: true,
+  },
+  {
+    id: "porcentajes-morosidad",
+    titulo: "Porcentajes de morosidad",
+    descripcion: "Indicadores de morosidad por grupo y total.",
+    icono: PieChartIcon,
+    conFechas: false,
+  },
+];
+
+/* ---------- Presets de fecha ---------- */
+
+type PresetId = "hoy" | "7dias" | "mes" | "anio" | "custom";
+
+function presetRange(p: PresetId): { desde: Date | null; hasta: Date | null } {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  if (p === "hoy") return { desde: now, hasta: now };
+  if (p === "7dias") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 6);
+    return { desde: d, hasta: now };
+  }
+  if (p === "mes") {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { desde: d, hasta: now };
+  }
+  if (p === "anio") {
+    const d = new Date(now.getFullYear(), 0, 1);
+    return { desde: d, hasta: now };
+  }
+  return { desde: null, hasta: null };
+}
+
+/* ============================================================
+   Página principal — Reportes
+   ============================================================ */
+
+export default function Reportes() {
+  const { reporteId } = useParams<{ reporteId?: string }>();
+  const navigate = useNavigate();
+  const reporteActivo =
+    REPORTES.find((r) => r.id === reporteId) ?? REPORTES[0];
+
+  const breadcrumb = reporteId
+    ? [{ label: "Reportes", to: "/reportes" }, { label: reporteActivo.titulo }]
+    : [{ label: "Reportes" }];
+
+  return (
+    <>
+      <AppHeader
+        title="Reportes"
+        description="Reportes operativos del sistema. Visualizá indicadores en pantalla y exportá a PDF o Excel."
+        breadcrumb={breadcrumb}
+      />
+
+      <main className="flex-1 px-6 py-6">
+        {!reporteId ? (
+          <ReportesCatalogo onSelect={(id) => navigate(`/reportes/${id}`)} />
+        ) : (
+          <div className="rounded-md border border-border bg-surface shadow-sm">
+            <ReportePanel key={reporteActivo.id} reporte={reporteActivo} />
+          </div>
+        )}
+      </main>
+    </>
+  );
+}
+
+/* ============================================================
+   Catálogo (vista al entrar sin reporte seleccionado)
+   ============================================================ */
+
+function ReportesCatalogo({ onSelect }: { onSelect: (id: ReporteId) => void }) {
+  return (
+    <div className="rounded-md border border-border bg-surface shadow-sm">
+      <div className="border-b border-border px-4 py-3">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Catálogo
+        </div>
+        <h2 className="mt-0.5 font-serif text-[19px] font-semibold leading-tight text-foreground">
+          Reportes disponibles
+        </h2>
+        <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+          Seleccioná un reporte del menú lateral o desde las tarjetas siguientes.
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
+        {REPORTES.map((r) => {
+          const Icon = r.icono;
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(r.id)}
+                className="group flex w-full items-start gap-3 rounded-md border border-border bg-surface px-3 py-3 text-left transition-colors hover:border-primary/30 hover:bg-primary-soft"
+              >
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground group-hover:border-primary/30 group-hover:bg-primary group-hover:text-primary-foreground">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13.5px] font-medium leading-tight text-foreground">
+                    {r.titulo}
+                  </span>
+                  <span className="mt-1 block text-[12px] leading-snug text-muted-foreground">
+                    {r.descripcion}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/* ============================================================
+   Panel del reporte activo
+   ============================================================ */
+
+function ReportePanel({ reporte }: { reporte: ReporteDef }) {
+  const { toast } = useToast();
+  const [preset, setPreset] = useState<PresetId>("mes");
+  const [{ desde, hasta }, setRango] = useState(() => presetRange("mes"));
+  const [exportando, setExportando] = useState(false);
+
+  const setPresetSafe = (p: PresetId) => {
+    setPreset(p);
+    if (p !== "custom") setRango(presetRange(p));
+  };
+
+  const filtrosLabel = useMemo(() => {
+    if (!reporte.conFechas) return [];
+    const desdeS = desde ? dateFmt.format(desde) : "Inicio";
+    const hastaS = hasta ? dateFmt.format(hasta) : "Hoy";
+    return [`Período: ${desdeS} — ${hastaS}`];
+  }, [reporte.conFechas, desde, hasta]);
+
+  const Header = (
+    <div className="border-b border-border px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Reporte
+          </div>
+          <h2 className="mt-0.5 font-serif text-[19px] font-semibold leading-tight text-foreground">
+            {reporte.titulo}
+          </h2>
+          <p className="mt-0.5 text-[12.5px] text-muted-foreground">{reporte.descripcion}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11.5px] text-muted-foreground">Exportar:</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-[12.5px]"
+            disabled={exportando}
+            onClick={() => handleExport("xlsx")}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Excel (.xlsx)
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 text-[12.5px]"
+            disabled={exportando}
+            onClick={() => handleExport("pdf")}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            PDF
+          </Button>
+        </div>
+      </div>
+
+      {reporte.conFechas && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            Período
+          </div>
+
+          <div className="flex items-center gap-1 rounded-md border border-border bg-surface-muted/40 p-0.5">
+            {(
+              [
+                { id: "hoy", label: "Hoy" },
+                { id: "7dias", label: "Últimos 7 días" },
+                { id: "mes", label: "Mes actual" },
+                { id: "anio", label: "Año actual" },
+                { id: "custom", label: "Personalizado" },
+              ] as { id: PresetId; label: string }[]
+            ).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPresetSafe(p.id)}
+                className={cn(
+                  "rounded-[4px] px-2 py-1 text-[12px] font-medium transition-colors",
+                  preset === p.id
+                    ? "bg-surface text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <DateInput
+            label="Desde"
+            date={desde}
+            onChange={(d) => {
+              setPreset("custom");
+              setRango((r) => ({ ...r, desde: d }));
+            }}
+          />
+          <DateInput
+            label="Hasta"
+            date={hasta}
+            onChange={(d) => {
+              setPreset("custom");
+              setRango((r) => ({ ...r, hasta: d }));
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  const handleExport = async (kind: "pdf" | "xlsx") => {
+    setExportando(true);
+    try {
+      await runExport(kind, reporte, { desde, hasta }, filtrosLabel);
+      toast({
+        title: kind === "pdf" ? "PDF generado" : "Excel generado",
+        description: `Reporte “${reporte.titulo}” exportado correctamente.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Error al exportar",
+        description: "No fue posible generar el archivo.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col">
+      {Header}
+      <div className="px-4 py-4">
+        {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito />}
+        {reporte.id === "acciones-notificacion" && (
+          <ReporteAcciones desde={desde} hasta={hasta} tipos={TIPOS_NOTIFICACION} variante="notificacion" />
+        )}
+        {reporte.id === "acciones-regularizacion" && (
+          <ReporteAcciones desde={desde} hasta={hasta} tipos={TIPOS_REGULARIZACION} variante="regularizacion" />
+        )}
+        {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles />}
+        {reporte.id === "acciones-fechas" && <ReporteAccionesFechas desde={desde} hasta={hasta} />}
+        {reporte.id === "porcentajes-morosidad" && <ReportePorcentajesMorosidad />}
+      </div>
+    </div>
+  );
+}
+
+function DateInput({
+  label,
+  date,
+  onChange,
+}: {
+  label: string;
+  date: Date | null;
+  onChange: (d: Date | null) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12.5px] tabular">
+          <CalendarIcon className="h-3.5 w-3.5 opacity-70" />
+          <span className="text-muted-foreground">{label}:</span>
+          {date ? format(date, "dd/MM/yyyy", { locale: es }) : "—"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={date ?? undefined}
+          onSelect={(d) => onChange(d ?? null)}
+          initialFocus
+          locale={es}
+          className={cn("p-3 pointer-events-auto")}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ============================================================
+   Bloques visuales reutilizables
+   ============================================================ */
+
+function KpiBar({ items }: { items: { label: string; value: string; tone?: "default" | "primary" | "danger" | "ok" }[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {items.map((k) => (
+        <div
+          key={k.label}
+          className="rounded-md border border-border bg-surface-muted/40 px-3 py-2.5"
+        >
+          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {k.label}
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 font-serif text-[20px] font-semibold leading-tight tabular",
+              k.tone === "danger" && "text-destructive",
+              k.tone === "ok" && "text-[hsl(var(--status-closed))]",
+              k.tone === "primary" && "text-primary",
+              !k.tone && "text-foreground",
+            )}
+          >
+            {k.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
+function ChartBox({
+  id,
+  title,
+  children,
+  height = 240,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+  height?: number;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-surface p-3">
+      <SectionTitle>{title}</SectionTitle>
+      <div id={id} style={{ width: "100%", height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          {children as React.ReactElement}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+const COLORS_BAR = ["#1c355c", "#2c5282", "#3b6db1", "#5b8bd1", "#82a9e0", "#a8c2eb"];
+const COLORS_TIPO: Record<string, string> = {
+  "Aviso de deuda": "#3b6db1",
+  "Intimación": "#d97706",
+  "Aviso de corte": "#ea580c",
+  "Corte": "#b91c1c",
+  "Regularización": "#15803d",
+  "Plan de pago": "#0d9488",
+  "Compromiso de pago": "#7c3aed",
+};
+
+/* ============================================================
+   Reporte 1 — Morosos por grupo y distrito
+   ============================================================ */
+
+function ReporteMorososGrupoDistrito() {
+  const grupos = useMemo(() => getMorososPorGrupo(), []);
+  const distritos = useMemo(() => getMorososPorDistrito(), []);
+  const total = useMemo(() => getMorosidadTotal(), []);
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+          { label: "Morosos", value: numberFmt.format(total.morosos), tone: "danger" },
+          { label: "Al día", value: numberFmt.format(total.alDia), tone: "ok" },
+          { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
+        ]}
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartBox id="rep-grupos-chart" title="Morosos por grupo">
+          <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+            <XAxis dataKey="grupo" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="morosos" radius={[3, 3, 0, 0]}>
+              {grupos.map((_, i) => (
+                <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartBox>
+        <ChartBox id="rep-distritos-chart" title="Morosos por distrito">
+          <BarChart data={distritos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+            <XAxis dataKey="distrito" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="morosos" radius={[3, 3, 0, 0]}>
+              {distritos.map((_, i) => (
+                <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartBox>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <SectionTitle>Por grupo</SectionTitle>
+          <DataTable
+            head={["Grupo", "Padrón", "Morosos", "% Morosidad"]}
+            rows={grupos.map((g) => [
+              g.grupo,
+              numberFmt.format(g.totalInmuebles),
+              numberFmt.format(g.morosos),
+              pctFmt(g.porcentaje),
+            ])}
+            alignRight={[1, 2, 3]}
+          />
+        </div>
+        <div>
+          <SectionTitle>Por distrito</SectionTitle>
+          <DataTable
+            head={["Distrito", "Padrón", "Morosos", "% Morosidad"]}
+            rows={distritos.map((d) => [
+              d.distrito,
+              numberFmt.format(d.totalInmuebles),
+              numberFmt.format(d.morosos),
+              pctFmt(d.porcentaje),
+            ])}
+            alignRight={[1, 2, 3]}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Reporte 2 / 3 — Acciones por tipo
+   ============================================================ */
+
+function ReporteAcciones({
+  desde,
+  hasta,
+  tipos,
+  variante,
+}: {
+  desde: Date | null;
+  hasta: Date | null;
+  tipos: AccionTipo[];
+  variante: "notificacion" | "regularizacion";
+}) {
+  const filtradas = useMemo(() => filtrarAcciones(desde, hasta, tipos), [desde, hasta, tipos]);
+  const conteos = useMemo(() => conteoPorTipo(filtradas, tipos), [filtradas, tipos]);
+  const total = filtradas.length;
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total acciones", value: numberFmt.format(total), tone: "primary" },
+          ...conteos.slice(0, 3).map((c) => ({
+            label: c.tipo,
+            value: numberFmt.format(c.cantidad),
+          })),
+        ]}
+      />
+
+      <ChartBox
+        id={`rep-acciones-${variante}-chart`}
+        title={variante === "notificacion" ? "Acciones de notificación" : "Acciones de regularización"}
+      >
+        <BarChart data={conteos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+          <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip />
+          <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
+            {conteos.map((c, i) => (
+              <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartBox>
+
+      <div>
+        <SectionTitle>Detalle por tipo</SectionTitle>
+        <DataTable
+          head={["Tipo de acción", "Cantidad", "% del total"]}
+          rows={conteos.map((c) => [
+            c.tipo,
+            numberFmt.format(c.cantidad),
+            total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
+          ])}
+          alignRight={[1, 2]}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Reporte 4 — Estado actual de inmuebles
+   ============================================================ */
+
+function ReporteEstadoInmuebles() {
+  const rows = useMemo(() => getEstadoInmuebles(), []);
+  const morosos = rows.filter((r) => r.estado === "Moroso").length;
+  const alDia = rows.length - morosos;
+  const totalDeuda = rows.reduce((acc, r) => acc + r.montoAdeudado, 0);
+
+  const PAGE = 25;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE));
+  const slice = rows.slice((page - 1) * PAGE, page * PAGE);
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total inmuebles", value: numberFmt.format(rows.length) },
+          { label: "Al día", value: numberFmt.format(alDia), tone: "ok" },
+          { label: "Morosos", value: numberFmt.format(morosos), tone: "danger" },
+          { label: "Deuda total", value: moneyFmt.format(totalDeuda), tone: "primary" },
+        ]}
+      />
+
+      <ChartBox id="rep-estado-chart" title="Distribución de inmuebles por estado" height={220}>
+        <PieChart>
+          <Pie
+            data={[
+              { name: "Al día", value: alDia, fill: "hsl(145 35% 38%)" },
+              { name: "Morosos", value: morosos, fill: "hsl(8 78% 50%)" },
+            ]}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={45}
+            outerRadius={80}
+            paddingAngle={2}
+          />
+          <Tooltip />
+          <Legend />
+        </PieChart>
+      </ChartBox>
+
+      <div>
+        <SectionTitle>Listado completo del padrón</SectionTitle>
+        <DataTable
+          head={["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"]}
+          rows={slice.map((r) => [
+            r.cuenta,
+            r.titular,
+            r.grupo,
+            r.distrito,
+            r.estado,
+            r.etapa,
+            r.cuotasAdeudadas === 0 ? "—" : numberFmt.format(r.cuotasAdeudadas),
+            r.montoAdeudado === 0 ? "—" : moneyFmt.format(r.montoAdeudado),
+          ])}
+          alignRight={[6, 7]}
+        />
+        <Paginador page={page} totalPages={totalPages} setPage={setPage} total={rows.length} pageSize={PAGE} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Reporte 5 — Acciones entre fechas
+   ============================================================ */
+
+function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Date | null }) {
+  const filtradas = useMemo(() => filtrarAcciones(desde, hasta), [desde, hasta]);
+  const serie = useMemo(() => serieDiaria(filtradas), [filtradas]);
+  const PAGE = 25;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE));
+  const slice = filtradas.slice((page - 1) * PAGE, page * PAGE);
+
+  const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
+  const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
+  const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total acciones", value: numberFmt.format(filtradas.length), tone: "primary" },
+          { label: "Días con actividad", value: numberFmt.format(serie.length) },
+          { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
+          {
+            label: "Tipo más frecuente",
+            value: conteos.sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—",
+          },
+        ]}
+      />
+
+      <ChartBox id="rep-acciones-fechas-chart" title="Acciones por día">
+        <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+          <XAxis dataKey="fechaLabel" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip />
+          <Line
+            type="monotone"
+            dataKey="total"
+            stroke="hsl(215 65% 32%)"
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
+      </ChartBox>
+
+      <div>
+        <SectionTitle>Detalle de acciones en el período</SectionTitle>
+        <DataTable
+          head={["Fecha", "Cuenta", "Titular", "Tipo", "Grupo", "Distrito", "Usuario"]}
+          rows={slice.map((a) => [
+            dateFmt.format(a.fecha),
+            a.cuenta,
+            a.titular,
+            a.tipo,
+            a.grupo,
+            a.distrito,
+            a.usuario,
+          ])}
+        />
+        <Paginador
+          page={page}
+          totalPages={totalPages}
+          setPage={setPage}
+          total={filtradas.length}
+          pageSize={PAGE}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Reporte 6 — Porcentajes de morosidad
+   ============================================================ */
+
+function ReportePorcentajesMorosidad() {
+  const total = useMemo(() => getMorosidadTotal(), []);
+  const grupos = useMemo(() => getMorososPorGrupo(), []);
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+          { label: "Morosos", value: numberFmt.format(total.morosos), tone: "danger" },
+          { label: "Al día", value: numberFmt.format(total.alDia), tone: "ok" },
+          { label: "% morosidad total", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
+        ]}
+      />
+
+      <ChartBox id="rep-pct-grupos-chart" title="% de morosidad por grupo">
+        <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+          <XAxis dataKey="grupo" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} unit="%" />
+          <Tooltip formatter={(v: number) => pctFmt(v)} />
+          <Bar dataKey="porcentaje" radius={[3, 3, 0, 0]}>
+            {grupos.map((_, i) => (
+              <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartBox>
+
+      <div>
+        <SectionTitle>Detalle por grupo</SectionTitle>
+        <DataTable
+          head={["Grupo", "Padrón", "Morosos", "% Morosidad"]}
+          rows={grupos.map((g) => [
+            g.grupo,
+            numberFmt.format(g.totalInmuebles),
+            numberFmt.format(g.morosos),
+            pctFmt(g.porcentaje),
+          ])}
+          alignRight={[1, 2, 3]}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Tabla de datos compacta
+   ============================================================ */
+
+function DataTable({
+  head,
+  rows,
+  alignRight = [],
+}: {
+  head: string[];
+  rows: (string | number)[][];
+  alignRight?: number[];
+}) {
+  return (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border bg-surface-muted/60 hover:bg-surface-muted/60">
+            {head.map((h, i) => (
+              <TableHead
+                key={i}
+                className={cn(
+                  "h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+                  alignRight.includes(i) && "text-right",
+                )}
+              >
+                {h}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={head.length}
+                className="h-24 text-center text-[13px] text-muted-foreground"
+              >
+                Sin registros para el período/filtros seleccionados.
+              </TableCell>
+            </TableRow>
+          )}
+          {rows.map((r, ri) => (
+            <TableRow key={ri} className="border-border text-[13px]">
+              {r.map((c, ci) => (
+                <TableCell
+                  key={ci}
+                  className={cn(
+                    alignRight.includes(ci) && "text-right tabular",
+                    ci === 0 && "font-medium text-foreground",
+                  )}
+                >
+                  {c}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function Paginador({
+  page,
+  totalPages,
+  setPage,
+  total,
+  pageSize,
+}: {
+  page: number;
+  totalPages: number;
+  setPage: (n: number) => void;
+  total: number;
+  pageSize: number;
+}) {
+  if (total <= pageSize) return null;
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  return (
+    <div className="mt-2 flex items-center justify-between text-[12px] text-muted-foreground">
+      <div>
+        Mostrando <span className="tabular font-medium text-foreground">{start}–{end}</span> de{" "}
+        <span className="tabular font-medium text-foreground">{total}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-[12px]"
+          disabled={page <= 1}
+          onClick={() => setPage(Math.max(1, page - 1))}
+        >
+          Anterior
+        </Button>
+        <span className="px-2 tabular">
+          {page} / {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-[12px]"
+          disabled={page >= totalPages}
+          onClick={() => setPage(Math.min(totalPages, page + 1))}
+        >
+          Siguiente
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Lógica de exportación
+   ============================================================ */
+
+async function runExport(
+  kind: "pdf" | "xlsx",
+  reporte: ReporteDef,
+  rango: { desde: Date | null; hasta: Date | null },
+  filtrosLabel: string[],
+) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const baseName = reporte.titulo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const filename = `${baseName}-${stamp}.${kind === "pdf" ? "pdf" : "xlsx"}`;
+
+  const meta = {
+    organismo: ORGANISMO,
+    titulo: reporte.titulo,
+    subtitulo: reporte.descripcion,
+    filtros: filtrosLabel,
+    generadoEn: new Date(),
+  };
+
+  if (reporte.id === "morosos-grupo-distrito") {
+    const grupos = getMorososPorGrupo();
+    const distritos = getMorososPorDistrito();
+    const total = getMorosidadTotal();
+    const head = ["Categoría", "Detalle", "Padrón", "Morosos", "% Morosidad"];
+    const body: (string | number)[][] = [
+      ...grupos.map((g) => ["Grupo", g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]),
+      ...distritos.map((d) => ["Distrito", d.distrito, d.totalInmuebles, d.morosos, pctFmt(d.porcentaje)]),
+    ];
+    if (kind === "pdf") {
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+            { label: "Morosos", value: numberFmt.format(total.morosos) },
+            { label: "Al día", value: numberFmt.format(total.alDia) },
+            { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad) },
+          ],
+        },
+        chartElementIds: ["rep-grupos-chart", "rep-distritos-chart"],
+        table: { head, body, columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } } },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({
+        sheets: [
+          { name: "Por grupo", head: ["Grupo", "Padrón", "Morosos", "% Morosidad"], body: grupos.map((g) => [g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]) },
+          { name: "Por distrito", head: ["Distrito", "Padrón", "Morosos", "% Morosidad"], body: distritos.map((d) => [d.distrito, d.totalInmuebles, d.morosos, pctFmt(d.porcentaje)]) },
+        ],
+        filename,
+      });
+    }
+    return;
+  }
+
+  if (reporte.id === "acciones-notificacion" || reporte.id === "acciones-regularizacion") {
+    const tipos = reporte.id === "acciones-notificacion" ? TIPOS_NOTIFICACION : TIPOS_REGULARIZACION;
+    const filtradas = filtrarAcciones(rango.desde, rango.hasta, tipos);
+    const conteos = conteoPorTipo(filtradas, tipos);
+    const total = filtradas.length;
+    const head = ["Tipo de acción", "Cantidad", "% del total"];
+    const body = conteos.map((c) => [c.tipo, c.cantidad, total === 0 ? "—" : pctFmt((c.cantidad / total) * 100)]);
+    const chartId = reporte.id === "acciones-notificacion" ? "rep-acciones-notificacion-chart" : "rep-acciones-regularizacion-chart";
+    if (kind === "pdf") {
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total", value: numberFmt.format(total) },
+            ...conteos.slice(0, 3).map((c) => ({ label: c.tipo, value: numberFmt.format(c.cantidad) })),
+          ],
+        },
+        chartElementIds: [chartId],
+        table: { head, body, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } } },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({
+        sheets: [
+          { name: "Resumen", head, body },
+          {
+            name: "Detalle",
+            head: ["Fecha", "Cuenta", "Titular", "Tipo", "Grupo", "Distrito", "Usuario"],
+            body: filtradas.map((a) => [
+              dateFmt.format(a.fecha),
+              a.cuenta,
+              a.titular,
+              a.tipo,
+              a.grupo,
+              a.distrito,
+              a.usuario,
+            ]),
+          },
+        ],
+        filename,
+      });
+    }
+    return;
+  }
+
+  if (reporte.id === "estado-inmuebles") {
+    const rows = getEstadoInmuebles();
+    const morosos = rows.filter((r) => r.estado === "Moroso").length;
+    const alDia = rows.length - morosos;
+    const totalDeuda = rows.reduce((acc, r) => acc + r.montoAdeudado, 0);
+    const head = ["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"];
+    const body = rows.map((r) => [
+      r.cuenta,
+      r.titular,
+      r.grupo,
+      r.distrito,
+      r.estado,
+      r.etapa,
+      r.cuotasAdeudadas,
+      r.montoAdeudado,
+    ]);
+    if (kind === "pdf") {
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total", value: numberFmt.format(rows.length) },
+            { label: "Al día", value: numberFmt.format(alDia) },
+            { label: "Morosos", value: numberFmt.format(morosos) },
+            { label: "Deuda total", value: moneyFmt.format(totalDeuda) },
+          ],
+        },
+        chartElementIds: ["rep-estado-chart"],
+        table: {
+          head,
+          body: body.map((r) => [
+            r[0], r[1], r[2], r[3], r[4], r[5],
+            r[6] === 0 ? "—" : numberFmt.format(r[6] as number),
+            r[7] === 0 ? "—" : moneyFmt.format(r[7] as number),
+          ]),
+          columnStyles: { 6: { halign: "right" }, 7: { halign: "right" } },
+        },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({
+        sheets: [{ name: "Inmuebles", head, body }],
+        filename,
+      });
+    }
+    return;
+  }
+
+  if (reporte.id === "acciones-fechas") {
+    const filtradas = filtrarAcciones(rango.desde, rango.hasta);
+    const head = ["Fecha", "Cuenta", "Titular", "Tipo", "Grupo", "Distrito", "Usuario"];
+    const body = filtradas.map((a) => [
+      dateFmt.format(a.fecha),
+      a.cuenta,
+      a.titular,
+      a.tipo,
+      a.grupo,
+      a.distrito,
+      a.usuario,
+    ]);
+    if (kind === "pdf") {
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total acciones", value: numberFmt.format(filtradas.length) },
+            { label: "Días con actividad", value: numberFmt.format(serieDiaria(filtradas).length) },
+          ],
+        },
+        chartElementIds: ["rep-acciones-fechas-chart"],
+        table: { head, body },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({ sheets: [{ name: "Acciones", head, body }], filename });
+    }
+    return;
+  }
+
+  if (reporte.id === "porcentajes-morosidad") {
+    const total = getMorosidadTotal();
+    const grupos = getMorososPorGrupo();
+    const head = ["Grupo", "Padrón", "Morosos", "% Morosidad"];
+    const body = grupos.map((g) => [g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]);
+    if (kind === "pdf") {
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+            { label: "Morosos", value: numberFmt.format(total.morosos) },
+            { label: "Al día", value: numberFmt.format(total.alDia) },
+            { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad) },
+          ],
+        },
+        chartElementIds: ["rep-pct-grupos-chart"],
+        table: { head, body, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } } },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({ sheets: [{ name: "Morosidad", head, body }], filename });
+    }
+    return;
+  }
+}
+
+/* Marker para evitar tree-shake del import del tipo */
+export type _AccionRegistroExportType = AccionRegistro;

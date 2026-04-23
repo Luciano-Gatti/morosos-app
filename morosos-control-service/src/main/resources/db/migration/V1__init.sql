@@ -1,2 +1,0 @@
--- Inicialización base para migraciones de esquema en PostgreSQL.
--- Este archivo reserva la versión inicial del esquema bajo control de Flyway.
