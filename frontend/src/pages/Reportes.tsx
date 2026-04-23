@@ -4,6 +4,14 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,6 +36,7 @@ import {
   CalendarRange,
   PieChart as PieChartIcon,
   Filter,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -59,6 +68,7 @@ import {
   type AccionTipo,
 } from "@/data/reportes";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
+import { ultimosMovimientos, type MovimientoTipo } from "@/data/mock";
 
 /* ---------- Helpers ---------- */
 
@@ -83,7 +93,8 @@ type ReporteId =
   | "acciones-regularizacion"
   | "estado-inmuebles"
   | "acciones-fechas"
-  | "porcentajes-morosidad";
+  | "porcentajes-morosidad"
+  | "historial-movimientos";
 
 interface ReporteDef {
   id: ReporteId;
@@ -134,6 +145,13 @@ const REPORTES: ReporteDef[] = [
     titulo: "Porcentajes de morosidad",
     descripcion: "Indicadores de morosidad por grupo y total.",
     icono: PieChartIcon,
+    conFechas: false,
+  },
+  {
+    id: "historial-movimientos",
+    titulo: "Historial de movimientos",
+    descripcion: "Acciones registradas en el sistema con filtros y detalle.",
+    icono: History,
     conFechas: false,
   },
 ];
@@ -390,6 +408,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
         {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles />}
         {reporte.id === "acciones-fechas" && <ReporteAccionesFechas desde={desde} hasta={hasta} />}
         {reporte.id === "porcentajes-morosidad" && <ReportePorcentajesMorosidad />}
+        {reporte.id === "historial-movimientos" && <ReporteHistorialMovimientos />}
       </div>
     </div>
   );
@@ -975,6 +994,126 @@ function ReportePorcentajesMorosidad() {
 }
 
 /* ============================================================
+   Reporte 7 — Historial de movimientos
+   ============================================================ */
+
+const MOVIMIENTO_TIPO_LABEL: Record<MovimientoTipo, string> = {
+  intimacion: "Intimación",
+  corte: "Corte",
+  regularizacion: "Regularización",
+  plan_pago: "Plan de pago",
+  compromiso: "Compromiso",
+  aviso_deuda: "Aviso de deuda",
+  aviso_corte: "Aviso de corte",
+  configuracion: "Configuración",
+};
+
+function ReporteHistorialMovimientos() {
+  const [tipo, setTipo] = useState<MovimientoTipo | "todos">("todos");
+  const [busqueda, setBusqueda] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE = 25;
+
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return ultimosMovimientos.filter((m) => {
+      if (tipo !== "todos" && m.tipo !== tipo) return false;
+      if (!q) return true;
+      return (
+        (m.cuenta?.toLowerCase().includes(q) ?? false) ||
+        (m.titular?.toLowerCase().includes(q) ?? false) ||
+        m.usuario.toLowerCase().includes(q) ||
+        m.accion.toLowerCase().includes(q) ||
+        (m.etapa?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [tipo, busqueda]);
+
+  const totalPages = Math.max(1, Math.ceil(filtrados.length / PAGE));
+  const safePage = Math.min(page, totalPages);
+  const slice = filtrados.slice((safePage - 1) * PAGE, safePage * PAGE);
+
+  const conteoPorTipoMov = useMemo(() => {
+    const counts: Partial<Record<MovimientoTipo, number>> = {};
+    filtrados.forEach((m) => {
+      counts[m.tipo] = (counts[m.tipo] ?? 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([k, v]) => ({ tipo: MOVIMIENTO_TIPO_LABEL[k as MovimientoTipo], cantidad: v ?? 0 }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+  }, [filtrados]);
+
+  const tipoTop = conteoPorTipoMov[0]?.tipo ?? "—";
+
+  return (
+    <div className="space-y-5">
+      <KpiBar
+        items={[
+          { label: "Total movimientos", value: numberFmt.format(filtrados.length), tone: "primary" },
+          { label: "Usuarios distintos", value: numberFmt.format(new Set(filtrados.map((m) => m.usuario)).size) },
+          { label: "Tipos representados", value: numberFmt.format(conteoPorTipoMov.length) },
+          { label: "Tipo más frecuente", value: tipoTop },
+        ]}
+      />
+
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-muted/40 px-3 py-2">
+        <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <Filter className="h-3.5 w-3.5" />
+          Filtros
+        </div>
+        <Select
+          value={tipo}
+          onValueChange={(v) => {
+            setTipo(v as MovimientoTipo | "todos");
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="h-8 w-[200px] text-[12.5px]">
+            <SelectValue placeholder="Tipo de movimiento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los tipos</SelectItem>
+            {(Object.keys(MOVIMIENTO_TIPO_LABEL) as MovimientoTipo[]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {MOVIMIENTO_TIPO_LABEL[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Buscar por usuario, cuenta, titular o acción…"
+          className="h-8 w-[280px] text-[12.5px]"
+        />
+      </div>
+
+      <div>
+        <SectionTitle>Detalle de movimientos</SectionTitle>
+        <DataTable
+          head={["Fecha", "Usuario", "Acción"]}
+          rows={slice.map((m) => [
+            m.fecha,
+            m.usuario,
+            m.accion,
+          ])}
+        />
+        <Paginador
+          page={safePage}
+          totalPages={totalPages}
+          setPage={setPage}
+          total={filtrados.length}
+          pageSize={PAGE}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    Tabla de datos compacta
    ============================================================ */
 
@@ -1371,6 +1510,35 @@ async function runExport(
       });
     } else {
       exportarReporteXlsx({ sheets: [{ name: "Morosidad", head, body }], filename });
+    }
+    return;
+  }
+
+  if (reporte.id === "historial-movimientos") {
+    const head = ["Fecha", "Usuario", "Acción"];
+    const body = ultimosMovimientos.map((m) => [
+      m.fecha,
+      m.usuario,
+      m.accion,
+    ]);
+    if (kind === "pdf") {
+      const tiposUnicos = new Set(ultimosMovimientos.map((m) => m.tipo)).size;
+      const usuariosUnicos = new Set(ultimosMovimientos.map((m) => m.usuario)).size;
+      await exportarReportePdf({
+        meta: {
+          ...meta,
+          kpis: [
+            { label: "Total movimientos", value: numberFmt.format(ultimosMovimientos.length) },
+            { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
+            { label: "Tipos representados", value: numberFmt.format(tiposUnicos) },
+          ],
+        },
+        chartElementIds: [],
+        table: { head, body },
+        filename,
+      });
+    } else {
+      exportarReporteXlsx({ sheets: [{ name: "Historial", head, body }], filename });
     }
     return;
   }

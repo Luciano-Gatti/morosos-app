@@ -225,16 +225,21 @@ export type MovimientoTipo =
   | "plan_pago"
   | "compromiso"
   | "aviso_deuda"
-  | "aviso_corte";
+  | "aviso_corte"
+  | "configuracion";
+
+export type MovimientoCategoria = "movimiento" | "configuracion";
 
 export interface Movimiento {
   id: string;
   fecha: string;
-  cuenta: string;
-  titular: string;
+  cuenta?: string;
+  titular?: string;
   accion: string;
   etapa?: string;
   tipo: MovimientoTipo;
+  usuario: string;
+  categoria: MovimientoCategoria;
 }
 
 export const ultimosMovimientos: Movimiento[] = [
@@ -243,62 +248,111 @@ export const ultimosMovimientos: Movimiento[] = [
     fecha: "15/04/2026 · 11:42",
     cuenta: "0182-094-3",
     titular: "Comercial del Sur S.R.L.",
-    accion: "Pasó a etapa de Intimación",
+    accion:
+      "Inmueble 0182-094-3 (Comercial del Sur S.R.L.) avanzó de “Notificación 2” a “Intimación legal”.",
     etapa: "Intimación legal",
     tipo: "intimacion",
+    usuario: "J. Ramírez",
+    categoria: "movimiento",
   },
   {
     id: "m2",
     fecha: "15/04/2026 · 10:15",
     cuenta: "0291-712-9",
     titular: "Industrias Norte S.A.",
-    accion: "Pasó a etapa de Corte",
+    accion:
+      "Inmueble 0291-712-9 (Industrias Norte S.A.) avanzó de “Intimación legal” a “Corte”.",
     etapa: "Corte",
     tipo: "corte",
+    usuario: "M. González",
+    categoria: "movimiento",
   },
   {
     id: "m3",
     fecha: "14/04/2026 · 17:08",
     cuenta: "0017-330-2",
     titular: "Martínez, Laura B.",
-    accion: "Proceso cerrado por regularización",
+    accion:
+      "Inmueble 0017-330-2 (Martínez, Laura B.) cerró su proceso desde “Intimación legal” por regularización total.",
     etapa: "Cerrado",
     tipo: "regularizacion",
+    usuario: "C. Pereyra",
+    categoria: "movimiento",
   },
   {
     id: "m4",
     fecha: "14/04/2026 · 14:22",
     cuenta: "0073-551-1",
     titular: "Pereyra, Carlos A.",
-    accion: "Plan de pago acordado (6 cuotas)",
+    accion:
+      "Inmueble 0073-551-1 (Pereyra, Carlos A.) cerró su proceso desde “Notificación 2” con plan de pago de 6 cuotas.",
     etapa: "Plan de pago",
     tipo: "plan_pago",
+    usuario: "L. Martínez",
+    categoria: "movimiento",
   },
   {
     id: "m5",
     fecha: "14/04/2026 · 11:30",
     cuenta: "0410-118-6",
     titular: "Rodríguez, Hugo D.",
-    accion: "Compromiso de pago registrado",
+    accion:
+      "Inmueble 0410-118-6 (Rodríguez, Hugo D.) registró compromiso de pago en etapa “Notificación 2” (proceso pausado).",
     etapa: "Notificación 2",
     tipo: "compromiso",
+    usuario: "R. Fernández",
+    categoria: "movimiento",
   },
   {
     id: "m6",
     fecha: "13/04/2026 · 16:48",
     cuenta: "0045-218-7",
     titular: "González, María Inés",
-    accion: "Aviso de corte emitido",
+    accion:
+      "Inmueble 0045-218-7 (González, María Inés) avanzó de “Notificación 1” a “Notificación 2” con emisión de aviso de corte.",
     etapa: "Notificación 2",
     tipo: "aviso_corte",
+    usuario: "J. Ramírez",
+    categoria: "movimiento",
   },
   {
     id: "m7",
     fecha: "13/04/2026 · 09:12",
     cuenta: "0512-301-4",
     titular: "Fernández, Roberto",
-    accion: "Aviso de deuda emitido",
+    accion:
+      "Inmueble 0512-301-4 (Fernández, Roberto) inició proceso en etapa “Notificación 1” con emisión de aviso de deuda.",
     etapa: "Notificación 1",
     tipo: "aviso_deuda",
+    usuario: "M. González",
+    categoria: "movimiento",
+  },
+  // ---- Cambios de configuración ----
+  {
+    id: "c1",
+    fecha: "13/04/2026 · 08:40",
+    accion:
+      "Configuración: se modificó la etapa “Intimación legal”, cambiando los días de espera de 30 a 45.",
+    tipo: "configuracion",
+    usuario: "Admin. Sistema",
+    categoria: "configuracion",
+  },
+  {
+    id: "c2",
+    fecha: "12/04/2026 · 18:05",
+    accion:
+      "Configuración: se creó el motivo de cierre “Judicialización” en el módulo de seguimiento.",
+    tipo: "configuracion",
+    usuario: "Admin. Sistema",
+    categoria: "configuracion",
+  },
+  {
+    id: "c3",
+    fecha: "12/04/2026 · 10:22",
+    accion:
+      "Configuración: se desactivó el grupo “Industrial Norte” del padrón de inmuebles.",
+    tipo: "configuracion",
+    usuario: "C. Pereyra",
+    categoria: "configuracion",
   },
 ];

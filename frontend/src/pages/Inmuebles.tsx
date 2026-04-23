@@ -8,7 +8,6 @@ import {
   ArrowDown,
   MoreHorizontal,
   Eye,
-  RefreshCw,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -46,6 +45,7 @@ import {
   distritosInmueble,
   type Inmueble,
 } from "@/data/inmuebles";
+import { ImportarInmueblesDialog } from "@/components/inmuebles/ImportarInmueblesDialog";
 
 type SortKey = "cuenta" | "titular" | "direccion" | "grupo" | "distrito" | "activo";
 type SortDir = "asc" | "desc";
@@ -129,6 +129,8 @@ export default function Inmuebles() {
   const hasFilters =
     query !== "" || field !== "all" || grupo !== "all" || distrito !== "all" || estado !== "all";
 
+  const [importOpen, setImportOpen] = useState(false);
+
   return (
     <>
       <AppHeader
@@ -136,18 +138,14 @@ export default function Inmuebles() {
         description="Padrón general de inmuebles registrados en el sistema."
         breadcrumb={[{ label: "Inmuebles" }]}
         actions={
-          <>
-            <Button variant="outline" size="sm" className="h-9 gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Actualización masiva
-            </Button>
-            <Button size="sm" className="h-9 gap-2">
-              <Upload className="h-4 w-4" />
-              Carga masiva
-            </Button>
-          </>
+          <Button size="sm" className="h-9 gap-2" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Importar inmuebles
+          </Button>
         }
       />
+
+      <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <main className="flex-1 px-6 py-6">
         {/* Barra de filtros */}

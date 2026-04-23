@@ -6,12 +6,14 @@ import {
   Handshake,
   Bell,
   FileWarning,
+  Settings,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ultimosMovimientos, type MovimientoTipo } from "@/data/mock";
+import { useNavigate } from "react-router-dom";
 
 const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label: string }> = {
   intimacion: { icon: Gavel, accent: "bg-accent-soft text-accent", label: "Intimación" },
@@ -37,9 +39,16 @@ const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label
     accent: "bg-status-active-soft text-status-active",
     label: "Aviso de corte",
   },
+  configuracion: {
+    icon: Settings,
+    accent: "bg-surface-muted text-muted-foreground",
+    label: "Configuración",
+  },
 };
 
 export function UltimosMovimientos() {
+  const navigate = useNavigate();
+  const visibles = ultimosMovimientos.slice(0, 5);
   return (
     <div className="rounded-lg border border-border bg-card shadow-institutional">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -52,7 +61,7 @@ export function UltimosMovimientos() {
           </p>
         </div>
         <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {ultimosMovimientos.length} registros
+          {visibles.length} de {ultimosMovimientos.length}
         </span>
       </header>
 
@@ -68,7 +77,7 @@ export function UltimosMovimientos() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {ultimosMovimientos.map((m) => {
+            {visibles.map((m) => {
               const meta = tipoMeta[m.tipo];
               const Icon = meta.icon;
               return (
@@ -109,9 +118,14 @@ export function UltimosMovimientos() {
 
       <footer className="flex items-center justify-between border-t border-border px-5 py-3">
         <span className="text-[11px] text-muted-foreground">
-          Mostrando los {ultimosMovimientos.length} movimientos más recientes.
+          Mostrando los {visibles.length} movimientos más recientes.
         </span>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => navigate("/reportes/historial-movimientos")}
+        >
           Ver más
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>

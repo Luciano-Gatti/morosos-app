@@ -20,6 +20,7 @@ import {
   ListChecks,
   CalendarRange,
   PieChart as PieChartIcon,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/BrandMark";
@@ -48,6 +49,7 @@ const items: NavItem[] = [
       { to: "/reportes/estado-inmuebles", label: "Estado de inmuebles", icon: ListChecks },
       { to: "/reportes/acciones-fechas", label: "Acciones entre fechas", icon: CalendarRange },
       { to: "/reportes/porcentajes-morosidad", label: "Porcentajes de morosidad", icon: PieChartIcon },
+      { to: "/reportes/historial-movimientos", label: "Historial de movimientos", icon: History },
     ],
   },
   {
