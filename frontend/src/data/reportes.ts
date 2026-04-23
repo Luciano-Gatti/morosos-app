@@ -200,6 +200,87 @@ export function conteoPorTipo(rows: AccionRegistro[], tipos: AccionTipo[]): Acci
 export const TIPOS_NOTIFICACION = tiposNotificacion;
 export const TIPOS_REGULARIZACION = tiposRegularizacion;
 
+/* ---------- Planes de pago (detalle) ---------- */
+
+export interface PlanDePagoRow {
+  id: string;
+  fechaAlta: Date;
+  cuenta: string;
+  titular: string;
+  grupo: string;
+  distrito: string;
+  cuotas: number;
+  cuotasPagadas: number;
+  montoTotal: number;
+  montoCuota: number;
+  proximoVencimiento: Date;
+  vencimientoFinal: Date;
+  estado: "Vigente" | "Al día" | "En mora" | "Finalizado";
+  responsable: string;
+}
+
+const estadosPlan: PlanDePagoRow["estado"][] = ["Vigente", "Al día", "En mora", "Finalizado"];
+const cuotasPosibles = [3, 6, 9, 12, 18, 24];
+
+export function getPlanesDePago(desde: Date | null, hasta: Date | null): PlanDePagoRow[] {
+  const planes = accionesHistorial.filter((a) => a.tipo === "Plan de pago");
+  const out: PlanDePagoRow[] = planes.map((a, idx) => {
+    const r1 = pseudo(idx + 7);
+    const r2 = pseudo(idx + 53);
+    const r3 = pseudo(idx + 131);
+    const cuotas = cuotasPosibles[Math.floor(r1 * cuotasPosibles.length)];
+    const cuotasPagadas = Math.floor(r2 * (cuotas + 1));
+    const montoCuota = 18000 + Math.floor(r3 * 90000);
+    const montoTotal = montoCuota * cuotas;
+
+    const proxVto = new Date(a.fecha);
+    proxVto.setMonth(proxVto.getMonth() + cuotasPagadas + 1);
+    proxVto.setDate(10);
+
+    const vtoFinal = new Date(a.fecha);
+    vtoFinal.setMonth(vtoFinal.getMonth() + cuotas);
+    vtoFinal.setDate(10);
+
+    let estado: PlanDePagoRow["estado"];
+    if (cuotasPagadas >= cuotas) estado = "Finalizado";
+    else if (r2 > 0.78) estado = "En mora";
+    else if (cuotasPagadas === 0) estado = "Vigente";
+    else estado = "Al día";
+
+    return {
+      id: `PP-${a.id}`,
+      fechaAlta: a.fecha,
+      cuenta: a.cuenta,
+      titular: a.titular,
+      grupo: a.grupo,
+      distrito: a.distrito,
+      cuotas,
+      cuotasPagadas,
+      montoTotal,
+      montoCuota,
+      proximoVencimiento: proxVto,
+      vencimientoFinal: vtoFinal,
+      estado,
+      responsable: a.usuario,
+    };
+  });
+
+  return out
+    .filter((p) => {
+      if (desde && p.fechaAlta < desde) return false;
+      if (hasta) {
+        const h = new Date(hasta);
+        h.setHours(23, 59, 59, 999);
+        if (p.fechaAlta > h) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => a.proximoVencimiento.getTime() - b.proximoVencimiento.getTime());
+}
+
+// Suprime warning de variable no usada en tiempo de type-check
+void estadosPlan;
+
 /* ---------- Reporte 4: Estado actual de cada inmueble ---------- */
 
 export type EstadoInmueble = "Al día" | "Moroso";

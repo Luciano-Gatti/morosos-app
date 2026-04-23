@@ -51,6 +51,7 @@ import {
   getMorosidadTotal,
   getMorososPorDistrito,
   getMorososPorGrupo,
+  getPlanesDePago,
   serieDiaria,
   TIPOS_NOTIFICACION,
   TIPOS_REGULARIZACION,
@@ -641,6 +642,146 @@ function ReporteAcciones({
           alignRight={[1, 2]}
         />
       </div>
+
+      {variante === "regularizacion" && (
+        <>
+          <ReporteAccionesDetalle
+            titulo="Regularizaciones — detalle"
+            descripcion="Inmuebles que regularizaron su situación en el período."
+            acciones={filtradas.filter((a) => a.tipo === "Regularización")}
+          />
+          <ReportePlanesDePagoDetalle desde={desde} hasta={hasta} />
+          <ReporteAccionesDetalle
+            titulo="Compromisos de pago — detalle"
+            descripcion="Compromisos de pago asumidos por los titulares en el período."
+            acciones={filtradas.filter((a) => a.tipo === "Compromiso de pago")}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Detalle simple de acciones (regularizaciones / compromisos)
+   ============================================================ */
+
+function ReporteAccionesDetalle({
+  titulo,
+  descripcion,
+  acciones,
+}: {
+  titulo: string;
+  descripcion?: string;
+  acciones: AccionRegistro[];
+}) {
+  const PAGE = 15;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(acciones.length / PAGE));
+  const safePage = Math.min(page, totalPages);
+  const slice = acciones.slice((safePage - 1) * PAGE, safePage * PAGE);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <SectionTitle>{titulo}</SectionTitle>
+        {descripcion && (
+          <p className="-mt-1 mb-2 text-[12px] text-muted-foreground">{descripcion}</p>
+        )}
+      </div>
+      {acciones.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+          Sin registros en el período seleccionado.
+        </div>
+      ) : (
+        <>
+          <DataTable
+            head={["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"]}
+            rows={slice.map((a) => [
+              dateFmt.format(a.fecha),
+              a.cuenta,
+              a.titular,
+              a.grupo,
+              a.distrito,
+              a.usuario,
+            ])}
+          />
+          <Paginador
+            page={safePage}
+            totalPages={totalPages}
+            setPage={setPage}
+            total={acciones.length}
+            pageSize={PAGE}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Detalle de planes de pago (subtabla del reporte de regularización)
+   ============================================================ */
+
+function ReportePlanesDePagoDetalle({
+  desde,
+  hasta,
+}: {
+  desde: Date | null;
+  hasta: Date | null;
+}) {
+  const planes = useMemo(() => getPlanesDePago(desde, hasta), [desde, hasta]);
+  const PAGE = 15;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(planes.length / PAGE));
+  const slice = planes.slice((page - 1) * PAGE, page * PAGE);
+
+  const totalCuotas = planes.reduce((acc, p) => acc + p.cuotas, 0);
+  const promedioCuotas = planes.length === 0 ? 0 : totalCuotas / planes.length;
+  const montoTotal = planes.reduce((acc, p) => acc + p.montoTotal, 0);
+
+  return (
+    <div className="space-y-3">
+      <SectionTitle>Planes de pago — detalle</SectionTitle>
+      <KpiBar
+        items={[
+          { label: "Planes en el período", value: numberFmt.format(planes.length), tone: "primary" },
+          { label: "Promedio de cuotas", value: promedioCuotas.toFixed(1) },
+          { label: "Monto comprometido", value: moneyFmt.format(montoTotal) },
+        ]}
+      />
+      <DataTable
+        head={[
+          "Fecha alta",
+          "Cuenta",
+          "Titular",
+          "Grupo",
+          "Cuotas",
+          "Monto total",
+          "Próx. vencimiento",
+          "Vto. final",
+          "Estado",
+        ]}
+        rows={slice.map((p) => [
+          dateFmt.format(p.fechaAlta),
+          p.cuenta,
+          p.titular,
+          p.grupo,
+          numberFmt.format(p.cuotas),
+          moneyFmt.format(p.montoTotal),
+          dateFmt.format(p.proximoVencimiento),
+          dateFmt.format(p.vencimientoFinal),
+          p.estado,
+        ])}
+        alignRight={[4, 5]}
+      />
+      <Paginador
+        page={page}
+        totalPages={totalPages}
+        setPage={setPage}
+        total={planes.length}
+        pageSize={PAGE}
+      />
     </div>
   );
 }
@@ -1011,7 +1152,78 @@ async function runExport(
     const head = ["Tipo de acción", "Cantidad", "% del total"];
     const body = conteos.map((c) => [c.tipo, c.cantidad, total === 0 ? "—" : pctFmt((c.cantidad / total) * 100)]);
     const chartId = reporte.id === "acciones-notificacion" ? "rep-acciones-notificacion-chart" : "rep-acciones-regularizacion-chart";
+    const planes = reporte.id === "acciones-regularizacion"
+      ? getPlanesDePago(rango.desde, rango.hasta)
+      : [];
+    const regularizaciones = reporte.id === "acciones-regularizacion"
+      ? filtradas.filter((a) => a.tipo === "Regularización")
+      : [];
+    const compromisos = reporte.id === "acciones-regularizacion"
+      ? filtradas.filter((a) => a.tipo === "Compromiso de pago")
+      : [];
+    const detalleAccionHead = ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"];
+    const toDetalleBody = (rows: AccionRegistro[]) =>
+      rows.map((a) => [
+        dateFmt.format(a.fecha),
+        a.cuenta,
+        a.titular,
+        a.grupo,
+        a.distrito,
+        a.usuario,
+      ]);
+    const planesHead = [
+      "Fecha alta", "Cuenta", "Titular", "Grupo", "Distrito",
+      "Cuotas", "Monto cuota", "Monto total",
+      "Próx. vencimiento", "Vto. final", "Estado", "Responsable",
+    ];
+    const planesBody = planes.map((p) => [
+      dateFmt.format(p.fechaAlta),
+      p.cuenta,
+      p.titular,
+      p.grupo,
+      p.distrito,
+      p.cuotas,
+      p.montoCuota,
+      p.montoTotal,
+      dateFmt.format(p.proximoVencimiento),
+      dateFmt.format(p.vencimientoFinal),
+      p.estado,
+      p.responsable,
+    ]);
     if (kind === "pdf") {
+      const extraTables: NonNullable<Parameters<typeof exportarReportePdf>[0]["extraTables"]> = [];
+      if (regularizaciones.length > 0) {
+        extraTables.push({
+          title: "Regularizaciones — detalle",
+          head: detalleAccionHead,
+          body: toDetalleBody(regularizaciones),
+        });
+      }
+      if (planes.length > 0) {
+        extraTables.push({
+          title: "Planes de pago — detalle",
+          head: ["Fecha", "Cuenta", "Titular", "Grupo", "Cuotas", "Monto total", "Próx. vto.", "Vto. final", "Estado"],
+          body: planes.map((p) => [
+            dateFmt.format(p.fechaAlta),
+            p.cuenta,
+            p.titular,
+            p.grupo,
+            p.cuotas,
+            moneyFmt.format(p.montoTotal),
+            dateFmt.format(p.proximoVencimiento),
+            dateFmt.format(p.vencimientoFinal),
+            p.estado,
+          ]),
+          columnStyles: { 4: { halign: "right" }, 5: { halign: "right" } },
+        });
+      }
+      if (compromisos.length > 0) {
+        extraTables.push({
+          title: "Compromisos de pago — detalle",
+          head: detalleAccionHead,
+          body: toDetalleBody(compromisos),
+        });
+      }
       await exportarReportePdf({
         meta: {
           ...meta,
@@ -1022,6 +1234,7 @@ async function runExport(
         },
         chartElementIds: [chartId],
         table: { head, body, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } } },
+        extraTables: extraTables.length > 0 ? extraTables : undefined,
         filename,
       });
     } else {
@@ -1041,6 +1254,15 @@ async function runExport(
               a.usuario,
             ]),
           },
+          ...(regularizaciones.length > 0
+            ? [{ name: "Regularizaciones", head: detalleAccionHead, body: toDetalleBody(regularizaciones) }]
+            : []),
+          ...(planes.length > 0
+            ? [{ name: "Planes de pago", head: planesHead, body: planesBody }]
+            : []),
+          ...(compromisos.length > 0
+            ? [{ name: "Compromisos de pago", head: detalleAccionHead, body: toDetalleBody(compromisos) }]
+            : []),
         ],
         filename,
       });

@@ -10,7 +10,6 @@ import InmuebleDetalle from "./pages/InmuebleDetalle";
 import HistorialSeguimiento from "./pages/HistorialSeguimiento";
 import GestionDeuda from "./pages/GestionDeuda";
 import CargaDetalle from "./pages/CargaDetalle";
-import SeguimientoMorosos from "./pages/SeguimientoMorosos";
 import GestionEtapas from "./pages/GestionEtapas";
 import Reportes from "./pages/Reportes";
 import ConfiguracionGrupos from "./pages/ConfiguracionGrupos";
@@ -36,7 +35,6 @@ const App = () => (
             <Route path="/inmuebles/:id/seguimiento" element={<HistorialSeguimiento />} />
             <Route path="/deuda" element={<GestionDeuda />} />
             <Route path="/deuda/:id" element={<CargaDetalle />} />
-            <Route path="/seguimiento" element={<SeguimientoMorosos />} />
             <Route path="/etapas" element={<GestionEtapas />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/reportes/:reporteId" element={<Reportes />} />

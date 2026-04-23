@@ -145,6 +145,12 @@ export interface ExportPdfOptions {
     body: (string | number)[][];
     columnStyles?: Record<number, Partial<{ halign: "left" | "right" | "center"; cellWidth: number }>>;
   };
+  extraTables?: {
+    title?: string;
+    head: string[];
+    body: (string | number)[][];
+    columnStyles?: Record<number, Partial<{ halign: "left" | "right" | "center"; cellWidth: number }>>;
+  }[];
   filename: string;
 }
 
@@ -188,6 +194,40 @@ export async function exportarReportePdf(opts: ExportPdfOptions) {
     alternateRowStyles: { fillColor: [247, 249, 252] },
     columnStyles: opts.table.columnStyles,
   });
+
+  if (opts.extraTables && opts.extraTables.length) {
+    for (const t of opts.extraTables) {
+      // @ts-ignore lastAutoTable is added by jspdf-autotable
+      let startY = (doc as any).lastAutoTable?.finalY ?? y;
+      startY += 8;
+      if (t.title) {
+        if (startY > doc.internal.pageSize.getHeight() - 30) {
+          doc.addPage();
+          startY = pageHeader(doc, opts.meta);
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(28, 53, 92);
+        doc.text(t.title, 14, startY);
+        startY += 4;
+      }
+      autoTable(doc, {
+        head: [t.head],
+        body: t.body,
+        startY,
+        margin: { left: 14, right: 14, bottom: 18 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [40, 50, 65] },
+        headStyles: {
+          fillColor: [28, 53, 92],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "left",
+        },
+        alternateRowStyles: { fillColor: [247, 249, 252] },
+        columnStyles: t.columnStyles,
+      });
+    }
+  }
 
   pageFooter(doc);
   doc.save(opts.filename);

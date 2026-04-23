@@ -2,9 +2,8 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  Building2,
   ReceiptText,
-  ClipboardList,
+  Building2,
   ListTree,
   FileBarChart2,
   Settings,
@@ -37,7 +36,6 @@ const items: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/inmuebles", label: "Inmuebles", icon: Building2 },
   { to: "/deuda", label: "Gestión de deuda", icon: ReceiptText },
-  { to: "/seguimiento", label: "Seguimiento de morosos", icon: ClipboardList },
   { to: "/etapas", label: "Gestión de etapas", icon: ListTree },
   {
     to: "/reportes",
