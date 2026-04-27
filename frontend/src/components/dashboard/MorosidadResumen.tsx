@@ -1,8 +1,9 @@
 import { resumenMorosidad } from "@/data/mock";
 
 export function MorosidadResumen() {
-  const { totalInmuebles, alDia, morosos } = resumenMorosidad;
+  const { totalInmuebles, alDia, deudores, morosos } = resumenMorosidad;
   const pctMorosos = (morosos / totalInmuebles) * 100;
+  const pctDeudores = (deudores / totalInmuebles) * 100;
   const pctAlDia = (alDia / totalInmuebles) * 100;
   const fmt = (n: number) => n.toLocaleString("es-AR");
 
@@ -45,6 +46,11 @@ export function MorosidadResumen() {
                 title={`Al día: ${pctAlDia.toFixed(1)}%`}
               />
               <div
+                className="h-full bg-status-active"
+                style={{ width: `${pctDeudores}%` }}
+                title={`Deudores: ${pctDeudores.toFixed(1)}%`}
+              />
+              <div
                 className="h-full bg-status-debt"
                 style={{ width: `${pctMorosos}%` }}
                 title={`Morosos: ${pctMorosos.toFixed(1)}%`}
@@ -56,6 +62,10 @@ export function MorosidadResumen() {
                 Al día {pctAlDia.toFixed(1).replace(".", ",")}%
               </span>
               <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-sm bg-status-active" />
+                Deudores {pctDeudores.toFixed(1).replace(".", ",")}%
+              </span>
+              <span className="inline-flex items-center gap-1.5">
                 Morosos {pctMorosos.toFixed(1).replace(".", ",")}%
                 <span className="h-2 w-2 rounded-sm bg-status-debt" />
               </span>
@@ -63,14 +73,22 @@ export function MorosidadResumen() {
           </div>
         </div>
 
-        {/* Detalle al día / morosos */}
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        {/* Detalle al día / deudores / morosos */}
+        <div className="mt-3 grid grid-cols-3 gap-2">
           <div className="flex items-baseline justify-between rounded-md border border-border bg-status-closed-soft/40 px-3 py-2">
             <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Al día
             </div>
             <div className="font-serif text-[18px] font-semibold leading-none tabular text-status-closed">
               {fmt(alDia)}
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between rounded-md border border-border bg-status-active-soft/40 px-3 py-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Deudores
+            </div>
+            <div className="font-serif text-[18px] font-semibold leading-none tabular text-status-active">
+              {fmt(deudores)}
             </div>
           </div>
           <div className="flex items-baseline justify-between rounded-md border border-border bg-status-debt-soft/40 px-3 py-2">

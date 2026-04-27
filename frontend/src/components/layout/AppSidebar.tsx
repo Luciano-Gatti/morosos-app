@@ -13,7 +13,6 @@ import {
   Users2,
   Activity,
   Layers,
-  Tag,
   Building2 as BuildingIcon,
   Bell,
   HandCoins,
@@ -60,7 +59,6 @@ const items: NavItem[] = [
       { to: "/configuracion/grupos", label: "Grupos", icon: Users2 },
       { to: "/configuracion/seguimiento", label: "Seguimiento", icon: Activity },
       { to: "/configuracion/etapas", label: "Etapas", icon: Layers },
-      { to: "/configuracion/motivos", label: "Motivos", icon: Tag },
     ],
   },
 ];

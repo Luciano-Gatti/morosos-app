@@ -534,6 +534,7 @@ function ReporteMorososGrupoDistrito() {
       <KpiBar
         items={[
           { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+          { label: "Deudores", value: numberFmt.format(total.deudores), tone: "primary" },
           { label: "Morosos", value: numberFmt.format(total.morosos), tone: "danger" },
           { label: "Al día", value: numberFmt.format(total.alDia), tone: "ok" },
           { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
@@ -544,7 +545,7 @@ function ReporteMorososGrupoDistrito() {
         <ChartBox id="rep-grupos-chart" title="Morosos por grupo">
           <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-            <XAxis dataKey="grupo" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
             <Bar dataKey="morosos" radius={[3, 3, 0, 0]}>
@@ -573,27 +574,30 @@ function ReporteMorososGrupoDistrito() {
         <div>
           <SectionTitle>Por grupo</SectionTitle>
           <DataTable
-            head={["Grupo", "Padrón", "Morosos", "% Morosidad"]}
+            head={["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
             rows={grupos.map((g) => [
               g.grupo,
+              g.distrito,
               numberFmt.format(g.totalInmuebles),
+              numberFmt.format(g.deudores),
               numberFmt.format(g.morosos),
               pctFmt(g.porcentaje),
             ])}
-            alignRight={[1, 2, 3]}
+            alignRight={[2, 3, 4, 5]}
           />
         </div>
         <div>
           <SectionTitle>Por distrito</SectionTitle>
           <DataTable
-            head={["Distrito", "Padrón", "Morosos", "% Morosidad"]}
+            head={["Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
             rows={distritos.map((d) => [
               d.distrito,
               numberFmt.format(d.totalInmuebles),
+              numberFmt.format(d.deudores),
               numberFmt.format(d.morosos),
               pctFmt(d.porcentaje),
             ])}
-            alignRight={[1, 2, 3]}
+            alignRight={[1, 2, 3, 4]}
           />
         </div>
       </div>
@@ -812,7 +816,8 @@ function ReportePlanesDePagoDetalle({
 function ReporteEstadoInmuebles() {
   const rows = useMemo(() => getEstadoInmuebles(), []);
   const morosos = rows.filter((r) => r.estado === "Moroso").length;
-  const alDia = rows.length - morosos;
+  const deudores = rows.filter((r) => r.estado === "Deudor").length;
+  const alDia = rows.filter((r) => r.estado === "Al día").length;
   const totalDeuda = rows.reduce((acc, r) => acc + r.montoAdeudado, 0);
 
   const PAGE = 25;
@@ -826,6 +831,7 @@ function ReporteEstadoInmuebles() {
         items={[
           { label: "Total inmuebles", value: numberFmt.format(rows.length) },
           { label: "Al día", value: numberFmt.format(alDia), tone: "ok" },
+          { label: "Deudores", value: numberFmt.format(deudores), tone: "primary" },
           { label: "Morosos", value: numberFmt.format(morosos), tone: "danger" },
           { label: "Deuda total", value: moneyFmt.format(totalDeuda), tone: "primary" },
         ]}
@@ -836,6 +842,7 @@ function ReporteEstadoInmuebles() {
           <Pie
             data={[
               { name: "Al día", value: alDia, fill: "hsl(145 35% 38%)" },
+              { name: "Deudores", value: deudores, fill: "hsl(215 75% 38%)" },
               { name: "Morosos", value: morosos, fill: "hsl(8 78% 50%)" },
             ]}
             dataKey="value"
@@ -956,6 +963,7 @@ function ReportePorcentajesMorosidad() {
       <KpiBar
         items={[
           { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+          { label: "Deudores", value: numberFmt.format(total.deudores), tone: "primary" },
           { label: "Morosos", value: numberFmt.format(total.morosos), tone: "danger" },
           { label: "Al día", value: numberFmt.format(total.alDia), tone: "ok" },
           { label: "% morosidad total", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
@@ -965,7 +973,7 @@ function ReportePorcentajesMorosidad() {
       <ChartBox id="rep-pct-grupos-chart" title="% de morosidad por grupo">
         <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-          <XAxis dataKey="grupo" tick={{ fontSize: 11 }} />
+          <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
           <YAxis tick={{ fontSize: 11 }} unit="%" />
           <Tooltip formatter={(v: number) => pctFmt(v)} />
           <Bar dataKey="porcentaje" radius={[3, 3, 0, 0]}>
@@ -979,14 +987,16 @@ function ReportePorcentajesMorosidad() {
       <div>
         <SectionTitle>Detalle por grupo</SectionTitle>
         <DataTable
-          head={["Grupo", "Padrón", "Morosos", "% Morosidad"]}
+          head={["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
           rows={grupos.map((g) => [
             g.grupo,
+            g.distrito,
             numberFmt.format(g.totalInmuebles),
+            numberFmt.format(g.deudores),
             numberFmt.format(g.morosos),
             pctFmt(g.porcentaje),
           ])}
-          alignRight={[1, 2, 3]}
+          alignRight={[2, 3, 4, 5]}
         />
       </div>
     </div>
@@ -1251,10 +1261,10 @@ async function runExport(
     const grupos = getMorososPorGrupo();
     const distritos = getMorososPorDistrito();
     const total = getMorosidadTotal();
-    const head = ["Categoría", "Detalle", "Padrón", "Morosos", "% Morosidad"];
+    const head = ["Categoría", "Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"];
     const body: (string | number)[][] = [
-      ...grupos.map((g) => ["Grupo", g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]),
-      ...distritos.map((d) => ["Distrito", d.distrito, d.totalInmuebles, d.morosos, pctFmt(d.porcentaje)]),
+      ...grupos.map((g) => ["Grupo", g.grupo, g.distrito, g.totalInmuebles, g.deudores, g.morosos, pctFmt(g.porcentaje)]),
+      ...distritos.map((d) => ["Distrito", "—", d.distrito, d.totalInmuebles, d.deudores, d.morosos, pctFmt(d.porcentaje)]),
     ];
     if (kind === "pdf") {
       await exportarReportePdf({
@@ -1262,20 +1272,21 @@ async function runExport(
           ...meta,
           kpis: [
             { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
+            { label: "Deudores", value: numberFmt.format(total.deudores) },
             { label: "Morosos", value: numberFmt.format(total.morosos) },
             { label: "Al día", value: numberFmt.format(total.alDia) },
             { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad) },
           ],
         },
         chartElementIds: ["rep-grupos-chart", "rep-distritos-chart"],
-        table: { head, body, columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } } },
+        table: { head, body, columnStyles: { 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } } },
         filename,
       });
     } else {
       exportarReporteXlsx({
         sheets: [
-          { name: "Por grupo", head: ["Grupo", "Padrón", "Morosos", "% Morosidad"], body: grupos.map((g) => [g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]) },
-          { name: "Por distrito", head: ["Distrito", "Padrón", "Morosos", "% Morosidad"], body: distritos.map((d) => [d.distrito, d.totalInmuebles, d.morosos, pctFmt(d.porcentaje)]) },
+          { name: "Por grupo", head: ["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"], body: grupos.map((g) => [g.grupo, g.distrito, g.totalInmuebles, g.deudores, g.morosos, pctFmt(g.porcentaje)]) },
+          { name: "Por distrito", head: ["Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"], body: distritos.map((d) => [d.distrito, d.totalInmuebles, d.deudores, d.morosos, pctFmt(d.porcentaje)]) },
         ],
         filename,
       });
@@ -1412,7 +1423,8 @@ async function runExport(
   if (reporte.id === "estado-inmuebles") {
     const rows = getEstadoInmuebles();
     const morosos = rows.filter((r) => r.estado === "Moroso").length;
-    const alDia = rows.length - morosos;
+    const deudores = rows.filter((r) => r.estado === "Deudor").length;
+    const alDia = rows.filter((r) => r.estado === "Al día").length;
     const totalDeuda = rows.reduce((acc, r) => acc + r.montoAdeudado, 0);
     const head = ["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"];
     const body = rows.map((r) => [
@@ -1432,6 +1444,7 @@ async function runExport(
           kpis: [
             { label: "Total", value: numberFmt.format(rows.length) },
             { label: "Al día", value: numberFmt.format(alDia) },
+            { label: "Deudores", value: numberFmt.format(deudores) },
             { label: "Morosos", value: numberFmt.format(morosos) },
             { label: "Deuda total", value: moneyFmt.format(totalDeuda) },
           ],
@@ -1491,8 +1504,8 @@ async function runExport(
   if (reporte.id === "porcentajes-morosidad") {
     const total = getMorosidadTotal();
     const grupos = getMorososPorGrupo();
-    const head = ["Grupo", "Padrón", "Morosos", "% Morosidad"];
-    const body = grupos.map((g) => [g.grupo, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]);
+    const head = ["Grupo", "Distrito", "Padrón", "Morosos", "% Morosidad"];
+    const body = grupos.map((g) => [g.grupo, g.distrito, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]);
     if (kind === "pdf") {
       await exportarReportePdf({
         meta: {
@@ -1505,7 +1518,7 @@ async function runExport(
           ],
         },
         chartElementIds: ["rep-pct-grupos-chart"],
-        table: { head, body, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } } },
+        table: { head, body, columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } } },
         filename,
       });
     } else {

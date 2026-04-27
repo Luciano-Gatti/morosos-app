@@ -64,12 +64,12 @@ import { cn } from "@/lib/utils";
 import {
   inmueblesMorosos,
   etapasSeguimiento,
-  estadosOperativos,
+  estadosProceso,
   gruposSeguimiento,
   distritosSeguimiento,
   type InmuebleMoroso,
   type EtapaSeguimiento,
-  type EstadoOperativo,
+  type EstadoProceso,
 } from "@/data/seguimiento";
 import { parametrosSeguimiento } from "@/data/parametrosSeguimiento";
 import { Link } from "react-router-dom";
@@ -113,7 +113,7 @@ function etapaSiguiente(e: EtapaSeguimiento | null): EtapaSeguimiento | null {
 const PAGE_SIZE = 15;
 
 type EtapaFiltro = "all" | "sin-etapa" | EtapaSeguimiento;
-type EstadoFiltro = "all" | EstadoOperativo;
+type EstadoFiltro = "all" | EstadoProceso;
 
 type AccionMasiva =
   | { kind: "enviar-etapa"; etapa: EtapaSeguimiento }
@@ -161,7 +161,7 @@ export default function GestionEtapas() {
       } else if (etapaFiltro !== "all") {
         if (m.etapa !== etapaFiltro) return false;
       }
-      if (estadoFiltro !== "all" && m.estadoOperativo !== estadoFiltro) return false;
+      if (estadoFiltro !== "all" && m.estado !== estadoFiltro) return false;
       if (grupo !== "all" && m.grupo !== grupo) return false;
       if (distrito !== "all" && m.distrito !== distrito) return false;
       if (minManual !== null && Number.isFinite(minManual) && m.cuotasAdeudadas < minManual) return false;
@@ -314,11 +314,11 @@ export default function GestionEtapas() {
               }}
             >
               <SelectTrigger className="h-8 w-[160px] text-[12.5px]">
-                <SelectValue placeholder="Estado operativo" />
+                <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
-                {estadosOperativos.map((e) => (
+                {estadosProceso.map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -394,13 +394,13 @@ export default function GestionEtapas() {
               <div>
                 Activos:{" "}
                 <span className="tabular font-semibold text-foreground">
-                  {numberFmt.format(filtered.filter((m) => m.estadoOperativo === "Activo").length)}
+                  {numberFmt.format(filtered.filter((m) => m.estado === "Activo").length)}
                 </span>
               </div>
               <div>
                 Pausados:{" "}
                 <span className="tabular font-semibold text-foreground">
-                  {numberFmt.format(filtered.filter((m) => m.estadoOperativo === "Pausado").length)}
+                  {numberFmt.format(filtered.filter((m) => m.estado === "Pausado").length)}
                 </span>
               </div>
               <div className="ml-auto hidden items-center gap-1.5 text-[11px] sm:flex">
@@ -414,52 +414,7 @@ export default function GestionEtapas() {
               hasSinEtapa={seleccionados.some((m) => m.etapa === null)}
               hasConEtapa={seleccionados.some((m) => m.etapa !== null)}
               onClear={clearSelection}
-              onAction={(a) => {
-                if (a.kind === "enviar-siguiente") {
-                  // Avanza cada inmueble a SU siguiente etapa operativa.
-                  let avanzados = 0;
-                  let iniciados = 0;
-                  let omitidos = 0;
-                  seleccionados.forEach((m) => {
-                    if (m.etapa === null) {
-                      iniciados += 1;
-                    } else if (etapaSiguiente(m.etapa) === null) {
-                      omitidos += 1;
-                    } else {
-                      avanzados += 1;
-                    }
-                  });
-                  const partes: string[] = [];
-                  if (avanzados) partes.push(`${avanzados} avanzaron a su siguiente etapa`);
-                  if (iniciados)
-                    partes.push(`${iniciados} iniciaron en "${etapasSeguimiento[0]}"`);
-                  if (omitidos)
-                    partes.push(`${omitidos} ya estaban en la última etapa y fueron omitidos`);
-                  toast({
-                    title: "Inmuebles enviados a etapa siguiente",
-                    description: partes.join(". ") + ".",
-                  });
-                  clearSelection();
-                  return;
-                }
-                if (a.kind === "repetir-etapa") {
-                  // Repite la etapa actual de cada inmueble (re-emisión).
-                  const repetidos = seleccionados.filter((m) => m.etapa !== null).length;
-                  const omitidos = seleccionados.length - repetidos;
-                  const partes: string[] = [];
-                  if (repetidos)
-                    partes.push(`${repetidos} re-emitieron su etapa actual`);
-                  if (omitidos)
-                    partes.push(`${omitidos} sin etapa fueron omitidos`);
-                  toast({
-                    title: "Etapa repetida",
-                    description: partes.join(". ") + ".",
-                  });
-                  clearSelection();
-                  return;
-                }
-                setAccion(a);
-              }}
+              onAction={setAccion}
             />
           )}
 
@@ -633,7 +588,7 @@ function InmuebleRow({
         )}
       </TableCell>
       <TableCell>
-        <EstadoOperativoPill estado={m.estadoOperativo} />
+        <EstadoPill estado={m.estado} />
       </TableCell>
     </TableRow>
   );
@@ -772,18 +727,20 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento | null }) {
   );
 }
 
-function EstadoOperativoPill({ estado }: { estado: EstadoOperativo }) {
-  const cls: Record<EstadoOperativo, string> = {
+function EstadoPill({ estado }: { estado: EstadoProceso }) {
+  const cls: Record<EstadoProceso, string> = {
+    "No iniciado": "border-border bg-muted text-muted-foreground",
     Activo:
       "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
     Pausado:
       "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-    "No iniciado": "border-border bg-muted text-muted-foreground",
+    Cerrado: "border-status-closed/20 bg-status-closed-soft text-status-closed",
   };
-  const dot: Record<EstadoOperativo, string> = {
+  const dot: Record<EstadoProceso, string> = {
+    "No iniciado": "bg-muted-foreground/60",
     Activo: "bg-emerald-500",
     Pausado: "bg-amber-500",
-    "No iniciado": "bg-muted-foreground/60",
+    Cerrado: "bg-status-closed",
   };
   return (
     <span
@@ -817,6 +774,17 @@ function AccionDialog({
   if (accion && accion.kind === "enviar-etapa") {
     return (
       <MoverEtapaDialog
+        accion={accion}
+        seleccionados={seleccionados}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
+    );
+  }
+
+  if (accion && (accion.kind === "enviar-siguiente" || accion.kind === "repetir-etapa")) {
+    return (
+      <ConfirmarEtapaDialog
         accion={accion}
         seleccionados={seleccionados}
         onCancel={onCancel}
@@ -898,6 +866,176 @@ function AccionDialog({
           >
             Confirmar
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmarEtapaDialog({
+  accion,
+  seleccionados,
+  onCancel,
+  onConfirm,
+}: {
+  accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
+  seleccionados: InmuebleMoroso[];
+  onCancel: () => void;
+  onConfirm: (titulo: string, descripcion: string) => void;
+}) {
+  const total = seleccionados.length;
+  const isSiguiente = accion.kind === "enviar-siguiente";
+  const [fecha, setFecha] = useState<Date | undefined>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [observacion, setObservacion] = useState("");
+  const [calOpen, setCalOpen] = useState(false);
+
+  const avanzados = isSiguiente
+    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguiente(m.etapa) !== null).length
+    : 0;
+  const iniciados = isSiguiente ? seleccionados.filter((m) => m.etapa === null).length : 0;
+  const repetidos = !isSiguiente ? seleccionados.filter((m) => m.etapa !== null).length : 0;
+  const omitidos = isSiguiente
+    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguiente(m.etapa) === null).length
+    : total - repetidos;
+  const aplicables = isSiguiente ? avanzados + iniciados : repetidos;
+  const Icon = isSiguiente ? ArrowRightCircle : RotateCcw;
+
+  const handleConfirm = () => {
+    const partes: string[] = [];
+    if (isSiguiente) {
+      if (avanzados) partes.push(`${avanzados} avanzaron a su siguiente etapa`);
+      if (iniciados) partes.push(`${iniciados} iniciaron en "${etapasSeguimiento[0]}"`);
+      if (omitidos) partes.push(`${omitidos} ya estaban en la última etapa y fueron omitidos`);
+      onConfirm("Inmuebles enviados a etapa siguiente", `${partes.join(". ")}.`);
+      return;
+    }
+    if (repetidos) partes.push(`${repetidos} re-emitieron su etapa actual`);
+    if (omitidos) partes.push(`${omitidos} sin etapa fueron omitidos`);
+    onConfirm("Etapa repetida", `${partes.join(". ")}.`);
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
+        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-6 py-4 text-left">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Icon className="h-3.5 w-3.5" />
+            Gestión de etapas
+          </div>
+          <DialogTitle className="font-serif text-xl leading-tight">
+            {isSiguiente ? "Enviar a etapa siguiente" : "Repetir etapa actual"}
+          </DialogTitle>
+          <DialogDescription className="text-[12.5px]">
+            {isSiguiente
+              ? "Cada inmueble avanzará a su próxima etapa disponible dentro del proceso."
+              : "Se re-emitirá la etapa actual para los inmuebles que ya tienen una etapa asignada."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 px-6 py-5">
+          <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft text-primary">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Inmuebles seleccionados
+                </div>
+                <div className="text-[13px] text-foreground">
+                  Se aplicará la operación al conjunto seleccionado.
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-serif text-2xl font-semibold tabular leading-none text-foreground">
+                {numberFmt.format(total)}
+              </div>
+              <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                inmueble{total === 1 ? "" : "s"}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-md border border-border bg-surface-muted/30 px-3 py-2.5 text-[12.5px] text-muted-foreground">
+              <div className="text-[11px] font-semibold uppercase tracking-wider">Resumen</div>
+              <div className="mt-1 space-y-1">
+                {isSiguiente ? (
+                  <>
+                    <div><span className="tabular font-semibold text-foreground">{avanzados}</span> avanzan</div>
+                    <div><span className="tabular font-semibold text-foreground">{iniciados}</span> inician seguimiento</div>
+                  </>
+                ) : (
+                  <div><span className="tabular font-semibold text-foreground">{repetidos}</span> repiten etapa</div>
+                )}
+                <div><span className="tabular font-semibold text-foreground">{omitidos}</span> omitidos</div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[12px] font-medium">Fecha programada</Label>
+              <Popover open={calOpen} onOpenChange={setCalOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 w-full justify-start text-left text-[13px] font-normal">
+                    <CalendarIcon className="mr-2 h-3.5 w-3.5 opacity-70" />
+                    {fecha ? format(fecha, "dd 'de' MMMM yyyy", { locale: es }) : "Sin fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={fecha}
+                    onSelect={(d) => {
+                      setFecha(d);
+                      setCalOpen(false);
+                    }}
+                    initialFocus
+                    locale={es}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
+              <Label className="text-[12px] font-medium">Observación</Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
+            </div>
+            <Textarea
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              placeholder="Detalle interno de la operación"
+              rows={3}
+              maxLength={500}
+              className="resize-none text-[13px]"
+            />
+          </div>
+
+          {omitidos > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{omitidos} inmueble{omitidos === 1 ? " será omitido" : "s serán omitidos"} por no cumplir las condiciones de esta acción.</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex-row items-center justify-between gap-3 border-t border-border bg-surface-muted/40 px-6 py-3 sm:justify-between">
+          <div className="text-[12px] text-muted-foreground">
+            Se aplicará a <span className="tabular font-semibold text-foreground">{numberFmt.format(aplicables)}</span> de {numberFmt.format(total)}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onCancel} className="h-9">Cancelar</Button>
+            <Button onClick={handleConfirm} disabled={aplicables === 0} className="h-9">
+              Confirmar acción
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

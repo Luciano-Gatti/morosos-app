@@ -30,11 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import {
-  inmueblesPadron,
-  gruposInmueble,
-  distritosInmueble,
-} from "@/data/inmuebles";
+import { inmueblesPadron, distritosInmueble } from "@/data/inmuebles";
+import { gruposIniciales, seguimientoHabilitadoEn } from "@/data/grupos";
 
 interface ConfigState {
   grupo: string;
@@ -55,16 +52,27 @@ export default function InmuebleDetalle() {
     [id],
   );
 
+  // Grupos del catálogo filtrados según el distrito seleccionado.
+  const distritoInicial = inmueble?.distrito ?? distritosInmueble[0];
+  const gruposDelDistritoInicial = gruposIniciales
+    .filter((g) => g.distritos.some((d) => d.distrito === distritoInicial))
+    .map((g) => g.nombre);
+  const grupoInicial =
+    inmueble?.grupo && gruposDelDistritoInicial.includes(inmueble.grupo)
+      ? inmueble.grupo
+      : gruposDelDistritoInicial[0] ?? "";
+
   const initial: ConfigState = useMemo(
     () => ({
-      grupo: inmueble?.grupo ?? gruposInmueble[0],
-      distrito: inmueble?.distrito ?? distritosInmueble[0],
+      grupo: grupoInicial,
+      distrito: distritoInicial,
       telefono: "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
       email: `contacto${id ?? "0"}@aosc.gob.ar`,
       activo: inmueble?.activo ?? true,
       seguimientoHabilitado: (inmueble?.activo ?? true) && Number(id ?? 0) % 4 !== 0,
       observaciones: "",
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [inmueble, id],
   );
 
@@ -72,6 +80,28 @@ export default function InmuebleDetalle() {
   const [config, setConfig] = useState<ConfigState>(initial);
 
   const dirty = JSON.stringify(config) !== JSON.stringify(initial);
+
+  // Grupos disponibles según el distrito actualmente seleccionado.
+  const gruposDelDistrito = useMemo(
+    () =>
+      gruposIniciales
+        .filter((g) =>
+          g.distritos.some((d) => d.distrito === config.distrito),
+        )
+        .map((g) => g.nombre),
+    [config.distrito],
+  );
+
+  // ¿El par grupo+distrito tiene seguimiento habilitado en la configuración?
+  const seguimientoPorParHabilitado = useMemo(() => {
+    const grupo = gruposIniciales.find((g) => g.nombre === config.grupo);
+    if (!grupo) return false;
+    return seguimientoHabilitadoEn(grupo, config.distrito);
+  }, [config.grupo, config.distrito]);
+
+  // Elegibilidad efectiva del seguimiento del inmueble.
+  const seguimientoElegible =
+    config.activo && seguimientoPorParHabilitado;
 
   if (!inmueble) {
     return (
@@ -170,8 +200,8 @@ export default function InmuebleDetalle() {
               label="Dirección"
               value={inmueble.direccion}
             />
-            <DataField icon={Building2} label="Grupo" value={config.grupo} />
             <DataField icon={MapPin} label="Distrito" value={config.distrito} />
+            <DataField icon={Building2} label="Grupo" value={config.grupo} />
             <DataField
               label="Estado"
               value={
@@ -184,7 +214,9 @@ export default function InmuebleDetalle() {
               label="Seguimiento de morosidad"
               value={
                 <span className="text-[13px] text-foreground">
-                  {config.seguimientoHabilitado ? "Habilitado" : "Deshabilitado"}
+                  {config.seguimientoHabilitado && seguimientoElegible
+                    ? "Habilitado"
+                    : "Deshabilitado"}
                 </span>
               }
             />
@@ -199,29 +231,21 @@ export default function InmuebleDetalle() {
               subtitle="Parámetros editables del inmueble"
             />
             <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2">
-              <FieldGroup label="Grupo">
-                <Select
-                  value={config.grupo}
-                  onValueChange={(v) => setConfig({ ...config, grupo: v })}
-                  disabled={!editing}
-                >
-                  <SelectTrigger className="h-9 text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {gruposInmueble.map((g) => (
-                      <SelectItem key={g} value={g} className="text-[13px]">
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldGroup>
-
               <FieldGroup label="Distrito">
                 <Select
                   value={config.distrito}
-                  onValueChange={(v) => setConfig({ ...config, distrito: v })}
+                  onValueChange={(v) => {
+                    // Al cambiar de distrito, validamos que el grupo siga siendo válido.
+                    const gruposEnDistrito = gruposIniciales
+                      .filter((g) =>
+                        g.distritos.some((d) => d.distrito === v),
+                      )
+                      .map((g) => g.nombre);
+                    const nuevoGrupo = gruposEnDistrito.includes(config.grupo)
+                      ? config.grupo
+                      : gruposEnDistrito[0] ?? "";
+                    setConfig({ ...config, distrito: v, grupo: nuevoGrupo });
+                  }}
                   disabled={!editing}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
@@ -235,6 +259,34 @@ export default function InmuebleDetalle() {
                     ))}
                   </SelectContent>
                 </Select>
+              </FieldGroup>
+
+              <FieldGroup label="Grupo">
+                <Select
+                  value={config.grupo}
+                  onValueChange={(v) => setConfig({ ...config, grupo: v })}
+                  disabled={!editing || gruposDelDistrito.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-[13px]">
+                    <SelectValue
+                      placeholder={
+                        gruposDelDistrito.length === 0
+                          ? "Sin grupos en este distrito"
+                          : "Seleccionar grupo..."
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gruposDelDistrito.map((g) => (
+                      <SelectItem key={g} value={g} className="text-[13px]">
+                        {g}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11.5px] text-muted-foreground">
+                  Solo se muestran los grupos asociados al distrito seleccionado.
+                </p>
               </FieldGroup>
 
               <FieldGroup label="Teléfono de contacto">
@@ -272,9 +324,15 @@ export default function InmuebleDetalle() {
 
               <ToggleRow
                 label="Seguimiento de morosidad"
-                hint="Habilita el flujo automático de avisos, intimaciones y cortes."
+                hint={
+                  !seguimientoPorParHabilitado
+                    ? "El par grupo + distrito no tiene seguimiento habilitado."
+                    : "Habilita el flujo automático de avisos, intimaciones y cortes."
+                }
                 checked={config.seguimientoHabilitado}
-                disabled={!editing || !config.activo}
+                disabled={
+                  !editing || !config.activo || !seguimientoPorParHabilitado
+                }
                 onCheckedChange={(v) =>
                   setConfig({ ...config, seguimientoHabilitado: v })
                 }

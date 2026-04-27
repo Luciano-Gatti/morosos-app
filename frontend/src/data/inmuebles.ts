@@ -9,7 +9,7 @@ export interface Inmueble {
 }
 
 const grupos = ["Residencial A", "Residencial B", "Comercial", "Industrial", "Oficial"];
-const distritos = ["Loreto", "Ituzaingó", "San Roque", "Goya", "Mercedes", "Curuzú Cuatiá"];
+const distritos = ["Loreto", "Ituzaingó"];
 const titulares = [
   "González, María Inés",
   "Comercial del Sur S.R.L.",

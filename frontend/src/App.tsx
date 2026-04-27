@@ -15,7 +15,6 @@ import Reportes from "./pages/Reportes";
 import ConfiguracionGrupos from "./pages/ConfiguracionGrupos";
 import ConfiguracionSeguimiento from "./pages/ConfiguracionSeguimiento";
 import ConfiguracionEtapas from "./pages/ConfiguracionEtapas";
-import ConfiguracionMotivos from "./pages/ConfiguracionMotivos";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -51,7 +50,6 @@ const App = () => (
             <Route path="/configuracion/grupos" element={<ConfiguracionGrupos />} />
             <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
             <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
-            <Route path="/configuracion/motivos" element={<ConfiguracionMotivos />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

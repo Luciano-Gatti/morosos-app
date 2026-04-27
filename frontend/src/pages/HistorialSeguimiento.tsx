@@ -14,11 +14,10 @@ import {
   FileText,
   HandCoins,
   Lock,
+  AlertCircle,
   StickyNote,
   ListOrdered,
   GitBranch,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -31,13 +30,7 @@ import {
   type ProcesoSeguimiento,
   type CierreProceso,
 } from "@/data/historialSeguimiento";
-import type { EstadoOperativo, EtapaSeguimiento } from "@/data/seguimiento";
-
-const moneyFmt = new Intl.NumberFormat("es-AR", {
-  style: "currency",
-  currency: "ARS",
-  maximumFractionDigits: 0,
-});
+import type { EstadoProceso, EtapaSeguimiento } from "@/data/seguimiento";
 
 export default function HistorialSeguimiento() {
   const { id } = useParams<{ id: string }>();
@@ -139,20 +132,20 @@ export default function HistorialSeguimiento() {
             tone="neutral"
           />
           <ResumenCard
-            label="Estado operativo"
-            valor={ultimoRegistro.estadoOperativo}
+            label="Estado"
+            valor={ultimoRegistro.estado}
             sub={`Responsable: ${ultimoRegistro.responsable}`}
             icon={
-              ultimoRegistro.estadoOperativo === "Activo"
+              ultimoRegistro.estado === "Activo"
                 ? PlayCircle
-                : ultimoRegistro.estadoOperativo === "Pausado"
+                : ultimoRegistro.estado === "Pausado"
                   ? PauseCircle
                   : CircleDashed
             }
             tone={
-              ultimoRegistro.estadoOperativo === "Activo"
+              ultimoRegistro.estado === "Activo"
                 ? "active"
-                : ultimoRegistro.estadoOperativo === "Pausado"
+                : ultimoRegistro.estado === "Pausado"
                   ? "warn"
                   : "neutral"
             }
@@ -385,7 +378,7 @@ function TimelineItem({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <EtapaPill etapa={registro.etapa} />
-          <EstadoOpPill estado={registro.estadoOperativo} />
+          <EstadoPill estado={registro.estado} />
           {esUltimo && registro.cierre && <CierrePill cierre={registro.cierre} />}
           <span className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] tabular text-muted-foreground">
             <Calendar className="h-3 w-3" />
@@ -416,35 +409,13 @@ function TimelineItem({
               Compromiso de pago
             </span>
             <span className="text-foreground">
-              Vence:{" "}
-              <span className="tabular font-medium">{registro.compromisoPago.fechaCompromiso}</span>
+              Desde:{" "}
+              <span className="tabular font-medium">{registro.compromisoPago.fechaDesde}</span>
             </span>
             <span className="text-foreground">
-              Monto:{" "}
-              <span className="tabular font-medium">
-                {moneyFmt.format(registro.compromisoPago.monto)}
-              </span>
+              Hasta: <span className="tabular font-medium">{registro.compromisoPago.fechaHasta}</span>
             </span>
-            <span
-              className={cn(
-                "ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                registro.compromisoPago.cumplido
-                  ? "border-status-closed/20 bg-status-closed-soft text-status-closed"
-                  : "border-destructive/20 bg-destructive/10 text-destructive",
-              )}
-            >
-              {registro.compromisoPago.cumplido ? (
-                <>
-                  <CheckCircle2 className="h-3 w-3" />
-                  Cumplido
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-3 w-3" />
-                  Incumplido
-                </>
-              )}
-            </span>
+            <span className="ml-auto text-muted-foreground">{registro.compromisoPago.observacion}</span>
           </div>
         )}
       </div>
@@ -482,7 +453,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                   <EtapaPill etapa={r.etapa} />
                 </td>
                 <td className="px-4 py-3">
-                  <EstadoOpPill estado={r.estadoOperativo} />
+                  <EstadoPill estado={r.estado} />
                 </td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">{r.motivo}</td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">
@@ -495,21 +466,11 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                   {r.compromisoPago ? (
                     <div className="space-y-0.5">
                       <div className="tabular font-medium text-foreground">
-                        {moneyFmt.format(r.compromisoPago.monto)}
+                        {r.compromisoPago.fechaDesde} – {r.compromisoPago.fechaHasta}
                       </div>
                       <div className="text-[11.5px] text-muted-foreground tabular">
-                        Vence {r.compromisoPago.fechaCompromiso}
+                        {r.compromisoPago.observacion}
                       </div>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10.5px] font-medium",
-                          r.compromisoPago.cumplido
-                            ? "border-status-closed/20 bg-status-closed-soft text-status-closed"
-                            : "border-destructive/20 bg-destructive/10 text-destructive",
-                        )}
-                      >
-                        {r.compromisoPago.cumplido ? "Cumplido" : "Incumplido"}
-                      </span>
                     </div>
                   ) : (
                     <span className="text-[12px] italic text-muted-foreground">—</span>
@@ -558,11 +519,12 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
   );
 }
 
-function EstadoOpPill({ estado }: { estado: EstadoOperativo }) {
-  const map: Record<EstadoOperativo, { cls: string; Icon: typeof PlayCircle }> = {
+function EstadoPill({ estado }: { estado: EstadoProceso }) {
+  const map: Record<EstadoProceso, { cls: string; Icon: typeof PlayCircle }> = {
+    "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
     "Activo": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
     "Pausado": { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle },
-    "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
+    "Cerrado": { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck },
   };
   const { cls, Icon } = map[estado];
   return (

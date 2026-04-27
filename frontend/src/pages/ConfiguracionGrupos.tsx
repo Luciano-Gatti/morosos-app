@@ -6,9 +6,11 @@ import {
   Trash2,
   MoreHorizontal,
   Users2,
+  AlertTriangle,
+  MapPin,
+  X as XIcon,
   CheckCircle2,
   MinusCircle,
-  AlertTriangle,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -51,30 +60,47 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { gruposIniciales, type Grupo } from "@/data/grupos";
+import {
+  gruposIniciales,
+  resumenSeguimiento,
+  totalInmueblesGrupo,
+  type Grupo,
+  type GrupoDistrito,
+} from "@/data/grupos";
+import { distritosInmueble } from "@/data/inmuebles";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
 
 interface FormState {
   nombre: string;
   descripcion: string;
-  seguimientoHabilitado: boolean;
 }
 
-const emptyForm: FormState = {
-  nombre: "",
-  descripcion: "",
-  seguimientoHabilitado: true,
-};
+const emptyForm: FormState = { nombre: "", descripcion: "" };
+
+function hoy() {
+  const t = new Date();
+  return `${String(t.getDate()).padStart(2, "0")}/${String(
+    t.getMonth() + 1,
+  ).padStart(2, "0")}/${t.getFullYear()}`;
+}
 
 export default function ConfiguracionGrupos() {
   const { toast } = useToast();
   const [grupos, setGrupos] = useState<Grupo[]>(gruposIniciales);
   const [query, setQuery] = useState("");
 
+  // Alta / edición de datos básicos del grupo
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Grupo | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+
+  // Configurar distritos del grupo
+  const [distritosTarget, setDistritosTarget] = useState<Grupo | null>(null);
+  const [distritosDraft, setDistritosDraft] = useState<GrupoDistrito[]>([]);
+  const [distritoNuevo, setDistritoNuevo] = useState<string>("");
+
+  // Eliminar
   const [deleteTarget, setDeleteTarget] = useState<Grupo | null>(null);
 
   const filtered = useMemo(() => {
@@ -87,7 +113,9 @@ export default function ConfiguracionGrupos() {
     );
   }, [grupos, query]);
 
-  const totalHabilitados = grupos.filter((g) => g.seguimientoHabilitado).length;
+  const totalConSeguimiento = grupos.filter(
+    (g) => resumenSeguimiento(g).activos > 0,
+  ).length;
 
   const openCreate = () => {
     setEditing(null);
@@ -97,11 +125,7 @@ export default function ConfiguracionGrupos() {
 
   const openEdit = (g: Grupo) => {
     setEditing(g);
-    setForm({
-      nombre: g.nombre,
-      descripcion: g.descripcion ?? "",
-      seguimientoHabilitado: g.seguimientoHabilitado,
-    });
+    setForm({ nombre: g.nombre, descripcion: g.descripcion ?? "" });
     setDialogOpen(true);
   };
 
@@ -116,11 +140,6 @@ export default function ConfiguracionGrupos() {
       return;
     }
 
-    const today = new Date();
-    const fecha = `${String(today.getDate()).padStart(2, "0")}/${String(
-      today.getMonth() + 1,
-    ).padStart(2, "0")}/${today.getFullYear()}`;
-
     if (editing) {
       setGrupos((prev) =>
         prev.map((g) =>
@@ -129,8 +148,7 @@ export default function ConfiguracionGrupos() {
                 ...g,
                 nombre,
                 descripcion: form.descripcion.trim() || undefined,
-                seguimientoHabilitado: form.seguimientoHabilitado,
-                actualizado: fecha,
+                actualizado: hoy(),
               }
             : g,
         ),
@@ -144,14 +162,13 @@ export default function ConfiguracionGrupos() {
         id: `g-${Date.now()}`,
         nombre,
         descripcion: form.descripcion.trim() || undefined,
-        seguimientoHabilitado: form.seguimientoHabilitado,
-        inmuebles: 0,
-        actualizado: fecha,
+        distritos: [],
+        actualizado: hoy(),
       };
       setGrupos((prev) => [nuevo, ...prev]);
       toast({
         title: "Grupo creado",
-        description: `Se creó el grupo "${nombre}".`,
+        description: `"${nombre}" fue creado. Asociá distritos para habilitar el seguimiento.`,
       });
     }
 
@@ -160,14 +177,81 @@ export default function ConfiguracionGrupos() {
     setForm(emptyForm);
   };
 
+  const openDistritos = (g: Grupo) => {
+    setDistritosTarget(g);
+    setDistritosDraft(g.distritos.map((d) => ({ ...d })));
+    setDistritoNuevo("");
+  };
+
+  const closeDistritos = () => {
+    setDistritosTarget(null);
+    setDistritosDraft([]);
+    setDistritoNuevo("");
+  };
+
+  const distritosDisponibles = useMemo(() => {
+    if (!distritosTarget) return [];
+    const yaAsociados = new Set(distritosDraft.map((d) => d.distrito));
+    return distritosInmueble.filter((d) => !yaAsociados.has(d));
+  }, [distritosTarget, distritosDraft]);
+
+  const handleAgregarDistrito = () => {
+    if (!distritoNuevo) return;
+    setDistritosDraft((prev) => [
+      ...prev,
+      { distrito: distritoNuevo, seguimientoHabilitado: true, inmuebles: 0 },
+    ]);
+    setDistritoNuevo("");
+  };
+
+  const handleQuitarDistrito = (distrito: string) => {
+    const item = distritosDraft.find((d) => d.distrito === distrito);
+    if (item && item.inmuebles > 0) {
+      toast({
+        title: "No se puede quitar el distrito",
+        description: `Este distrito tiene ${numberFmt.format(
+          item.inmuebles,
+        )} inmuebles asociados. Reasigná los inmuebles antes de quitarlo.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setDistritosDraft((prev) => prev.filter((d) => d.distrito !== distrito));
+  };
+
+  const handleToggleSeguimiento = (distrito: string, value: boolean) => {
+    setDistritosDraft((prev) =>
+      prev.map((d) =>
+        d.distrito === distrito ? { ...d, seguimientoHabilitado: value } : d,
+      ),
+    );
+  };
+
+  const handleSaveDistritos = () => {
+    if (!distritosTarget) return;
+    setGrupos((prev) =>
+      prev.map((g) =>
+        g.id === distritosTarget.id
+          ? { ...g, distritos: distritosDraft, actualizado: hoy() }
+          : g,
+      ),
+    );
+    toast({
+      title: "Distritos actualizados",
+      description: `Se actualizó la configuración de "${distritosTarget.nombre}".`,
+    });
+    closeDistritos();
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
-    if (deleteTarget.inmuebles > 0) {
+    const totalInm = totalInmueblesGrupo(deleteTarget);
+    if (totalInm > 0) {
       toast({
         title: "No se puede eliminar el grupo",
         description: `"${deleteTarget.nombre}" tiene ${numberFmt.format(
-          deleteTarget.inmuebles,
-        )} inmuebles asignados. Reasigná los inmuebles antes de eliminarlo.`,
+          totalInm,
+        )} inmuebles asignados.`,
         variant: "destructive",
       });
       setDeleteTarget(null);
@@ -185,8 +269,11 @@ export default function ConfiguracionGrupos() {
     <>
       <AppHeader
         title="Grupos"
-        description="Catálogo de grupos para clasificar inmuebles. Define qué grupos participan del proceso de seguimiento de morosidad."
-        breadcrumb={[{ label: "Configuración", to: "/configuracion" }, { label: "Grupos" }]}
+        description="Catálogo de grupos para clasificar inmuebles. El seguimiento de morosidad se configura por distrito dentro de cada grupo."
+        breadcrumb={[
+          { label: "Configuración", to: "/configuracion" },
+          { label: "Grupos" },
+        ]}
       />
 
       <main className="flex-1 px-6 py-6">
@@ -213,13 +300,17 @@ export default function ConfiguracionGrupos() {
                 </span>
                 <span className="h-4 w-px bg-border" />
                 <span>
-                  Con seguimiento:{" "}
+                  Con seguimiento activo:{" "}
                   <span className="tabular font-semibold text-foreground">
-                    {numberFmt.format(totalHabilitados)}
+                    {numberFmt.format(totalConSeguimiento)}
                   </span>
                 </span>
               </div>
-              <Button onClick={openCreate} size="sm" className="h-8 gap-1.5 text-[12.5px]">
+              <Button
+                onClick={openCreate}
+                size="sm"
+                className="h-8 gap-1.5 text-[12.5px]"
+              >
                 <Plus className="h-3.5 w-3.5" />
                 Crear grupo
               </Button>
@@ -234,10 +325,13 @@ export default function ConfiguracionGrupos() {
                   <TableHead className="h-9 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Nombre del grupo
                   </TableHead>
-                  <TableHead className="h-9 w-[200px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Seguimiento
+                  <TableHead className="h-9 w-[120px] text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Distritos
                   </TableHead>
-                  <TableHead className="h-9 w-[130px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <TableHead className="h-9 w-[260px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Estado del seguimiento
+                  </TableHead>
+                  <TableHead className="h-9 w-[120px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Inmuebles
                   </TableHead>
                   <TableHead className="h-9 w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -251,79 +345,98 @@ export default function ConfiguracionGrupos() {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-[13px] text-muted-foreground">
+                    <TableCell
+                      colSpan={6}
+                      className="h-32 text-center text-[13px] text-muted-foreground"
+                    >
                       No se encontraron grupos con los criterios actuales.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((g) => (
-                    <TableRow key={g.id} className="border-border">
-                      <TableCell className="py-2.5 pl-4">
-                        <div className="flex items-start gap-2.5">
-                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted/60">
-                            <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-medium leading-5 text-foreground">
-                              {g.nombre}
+                  filtered.map((g) => {
+                    const totalInm = totalInmueblesGrupo(g);
+                    return (
+                      <TableRow key={g.id} className="border-border">
+                        <TableCell className="py-2.5 pl-4">
+                          <div className="flex items-start gap-2.5">
+                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted/60">
+                              <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
                             </div>
-                            {g.descripcion && (
-                              <div className="mt-0.5 line-clamp-1 text-[12px] leading-4 text-muted-foreground">
-                                {g.descripcion}
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-medium leading-5 text-foreground">
+                                {g.nombre}
                               </div>
-                            )}
+                              {g.descripcion && (
+                                <div className="mt-0.5 line-clamp-1 text-[12px] leading-4 text-muted-foreground">
+                                  {g.descripcion}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-2.5">
-                        <SeguimientoBadge habilitado={g.seguimientoHabilitado} />
-                      </TableCell>
-                      <TableCell className="py-2.5 text-right text-[13px] tabular text-foreground">
-                        {numberFmt.format(g.inmuebles)}
-                      </TableCell>
-                      <TableCell className="py-2.5 text-[12.5px] text-muted-foreground">
-                        {g.actualizado}
-                      </TableCell>
-                      <TableCell className="py-2.5 pr-4 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem onClick={() => openEdit(g)} className="text-[13px]">
-                              <Pencil className="mr-2 h-3.5 w-3.5" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleteTarget(g)}
-                              disabled={g.inmuebles > 0}
-                              className={cn(
-                                "text-[13px]",
-                                g.inmuebles > 0
-                                  ? "text-muted-foreground"
-                                  : "text-destructive focus:text-destructive",
-                              )}
-                            >
-                              <Trash2 className="mr-2 h-3.5 w-3.5" />
-                              Eliminar
-                              {g.inmuebles > 0 && (
-                                <span className="ml-auto text-[10.5px] uppercase tracking-wider">
-                                  Bloqueado
-                                </span>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell className="py-2.5 text-center text-[13px] tabular text-foreground">
+                          {numberFmt.format(g.distritos.length)}
+                        </TableCell>
+                        <TableCell className="py-2.5">
+                          <SeguimientoResumen grupo={g} />
+                        </TableCell>
+                        <TableCell className="py-2.5 text-right text-[13px] tabular text-foreground">
+                          {numberFmt.format(totalInm)}
+                        </TableCell>
+                        <TableCell className="py-2.5 text-[12.5px] text-muted-foreground">
+                          {g.actualizado}
+                        </TableCell>
+                        <TableCell className="py-2.5 pr-4 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem
+                                onClick={() => openEdit(g)}
+                                className="text-[13px]"
+                              >
+                                <Pencil className="mr-2 h-3.5 w-3.5" />
+                                Editar grupo
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => openDistritos(g)}
+                                className="text-[13px]"
+                              >
+                                <MapPin className="mr-2 h-3.5 w-3.5" />
+                                Configurar distritos
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleteTarget(g)}
+                                disabled={totalInm > 0}
+                                className={cn(
+                                  "text-[13px]",
+                                  totalInm > 0
+                                    ? "text-muted-foreground"
+                                    : "text-destructive focus:text-destructive",
+                                )}
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                Eliminar
+                                {totalInm > 0 && (
+                                  <span className="ml-auto text-[10.5px] uppercase tracking-wider">
+                                    Bloqueado
+                                  </span>
+                                )}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -340,13 +453,14 @@ export default function ConfiguracionGrupos() {
             </span>
             <span className="hidden items-center gap-1.5 sm:flex">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-              Eliminar un grupo no afecta a los inmuebles ya asignados.
+              El seguimiento se configura por distrito desde la opción
+              "Configurar distritos".
             </span>
           </div>
         </div>
       </main>
 
-      {/* Modal Alta / Edición */}
+      {/* Modal Alta / Edición de datos básicos */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
@@ -355,8 +469,8 @@ export default function ConfiguracionGrupos() {
             </DialogTitle>
             <DialogDescription className="text-[12.5px]">
               {editing
-                ? "Modificá la información del grupo. Los cambios se aplican inmediatamente."
-                : "Completá los datos del nuevo grupo de inmuebles."}
+                ? "Modificá los datos del grupo. La configuración de distritos se gestiona desde la opción 'Configurar distritos'."
+                : "Completá los datos del nuevo grupo. Una vez creado, asociale uno o más distritos."}
             </DialogDescription>
           </DialogHeader>
 
@@ -368,7 +482,9 @@ export default function ConfiguracionGrupos() {
               <Input
                 id="grupo-nombre"
                 value={form.nombre}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nombre: e.target.value }))
+                }
                 placeholder="Ej. Residencial C"
                 className="h-9 text-[13px]"
                 autoFocus
@@ -377,37 +493,27 @@ export default function ConfiguracionGrupos() {
 
             <div className="grid gap-1.5">
               <Label htmlFor="grupo-descripcion" className="text-[12.5px]">
-                Descripción <span className="text-muted-foreground">(opcional)</span>
+                Descripción{" "}
+                <span className="text-muted-foreground">(opcional)</span>
               </Label>
               <Textarea
                 id="grupo-descripcion"
                 value={form.descripcion}
-                onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, descripcion: e.target.value }))
+                }
                 placeholder="Breve descripción del grupo o de los inmuebles que incluye."
                 className="min-h-[72px] text-[13px]"
               />
             </div>
 
-            <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
-              <div className="min-w-0">
-                <Label
-                  htmlFor="grupo-seguimiento"
-                  className="text-[13px] font-medium text-foreground"
-                >
-                  Seguimiento de morosidad
-                </Label>
-                <p className="mt-0.5 text-[12px] leading-4 text-muted-foreground">
-                  Si está habilitado, los inmuebles de este grupo participan del proceso
-                  de seguimiento (avisos, intimaciones y cortes).
-                </p>
-              </div>
-              <Switch
-                id="grupo-seguimiento"
-                checked={form.seguimientoHabilitado}
-                onCheckedChange={(v) =>
-                  setForm((f) => ({ ...f, seguimientoHabilitado: v }))
-                }
-              />
+            <div className="rounded-md border border-border bg-surface-muted/40 px-3 py-2.5 text-[12px] leading-5 text-muted-foreground">
+              El seguimiento de morosidad se configura por cada distrito
+              asociado al grupo. Usá la opción{" "}
+              <span className="font-medium text-foreground">
+                Configurar distritos
+              </span>{" "}
+              para definirlo.
             </div>
           </div>
 
@@ -426,18 +532,161 @@ export default function ConfiguracionGrupos() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal Configurar distritos */}
+      <Dialog
+        open={!!distritosTarget}
+        onOpenChange={(o) => !o && closeDistritos()}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle className="text-[15px]">
+              Configurar distritos
+            </DialogTitle>
+            <DialogDescription className="text-[12.5px]">
+              {distritosTarget && (
+                <>
+                  Definí en qué distritos aplica el grupo{" "}
+                  <span className="font-medium text-foreground">
+                    {distritosTarget.nombre}
+                  </span>{" "}
+                  y si el seguimiento de morosidad está habilitado en cada uno.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {/* Lista de distritos asociados */}
+            <div className="rounded-md border border-border">
+              <div className="border-b border-border bg-surface-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Distritos asociados
+              </div>
+              {distritosDraft.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[12.5px] text-muted-foreground">
+                  Este grupo no tiene distritos asociados todavía.
+                </div>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {distritosDraft.map((d) => (
+                    <li
+                      key={d.distrito}
+                      className="flex items-center gap-3 px-3 py-2.5"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface-muted/60">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium text-foreground">
+                          {d.distrito}
+                        </div>
+                        <div className="text-[11.5px] text-muted-foreground">
+                          {numberFmt.format(d.inmuebles)} inmuebles
+                          {" · "}
+                          {d.seguimientoHabilitado
+                            ? "Seguimiento habilitado"
+                            : "Seguimiento deshabilitado"}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={d.seguimientoHabilitado}
+                          onCheckedChange={(v) =>
+                            handleToggleSeguimiento(d.distrito, v)
+                          }
+                          aria-label={`Seguimiento en ${d.distrito}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                          onClick={() => handleQuitarDistrito(d.distrito)}
+                          disabled={d.inmuebles > 0}
+                          title={
+                            d.inmuebles > 0
+                              ? "No se puede quitar: hay inmuebles asociados"
+                              : "Quitar distrito"
+                          }
+                        >
+                          <XIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Asociar nuevo distrito */}
+            {distritosDisponibles.length > 0 && (
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-[11.5px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Asociar nuevo distrito
+                  </Label>
+                  <Select
+                    value={distritoNuevo}
+                    onValueChange={setDistritoNuevo}
+                  >
+                    <SelectTrigger className="h-9 text-[13px]">
+                      <SelectValue placeholder="Seleccionar distrito..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {distritosDisponibles.map((d) => (
+                        <SelectItem key={d} value={d} className="text-[13px]">
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1.5 text-[12.5px]"
+                  onClick={handleAgregarDistrito}
+                  disabled={!distritoNuevo}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Asociar
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={closeDistritos}
+              className="h-9 text-[13px]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveDistritos}
+              className="h-9 text-[13px]"
+            >
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmación de eliminación */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[15px]">
-              {deleteTarget && deleteTarget.inmuebles > 0
+              {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0
                 ? "No se puede eliminar el grupo"
                 : "Eliminar grupo"}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[12.5px]" asChild>
               <div>
-                {deleteTarget && deleteTarget.inmuebles > 0 ? (
+                {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0 ? (
                   <>
                     El grupo{" "}
                     <span className="font-semibold text-foreground">
@@ -445,13 +694,13 @@ export default function ConfiguracionGrupos() {
                     </span>{" "}
                     tiene{" "}
                     <span className="font-semibold text-foreground">
-                      {numberFmt.format(deleteTarget.inmuebles)} inmuebles
+                      {numberFmt.format(totalInmueblesGrupo(deleteTarget))}{" "}
+                      inmuebles
                     </span>{" "}
                     asignados, por lo que no puede eliminarse.
                     <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-                      Reasigná los inmuebles a otro grupo desde el módulo de Inmuebles
-                      antes de intentar eliminarlo. La edición del grupo sí está
-                      permitida.
+                      Reasigná los inmuebles a otro grupo desde el módulo de
+                      Inmuebles antes de intentar eliminarlo.
                     </div>
                   </>
                 ) : (
@@ -468,9 +717,11 @@ export default function ConfiguracionGrupos() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-9 text-[13px]">
-              {deleteTarget && deleteTarget.inmuebles > 0 ? "Cerrar" : "Cancelar"}
+              {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0
+                ? "Cerrar"
+                : "Cancelar"}
             </AlertDialogCancel>
-            {deleteTarget && deleteTarget.inmuebles === 0 && (
+            {deleteTarget && totalInmueblesGrupo(deleteTarget) === 0 && (
               <AlertDialogAction
                 onClick={handleDelete}
                 className="h-9 bg-destructive text-[13px] text-destructive-foreground hover:bg-destructive/90"
@@ -485,27 +736,40 @@ export default function ConfiguracionGrupos() {
   );
 }
 
-function SeguimientoBadge({ habilitado }: { habilitado: boolean }) {
+function SeguimientoResumen({ grupo }: { grupo: Grupo }) {
+  const { activos, total, estado } = resumenSeguimiento(grupo);
+
+  if (estado === "sin-distritos") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-muted/60 px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground">
+        <AlertTriangle className="h-3 w-3" />
+        Sin distritos asociados
+      </span>
+    );
+  }
+
+  if (estado === "todos") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700">
+        <CheckCircle2 className="h-3 w-3" />
+        Activo en {total} de {total} distritos
+      </span>
+    );
+  }
+
+  if (estado === "ninguno") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-muted/60 px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground">
+        <MinusCircle className="h-3 w-3" />
+        Desactivado en todos
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium",
-        habilitado
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-border bg-surface-muted/60 text-muted-foreground",
-      )}
-    >
-      {habilitado ? (
-        <>
-          <CheckCircle2 className="h-3 w-3" />
-          Habilitado
-        </>
-      ) : (
-        <>
-          <MinusCircle className="h-3 w-3" />
-          Deshabilitado
-        </>
-      )}
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700">
+      <AlertTriangle className="h-3 w-3" />
+      Activo en {activos} de {total} distritos
     </span>
   );
 }

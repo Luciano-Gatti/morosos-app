@@ -15,7 +15,6 @@ import {
   XCircle,
   Clock,
   CalendarRange,
-  FileSpreadsheet,
   Download,
   AlertTriangle,
 } from "lucide-react";
@@ -93,7 +92,6 @@ export default function GestionDeuda() {
       if (!q) return true;
       return (
         c.nombre.toLowerCase().includes(q) ||
-        c.archivo.toLowerCase().includes(q) ||
         c.usuario.toLowerCase().includes(q)
       );
     });
@@ -189,7 +187,7 @@ export default function GestionDeuda() {
                   setQuery(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Buscar por nombre, archivo o usuario..."
+                placeholder="Buscar por nombre u operador..."
                 className="h-8 pl-8 text-[12.5px]"
               />
             </div>
@@ -383,9 +381,6 @@ function CargaRow({ carga }: { carga: CargaDeuda }) {
       <TableCell className="py-2.5 align-top">
         <div className="text-[13px] font-medium text-foreground">{carga.nombre}</div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <FileSpreadsheet className="h-3 w-3" />
-          <span className="tabular">{carga.archivo}</span>
-          <span className="opacity-50">·</span>
           <span>por {carga.usuario}</span>
         </div>
       </TableCell>

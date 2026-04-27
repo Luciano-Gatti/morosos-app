@@ -11,10 +11,8 @@ import {
   Filter,
   AlertTriangle,
   Download,
-  FileSpreadsheet,
   CalendarClock,
   User2,
-  Hash,
   Coins,
   Users,
   CheckCircle2,
@@ -184,7 +182,7 @@ export default function CargaDetalle() {
     <>
       <AppHeader
         title={carga.nombre}
-        description={`Detalle de inmuebles incluidos en la carga · ${carga.archivo}`}
+        description="Detalle de inmuebles incluidos en la carga."
         breadcrumb={[
           { label: "Gestión de deuda", to: "/deuda" },
           { label: `Carga #${carga.id}` },
@@ -228,19 +226,9 @@ export default function CargaDetalle() {
               }
             />
             <FichaItem
-              icon={<FileSpreadsheet className="h-4 w-4" />}
-              label="Archivo"
-              value={<span className="tabular text-[13px]">{carga.archivo}</span>}
-            />
-            <FichaItem
               icon={<User2 className="h-4 w-4" />}
               label="Operador"
               value={carga.usuario}
-            />
-            <FichaItem
-              icon={<Hash className="h-4 w-4" />}
-              label="Identificador"
-              value={<span className="tabular">#{carga.id.padStart(6, "0")}</span>}
             />
             <div className="ml-auto">
               <EstadoPill estado={carga.estado} />
@@ -449,7 +437,7 @@ export default function CargaDetalle() {
               Errores de importación
             </DialogTitle>
             <DialogDescription className="text-[12.5px]">
-              Filas del archivo <span className="tabular text-foreground">{carga.archivo}</span> que no pudieron procesarse.
+              Registros de la carga que no pudieron procesarse.
             </DialogDescription>
           </DialogHeader>
 

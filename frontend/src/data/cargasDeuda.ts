@@ -3,7 +3,6 @@ export type CargaEstado = "completada" | "con_errores" | "fallida" | "procesando
 export interface CargaDeuda {
   id: string;
   nombre: string;
-  archivo: string;
   fecha: string; // ISO
   usuario: string;
   estado: CargaEstado;
@@ -24,11 +23,11 @@ const nombres = [
   "Distrito Loreto",
   "Periodo 03/2025",
   "Recategorización Industrial",
-  "Refacturación Goya",
+  "Distrito Ituzaingó",
   "Servicios Generales",
   "Padrón Comercial",
   "Cuotas Atrasadas",
-  "Distrito Mercedes",
+  "Refacturación Loreto",
   "Cargas Especiales",
   "Periodo 02/2025",
   "Industrias Norte",
@@ -83,12 +82,9 @@ export const cargasDeuda: CargaDeuda[] = Array.from({ length: 24 }, (_, i) => {
   d.setHours(8 + ((idx * 5) % 10), (idx * 17) % 60, 0, 0);
 
   const periodo = `${pad(((idx + 2) % 12) + 1)}/2025`;
-  const cuenta = String(2400 + idx);
-
   return {
     id: String(idx),
     nombre: `${nombres[i % nombres.length]} — ${periodo}`,
-    archivo: `deuda_${cuenta}_${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`,
     fecha: d.toISOString(),
     usuario: usuarios[i % usuarios.length],
     estado,

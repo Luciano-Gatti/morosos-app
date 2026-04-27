@@ -119,6 +119,7 @@ export type AccionClave = "avisos_deuda" | "avisos_corte" | "intimaciones" | "co
 export interface DistritoStat {
   distrito: string;
   usuarios: number;
+  deudores: number;
   morosos: number;
   acciones: Record<AccionClave, number>;
 }
@@ -127,6 +128,7 @@ export const distritosStats: DistritoStat[] = [
   {
     distrito: "Loreto",
     usuarios: 4_820,
+    deudores: 286,
     morosos: 412,
     acciones: {
       avisos_deuda: 1_124,
@@ -138,56 +140,13 @@ export const distritosStats: DistritoStat[] = [
   {
     distrito: "Ituzaingó",
     usuarios: 3_540,
+    deudores: 204,
     morosos: 287,
     acciones: {
       avisos_deuda: 718,
       avisos_corte: 226,
       intimaciones: 76,
       cortes: 36,
-    },
-  },
-  {
-    distrito: "San Roque",
-    usuarios: 2_980,
-    morosos: 341,
-    acciones: {
-      avisos_deuda: 845,
-      avisos_corte: 268,
-      intimaciones: 98,
-      cortes: 41,
-    },
-  },
-  {
-    distrito: "Goya",
-    usuarios: 5_210,
-    morosos: 498,
-    acciones: {
-      avisos_deuda: 1_312,
-      avisos_corte: 412,
-      intimaciones: 165,
-      cortes: 72,
-    },
-  },
-  {
-    distrito: "Mercedes",
-    usuarios: 2_140,
-    morosos: 198,
-    acciones: {
-      avisos_deuda: 524,
-      avisos_corte: 162,
-      intimaciones: 54,
-      cortes: 22,
-    },
-  },
-  {
-    distrito: "Curuzú Cuatiá",
-    usuarios: 1_860,
-    morosos: 156,
-    acciones: {
-      avisos_deuda: 398,
-      avisos_corte: 124,
-      intimaciones: 41,
-      cortes: 18,
     },
   },
 ];
@@ -208,11 +167,13 @@ export const accionesMes = (Object.keys(accionesLabels) as AccionClave[]).map((k
 }));
 
 const totalUsuarios = distritosStats.reduce((a, b) => a + b.usuarios, 0);
+const totalDeudores = distritosStats.reduce((a, b) => a + b.deudores, 0);
 const totalMorosos = distritosStats.reduce((a, b) => a + b.morosos, 0);
 
 export const resumenMorosidad = {
   totalInmuebles: totalUsuarios,
-  alDia: totalUsuarios - totalMorosos,
+  alDia: totalUsuarios - totalDeudores - totalMorosos,
+  deudores: totalDeudores,
   morosos: totalMorosos,
 };
 

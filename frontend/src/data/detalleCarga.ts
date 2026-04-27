@@ -53,7 +53,7 @@ const calles = [
   "Las Heras",
 ];
 
-const distritos = ["Centro", "Norte", "Sur", "Loreto", "Mercedes", "Goya", "Industrial"];
+const distritos = ["Loreto", "Ituzaingó"];
 
 function pseudoFloat(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -85,7 +85,7 @@ const tiposError = [
   "Fecha de vencimiento inválida",
   "Campo obligatorio vacío: monto",
   "Campo obligatorio vacío: cuenta",
-  "Cuenta duplicada en el archivo",
+  "Cuenta duplicada en la carga",
   "Inmueble dado de baja",
   "Distrito no reconocido",
 ];

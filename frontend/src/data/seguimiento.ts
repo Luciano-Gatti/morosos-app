@@ -8,8 +8,8 @@ export const etapasSeguimiento = [
 ] as const;
 export type EtapaSeguimiento = (typeof etapasSeguimiento)[number];
 
-export const estadosOperativos = ["Activo", "Pausado", "No iniciado"] as const;
-export type EstadoOperativo = (typeof estadosOperativos)[number];
+export const estadosProceso = ["No iniciado", "Activo", "Pausado", "Cerrado"] as const;
+export type EstadoProceso = (typeof estadosProceso)[number];
 
 // Grupos cuyo seguimiento NO está habilitado (aparecen en morosidad pero no en gestión de etapas)
 export const gruposSinSeguimiento = new Set<string>(["Oficial"]);
@@ -24,7 +24,7 @@ export interface InmuebleMoroso {
   cuotasAdeudadas: number;
   montoAdeudado: number;
   etapa: EtapaSeguimiento | null; // null cuando proceso aún no iniciado
-  estadoOperativo: EstadoOperativo;
+  estado: EstadoProceso;
   seguimientoHabilitado: boolean;
 }
 
@@ -46,20 +46,20 @@ export const inmueblesMorosos: InmuebleMoroso[] = inmueblesPadron
     const seguimientoHabilitado = !gruposSinSeguimiento.has(inm.grupo);
 
     let etapa: EtapaSeguimiento | null = null;
-    let estadoOperativo: EstadoOperativo = "No iniciado";
+    let estado: EstadoProceso = "No iniciado";
 
     if (seguimientoHabilitado) {
       // 70% activo, 15% pausado, 15% no iniciado
       if (r3 < 0.7) {
-        estadoOperativo = "Activo";
+        estado = "Activo";
         const idx = Math.floor(r2 * etapasSeguimiento.length);
         etapa = etapasSeguimiento[idx];
       } else if (r3 < 0.85) {
-        estadoOperativo = "Pausado";
+        estado = "Pausado";
         const idx = Math.floor(r * etapasSeguimiento.length);
         etapa = etapasSeguimiento[idx];
       } else {
-        estadoOperativo = "No iniciado";
+        estado = "No iniciado";
         etapa = null;
       }
     }
@@ -74,7 +74,7 @@ export const inmueblesMorosos: InmuebleMoroso[] = inmueblesPadron
       cuotasAdeudadas,
       montoAdeudado,
       etapa,
-      estadoOperativo,
+      estado,
       seguimientoHabilitado,
     };
   })

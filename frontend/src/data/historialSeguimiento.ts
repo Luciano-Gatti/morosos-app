@@ -1,5 +1,5 @@
 import { inmueblesPadron } from "./inmuebles";
-import { etapasSeguimiento, type EtapaSeguimiento, type EstadoOperativo } from "./seguimiento";
+import { etapasSeguimiento, type EtapaSeguimiento, type EstadoProceso } from "./seguimiento";
 
 export type CierreProceso =
   | "Regularización total"
@@ -13,13 +13,13 @@ export interface RegistroHistorial {
   hora: string;
   numeroProceso: string; // PRC-2024-001
   etapa: EtapaSeguimiento;
-  estadoOperativo: EstadoOperativo;
+  estado: EstadoProceso;
   motivo: string;
   observaciones: string;
   compromisoPago?: {
-    fechaCompromiso: string;
-    monto: number;
-    cumplido: boolean;
+    fechaDesde: string;
+    fechaHasta: string;
+    observacion: string;
   } | null;
   cierre?: CierreProceso;
   responsable: string;
@@ -118,7 +118,7 @@ function buildHistorial(seed: number): HistorialInmueble {
       fecha.setMinutes(Math.floor(pseudo(seed + p * 10 + e + 2) * 60));
 
       const r = pseudo(seed + p * 17 + e * 31);
-      const estadoOperativo: EstadoOperativo =
+      const estado: EstadoProceso =
         esUltimo && e === cantEtapasRecorridas - 1
           ? r < 0.7
             ? "Activo"
@@ -126,8 +126,9 @@ function buildHistorial(seed: number): HistorialInmueble {
           : "Activo";
 
       const tieneCompromiso = pseudo(seed + p + e + 7) < 0.35;
-      const compromisoFecha = new Date(fecha);
-      compromisoFecha.setDate(compromisoFecha.getDate() + 15);
+      const compromisoDesde = new Date(fecha);
+      const compromisoHasta = new Date(fecha);
+      compromisoHasta.setDate(compromisoHasta.getDate() + 30);
 
       registros.push({
         id: `${numero}-${e + 1}`,
@@ -135,14 +136,14 @@ function buildHistorial(seed: number): HistorialInmueble {
         hora: fmtHora(fecha),
         numeroProceso: numero,
         etapa: etapasSeguimiento[e % etapasSeguimiento.length],
-        estadoOperativo,
+        estado,
         motivo: motivos[(e + p) % motivos.length],
         observaciones: observacionesEjemplo[(seed + p * 3 + e) % observacionesEjemplo.length],
         compromisoPago: tieneCompromiso
           ? {
-              fechaCompromiso: fmtFecha(compromisoFecha),
-              monto: 25_000 + Math.floor(pseudo(seed + p + e + 11) * 220_000),
-              cumplido: pseudo(seed + p + e + 13) > 0.4,
+              fechaDesde: fmtFecha(compromisoDesde),
+              fechaHasta: fmtFecha(compromisoHasta),
+              observacion: "Pausa temporal del proceso por compromiso de pago vigente.",
             }
           : null,
         cierre: null,
@@ -166,7 +167,7 @@ function buildHistorial(seed: number): HistorialInmueble {
       // marcar el último registro con el cierre
       const last = registros[registros.length - 1];
       last.cierre = motivoCierre;
-      last.estadoOperativo = "Activo";
+      last.estado = "Cerrado";
 
       // gap antes del próximo proceso
       fecha.setDate(fecha.getDate() + 90 + Math.floor(pseudo(seed + p + 17) * 120));

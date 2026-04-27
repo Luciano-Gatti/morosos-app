@@ -24,6 +24,7 @@ interface Props {
 
 export function DistritoCard({ data }: Props) {
   const tasa = (data.morosos / data.usuarios) * 100;
+  const alDia = data.usuarios - data.deudores - data.morosos;
 
   return (
     <article className="@container flex flex-col rounded-lg border border-border bg-card shadow-institutional">
@@ -53,7 +54,7 @@ export function DistritoCard({ data }: Props) {
       </header>
 
       {/* Totales del distrito */}
-      <div className="grid grid-cols-2 divide-x divide-border border-b border-border">
+      <div className="grid grid-cols-4 divide-x divide-border border-b border-border">
         <div className="px-4 py-3.5 @md:px-5 @md:py-4">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -69,7 +70,31 @@ export function DistritoCard({ data }: Props) {
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">Inmuebles registrados</div>
         </div>
-        <div className="px-4 py-3.5 @md:px-5 @md:py-4">
+        <div className="px-3 py-3.5 @md:px-4 @md:py-4">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-sm bg-status-closed" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Al día
+            </span>
+          </div>
+          <div className="mt-1.5 font-serif font-semibold leading-none tabular text-status-closed" style={{ fontSize: "clamp(18px, 2cqi + 12px, 24px)" }}>
+            {fmt(alDia)}
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">Sin deuda</div>
+        </div>
+        <div className="px-3 py-3.5 @md:px-4 @md:py-4">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-sm bg-status-active" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Deudores
+            </span>
+          </div>
+          <div className="mt-1.5 font-serif font-semibold leading-none tabular text-status-active" style={{ fontSize: "clamp(18px, 2cqi + 12px, 24px)" }}>
+            {fmt(data.deudores)}
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">Bajo umbral</div>
+        </div>
+        <div className="px-3 py-3.5 @md:px-4 @md:py-4">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-status-debt" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -78,11 +103,11 @@ export function DistritoCard({ data }: Props) {
           </div>
           <div
             className="mt-1.5 font-serif font-semibold leading-none tabular text-status-debt"
-            style={{ fontSize: "clamp(20px, 2.4cqi + 14px, 26px)" }}
+            style={{ fontSize: "clamp(18px, 2cqi + 12px, 24px)" }}
           >
             {fmt(data.morosos)}
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">Inmuebles en mora</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">En umbral</div>
         </div>
       </div>
 

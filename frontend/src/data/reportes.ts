@@ -1,5 +1,6 @@
 import { inmueblesPadron } from "./inmuebles";
 import { inmueblesMorosos, etapasSeguimiento, type EtapaSeguimiento } from "./seguimiento";
+import { parametrosSeguimiento } from "./parametrosSeguimiento";
 
 /* =====================================================
    Datasets agregados para la vista de Reportes.
@@ -15,7 +16,11 @@ function pseudo(seed: number) {
 
 export interface MorososPorGrupoRow {
   grupo: string;
+  distrito: string;
+  /** Etiqueta combinada "Grupo — Distrito" para diferenciar grupos homónimos en distintos distritos. */
+  etiqueta: string;
   totalInmuebles: number;
+  deudores: number;
   morosos: number;
   porcentaje: number;
 }
@@ -23,46 +28,66 @@ export interface MorososPorGrupoRow {
 export interface MorososPorDistritoRow {
   distrito: string;
   totalInmuebles: number;
+  deudores: number;
   morosos: number;
   porcentaje: number;
 }
 
 export function getMorososPorGrupo(): MorososPorGrupoRow[] {
-  const map = new Map<string, { total: number; morosos: number }>();
+  // Los grupos se diferencian por distrito: un mismo nombre de grupo
+  // puede existir en varios distritos y debe figurar como filas distintas.
+  const map = new Map<
+    string,
+    { grupo: string; distrito: string; total: number; deudores: number; morosos: number }
+  >();
+  const keyOf = (grupo: string, distrito: string) => `${grupo}__${distrito}`;
+
   inmueblesPadron.forEach((i) => {
-    const cur = map.get(i.grupo) ?? { total: 0, morosos: 0 };
+    const k = keyOf(i.grupo, i.distrito);
+    const cur = map.get(k) ?? { grupo: i.grupo, distrito: i.distrito, total: 0, deudores: 0, morosos: 0 };
     cur.total += 1;
-    map.set(i.grupo, cur);
+    map.set(k, cur);
   });
   inmueblesMorosos.forEach((m) => {
-    const cur = map.get(m.grupo);
-    if (cur) cur.morosos += 1;
+    const k = keyOf(m.grupo, m.distrito);
+    const cur = map.get(k);
+    if (cur) {
+      if (m.cuotasAdeudadas >= parametrosSeguimiento.cuotasParaMoroso) cur.morosos += 1;
+      else cur.deudores += 1;
+    }
   });
-  return Array.from(map.entries())
-    .map(([grupo, v]) => ({
-      grupo,
+  return Array.from(map.values())
+    .map((v) => ({
+      grupo: v.grupo,
+      distrito: v.distrito,
+      etiqueta: `${v.grupo} — ${v.distrito}`,
       totalInmuebles: v.total,
+      deudores: v.deudores,
       morosos: v.morosos,
       porcentaje: v.total === 0 ? 0 : (v.morosos / v.total) * 100,
     }))
-    .sort((a, b) => b.morosos - a.morosos);
+    .sort((a, b) => b.morosos - a.morosos || a.grupo.localeCompare(b.grupo) || a.distrito.localeCompare(b.distrito));
 }
 
 export function getMorososPorDistrito(): MorososPorDistritoRow[] {
-  const map = new Map<string, { total: number; morosos: number }>();
+  const map = new Map<string, { total: number; deudores: number; morosos: number }>();
   inmueblesPadron.forEach((i) => {
-    const cur = map.get(i.distrito) ?? { total: 0, morosos: 0 };
+    const cur = map.get(i.distrito) ?? { total: 0, deudores: 0, morosos: 0 };
     cur.total += 1;
     map.set(i.distrito, cur);
   });
   inmueblesMorosos.forEach((m) => {
     const cur = map.get(m.distrito);
-    if (cur) cur.morosos += 1;
+    if (cur) {
+      if (m.cuotasAdeudadas >= parametrosSeguimiento.cuotasParaMoroso) cur.morosos += 1;
+      else cur.deudores += 1;
+    }
   });
   return Array.from(map.entries())
     .map(([distrito, v]) => ({
       distrito,
       totalInmuebles: v.total,
+      deudores: v.deudores,
       morosos: v.morosos,
       porcentaje: v.total === 0 ? 0 : (v.morosos / v.total) * 100,
     }))
@@ -283,7 +308,7 @@ void estadosPlan;
 
 /* ---------- Reporte 4: Estado actual de cada inmueble ---------- */
 
-export type EstadoInmueble = "Al día" | "Moroso";
+export type EstadoInmueble = "Al día" | "Deudor" | "Moroso";
 
 export interface InmuebleEstadoRow {
   cuenta: string;
@@ -307,8 +332,8 @@ export function getEstadoInmuebles(): InmuebleEstadoRow[] {
       direccion: inm.direccion,
       grupo: inm.grupo,
       distrito: inm.distrito,
-      estado: mor ? "Moroso" : "Al día",
-      etapa: mor?.etapa ?? "—",
+      estado: !mor ? "Al día" : mor.cuotasAdeudadas >= parametrosSeguimiento.cuotasParaMoroso ? "Moroso" : "Deudor",
+      etapa: mor && mor.cuotasAdeudadas >= parametrosSeguimiento.cuotasParaMoroso ? mor.etapa ?? "—" : "—",
       cuotasAdeudadas: mor?.cuotasAdeudadas ?? 0,
       montoAdeudado: mor?.montoAdeudado ?? 0,
     };
@@ -319,6 +344,7 @@ export function getEstadoInmuebles(): InmuebleEstadoRow[] {
 
 export interface MorosidadPorcentajeTotal {
   totalInmuebles: number;
+  deudores: number;
   morosos: number;
   alDia: number;
   porcentajeMorosidad: number;
@@ -326,11 +352,13 @@ export interface MorosidadPorcentajeTotal {
 
 export function getMorosidadTotal(): MorosidadPorcentajeTotal {
   const total = inmueblesPadron.length;
-  const morosos = inmueblesMorosos.length;
+  const morosos = inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= parametrosSeguimiento.cuotasParaMoroso).length;
+  const deudores = inmueblesMorosos.length - morosos;
   return {
     totalInmuebles: total,
+    deudores,
     morosos,
-    alDia: total - morosos,
+    alDia: total - deudores - morosos,
     porcentajeMorosidad: total === 0 ? 0 : (morosos / total) * 100,
   };
 }
