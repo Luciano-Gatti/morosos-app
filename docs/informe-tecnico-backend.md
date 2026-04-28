@@ -106,6 +106,9 @@ Convenciones:
 - PK UUID.
 - `timestamp with time zone` para fechas de auditoría/eventos.
 - Campos de observación en `NULL`.
+- Todo campo de tipo fijo sin tabla maestra propia se modela como:
+  - **`enum` en Java** (una enum por concepto).
+  - **`CHECK constraint` en PostgreSQL** sobre su columna `varchar`.
 
 ### 5.1 Tablas maestras
 
@@ -197,6 +200,11 @@ Regla de período:
 - Se guarda como el primer día del mes.
 - Ejemplo: abril 2026 = `2026-04-01`.
 
+Constraints obligatorios:
+```sql
+CHECK (estado IN ('PENDIENTE', 'PROCESANDO', 'COMPLETADA', 'COMPLETADA_CON_ERRORES', 'FALLIDA'))
+```
+
 #### `carga_deuda_detalle`
 - `id UUID PK`
 - `carga_deuda_id UUID FK -> carga_deuda(id) NOT NULL`
@@ -237,6 +245,11 @@ ON caso_seguimiento(inmueble_id)
 WHERE estado = 'ABIERTO';
 ```
 
+```sql
+CREATE INDEX idx_caso_seguimiento_inmueble
+ON caso_seguimiento(inmueble_id);
+```
+
 #### `caso_evento`
 - `id UUID PK`
 - `caso_seguimiento_id UUID FK -> caso_seguimiento(id) NOT NULL`
@@ -258,6 +271,20 @@ Valores iniciales:
 - `COMPROMISO_INCUMPLIDO`
 - `CAMBIO_PARAMETRO`
 - `OBSERVACION`
+
+Constraints obligatorios:
+```sql
+CHECK (tipo_evento IN (
+  'INICIO_PROCESO',
+  'AVANCE_ETAPA',
+  'REPETICION_ETAPA',
+  'CIERRE_PROCESO',
+  'COMPROMISO_REGISTRADO',
+  'COMPROMISO_INCUMPLIDO',
+  'CAMBIO_PARAMETRO',
+  'OBSERVACION'
+))
+```
 
 ### 5.3 Cierre de proceso
 
@@ -302,6 +329,11 @@ Para `REGULARIZACION` no existe tabla adicional.
 - `estado varchar(30) NOT NULL`
 - `observacion text NULL`
 - `created_by`, `created_at`, `updated_by`, `updated_at`
+
+Constraints obligatorios:
+```sql
+CHECK (estado IN ('PENDIENTE', 'CUMPLIDO', 'INCUMPLIDO', 'CANCELADO'))
+```
 
 #### `observacion_inmueble`
 - `id UUID PK`
@@ -348,6 +380,10 @@ Para `REGULARIZACION` no existe tabla adicional.
     - `PLAN_DE_PAGO` requiere detalle en `proceso_cierre_plan_pago`.
     - `CAMBIO_PARAMETRO` requiere detalle en `proceso_cierre_cambio_parametro`.
     - `REGULARIZACION` no admite detalle.
+15. No se permite iniciar seguimiento si se cumple cualquiera de estas condiciones:
+    - `grupo_distrito_config.seguimiento_habilitado = false`
+    - `inmueble.seguimiento_habilitado = false`
+    - `inmueble.activo = false`
 
 ---
 
@@ -457,6 +493,12 @@ DTOs principales:
 - `CasoEventoResponse`, `HistorialSeguimientoResponse`.
 - `ErrorResponse`.
 
+Enums Java obligatorios (sin tabla maestra):
+- `CasoSeguimientoEstado { ABIERTO, PAUSADO, CERRADO }`
+- `CasoEventoTipo { INICIO_PROCESO, AVANCE_ETAPA, REPETICION_ETAPA, CIERRE_PROCESO, COMPROMISO_REGISTRADO, COMPROMISO_INCUMPLIDO, CAMBIO_PARAMETRO, OBSERVACION }`
+- `CompromisoPagoEstado { PENDIENTE, CUMPLIDO, INCUMPLIDO, CANCELADO }`
+- `CargaDeudaEstado { PENDIENTE, PROCESANDO, COMPLETADA, COMPLETADA_CON_ERRORES, FALLIDA }`
+
 ---
 
 ## 9) Validaciones
@@ -471,8 +513,16 @@ DTOs principales:
    - `PLAN_DE_PAGO` requiere detalle.
    - `CAMBIO_PARAMETRO` requiere detalle.
    - `REGULARIZACION` no admite detalle.
-8. Validar regla general (`grupo_distrito_config`) + excepción particular (`inmueble.seguimiento_habilitado`) para habilitar seguimiento.
-9. En acciones masivas: validación previa, ejecución transaccional y auditoría obligatoria.
+8. Validar habilitación al iniciar seguimiento:
+   - `grupo_distrito_config.seguimiento_habilitado = true`
+   - `inmueble.seguimiento_habilitado = true`
+   - `inmueble.activo = true`
+9. `CHECK` obligatorios para enums de columnas sin tabla maestra:
+   - `caso_seguimiento.estado`
+   - `caso_evento.tipo_evento`
+   - `compromiso_pago.estado`
+   - `carga_deuda.estado`
+10. En acciones masivas: validación previa, ejecución transaccional y auditoría obligatoria.
 
 ---
 
