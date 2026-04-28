@@ -1,77 +1,75 @@
-# Informe técnico integral — Plataforma Morosos (versión de ejecución)
+# Informe técnico definitivo — Backend Plataforma Morosos
 
 Fecha: 2026-04-28 (UTC)  
-Estado: **listo para implementación con Codex**
+Estado: **aprobado para iniciar desarrollo real con Codex**
 
 ---
 
-## 1) Arquitectura general (prioridad de ejecución)
+## 1) Arquitectura general
 
-La solución se implementa en **2 microservicios**, con una secuencia obligatoria:
+Se mantiene la arquitectura aprobada de **2 microservicios** y el orden de implementación es obligatorio:
 
-1. **`morosos-service` (PRIMERO)**: contiene todo el flujo funcional del negocio.
-2. **`auth-service` (DESPUÉS)**: incorpora autenticación, autorización y JWT.
+1. **`morosos-service` (primero)**: concentra toda la funcionalidad del negocio.
+2. **`auth-service` (después)**: incorpora autenticación/autorización con JWT.
 
-Decisiones de arquitectura para esta etapa:
-- No se implementa API Gateway.
-- No se agrega mensajería/event broker.
-- No se detiene funcionalidad por falta de autenticación.
-- Se mantiene diseño simple, modular y escalable.
+Decisiones de alcance (cerradas):
+- No se agrega gateway.
+- No se agrega mensajería.
+- No se implementa auth primero.
+- Se prioriza entrega funcional en `morosos-service` sin bloquear por seguridad.
 
 ---
 
 ## 2) Responsabilidades por microservicio
 
-### 2.1 `morosos-service` (núcleo inicial obligatorio)
-Responsable de:
-- Configuración maestra:
+### 2.1 `morosos-service` (fase inicial obligatoria)
+- Configuración base:
   - grupos
   - distritos
   - grupo_distrito_config
   - etapas
-  - parámetros
+  - parámetros de seguimiento
   - motivos de cierre
-- Operación funcional:
+- Operación:
   - inmuebles
   - importación de inmuebles
-  - deuda y cargas de deuda
-  - seguimiento por etapas
+  - deuda y cargas
+  - seguimiento y timeline
   - cierre de procesos
   - compromisos
-  - historial
   - reportes
-- Auditoría funcional de operaciones individuales y masivas.
-- Preparación para integración futura con JWT.
+  - historial
+- Auditoría de acciones individuales y masivas.
+- Preparación estructural para reemplazar actor técnico por actor JWT.
 
 ### 2.2 `auth-service` (fase posterior)
-Responsable de:
 - login
-- refresh token
+- refresh
 - logout
-- endpoint `me`
-- gestión de roles
-- gestión de permisos
-- emisión/validación JWT
-- integración de identidad en `morosos-service`
+- `/me`
+- roles
+- permisos
+- emisión/validación de JWT
+- integración con `morosos-service`
 
 ---
 
 ## 3) Estrategia temporal sin autenticación
 
-Mientras `auth-service` no exista:
-- Se utiliza un **usuario técnico temporal** configurable (ej.: `SYSTEM_MOROSOS`).
-- Todas las entidades transaccionales y maestras deben registrar:
+Mientras no exista `auth-service`:
+- Se usa usuario técnico temporal (ejemplo: `SYSTEM_MOROSOS`).
+- Se registran campos de auditoría en entidades de negocio:
   - `created_by`
   - `created_at`
   - `updated_by`
   - `updated_at`
-- La auditoría se implementa desde el inicio con actor técnico.
-- El diseño deja punto de reemplazo para actor JWT sin romper contratos de API.
-- La seguridad no bloquea el avance funcional del negocio.
+- En auditoría central se utiliza actor técnico temporal.
+- No se frena el flujo funcional por ausencia de login/JWT.
+- Se mantiene contrato listo para integrar JWT sin romper APIs.
 
 ---
 
-## 4) Modelo de dominio completo
+## 4) Modelo de dominio
 
 Entidades principales:
 1. Grupo
@@ -93,25 +91,23 @@ Entidades principales:
 17. ObservacionInmueble
 18. AuditLog
 
-Relaciones estructurales clave:
-- Un inmueble pertenece a un grupo y distrito.
-- `grupo_distrito_config` define si ese inmueble puede ser seguido.
-- Un inmueble puede tener múltiples casos históricos.
-- **Un inmueble solo puede tener un caso activo a la vez.**
-- Un caso puede cerrarse con un único `proceso_cierre`.
-- El cierre puede requerir detalle según motivo.
+Relaciones claves:
+- `grupo_distrito_config.seguimiento_habilitado` define habilitación general de seguimiento por combinación grupo+distrito.
+- `inmueble.seguimiento_habilitado` se mantiene como **configuración particular** para excepciones (ej.: judicializado, caso especial, excepción operativa).
+- `CasoSeguimiento` representa el proceso operativo de seguimiento sobre un inmueble.
+- El historial/timeline se registra en `CasoEvento`.
+- El cierre se modela en `ProcesoCierre` y detalles por tipo cuando corresponda.
 
 ---
 
-## 5) Modelo de base de datos actualizado
+## 5) Modelo de base de datos corregido
 
-Estándares técnicos:
-- PK: UUID.
-- Fechas: `timestamp with time zone`.
-- Observaciones: `text NULL`.
-- Auditoría básica en tablas de negocio.
+Convenciones:
+- PK UUID.
+- `timestamp with time zone` para fechas de auditoría/eventos.
+- Campos de observación en `NULL`.
 
-### 5.1 Configuración
+### 5.1 Tablas maestras
 
 #### `grupo`
 - `id UUID PK`
@@ -145,13 +141,6 @@ Estándares técnicos:
 - `created_by`, `created_at`, `updated_by`, `updated_at`
 - `UNIQUE(orden)`
 
-#### `parametro_seguimiento`
-- `id UUID PK`
-- `codigo varchar(100) UNIQUE NOT NULL`
-- `valor varchar(500) NOT NULL`
-- `descripcion varchar(500) NULL`
-- `created_by`, `created_at`, `updated_by`, `updated_at`
-
 #### `motivo_cierre`
 - `id UUID PK`
 - `codigo varchar(50) UNIQUE NOT NULL`
@@ -160,10 +149,17 @@ Estándares técnicos:
 - `activo boolean NOT NULL default true`
 - `created_by`, `created_at`, `updated_by`, `updated_at`
 
-**Seeds obligatorios (`is_system = true`):**
+**Seeds de sistema obligatorios (`is_system = true`):**
 - `REGULARIZACION`
 - `PLAN_DE_PAGO`
 - `CAMBIO_PARAMETRO`
+
+#### `parametro_seguimiento`
+- `id UUID PK`
+- `codigo varchar(100) UNIQUE NOT NULL`
+- `valor varchar(500) NOT NULL`
+- `descripcion varchar(500) NULL`
+- `created_by`, `created_at`, `updated_by`, `updated_at`
 
 ### 5.2 Operación
 
@@ -175,15 +171,19 @@ Estándares técnicos:
 - `grupo_id UUID FK -> grupo(id) NOT NULL`
 - `distrito_id UUID FK -> distrito(id) NOT NULL`
 - `activo boolean NOT NULL default true`
-- `seguimiento_habilitado boolean NOT NULL default false`
+- `seguimiento_habilitado boolean NOT NULL default true`
 - `telefono varchar(50) NULL`
 - `email varchar(150) NULL`
 - `observacion text NULL`
 - `created_by`, `created_at`, `updated_by`, `updated_at`
 
+Interpretación obligatoria:
+- `grupo_distrito_config.seguimiento_habilitado` = regla general.
+- `inmueble.seguimiento_habilitado` = override particular para desactivar casos excepcionales.
+
 #### `carga_deuda`
 - `id UUID PK`
-- `periodo varchar(20) NOT NULL`
+- `periodo date NOT NULL`
 - `estado varchar(30) NOT NULL`
 - `archivo_nombre varchar(255) NULL`
 - `total_registros int NOT NULL`
@@ -191,6 +191,11 @@ Estándares técnicos:
 - `errores int NOT NULL`
 - `monto_total numeric(14,2) NOT NULL`
 - `created_by`, `created_at`, `updated_by`, `updated_at`
+
+Regla de período:
+- El período representa el mes de la carga.
+- Se guarda como el primer día del mes.
+- Ejemplo: abril 2026 = `2026-04-01`.
 
 #### `carga_deuda_detalle`
 - `id UUID PK`
@@ -215,17 +220,21 @@ Estándares técnicos:
 - `id UUID PK`
 - `inmueble_id UUID FK -> inmueble(id) NOT NULL`
 - `etapa_actual_id UUID FK -> etapa_config(id) NOT NULL`
-- `estado varchar(20) NOT NULL` (`ACTIVO`, `CERRADO`)
+- `estado varchar(20) NOT NULL`
 - `fecha_inicio timestamp with time zone NOT NULL`
 - `fecha_ultimo_movimiento timestamp with time zone NOT NULL`
 - `observacion text NULL`
 - `created_by`, `created_at`, `updated_by`, `updated_at`
 
-**Constraint obligatorio: un único proceso activo por inmueble**
+Constraints obligatorios:
 ```sql
-CREATE UNIQUE INDEX ux_caso_activo_por_inmueble
+CHECK (estado IN ('ABIERTO', 'PAUSADO', 'CERRADO'))
+```
+
+```sql
+CREATE UNIQUE INDEX ux_caso_abierto_por_inmueble
 ON caso_seguimiento(inmueble_id)
-WHERE estado = 'ACTIVO';
+WHERE estado = 'ABIERTO';
 ```
 
 #### `caso_evento`
@@ -239,9 +248,20 @@ WHERE estado = 'ACTIVO';
 - `metadata jsonb NULL`
 - `created_by`, `created_at`
 
-### 5.3 Modelo de cierre de proceso (obligatorio)
+`tipo_evento` es un catálogo/enum funcional del historial/timeline del caso.  
+Valores iniciales:
+- `INICIO_PROCESO`
+- `AVANCE_ETAPA`
+- `REPETICION_ETAPA`
+- `CIERRE_PROCESO`
+- `COMPROMISO_REGISTRADO`
+- `COMPROMISO_INCUMPLIDO`
+- `CAMBIO_PARAMETRO`
+- `OBSERVACION`
 
-#### Base: `proceso_cierre`
+### 5.3 Cierre de proceso
+
+#### `proceso_cierre`
 - `id UUID PK`
 - `caso_seguimiento_id UUID FK -> caso_seguimiento(id) NOT NULL`
 - `motivo_cierre_id UUID FK -> motivo_cierre(id) NOT NULL`
@@ -249,15 +269,19 @@ WHERE estado = 'ACTIVO';
 - `observacion text NULL`
 - `created_by`
 - `created_at`
+- `UNIQUE(caso_seguimiento_id)`
 
-#### Detalle PLAN_DE_PAGO: `proceso_cierre_plan_pago`
+Regla:
+- Un caso de seguimiento solo puede tener un cierre.
+
+#### `proceso_cierre_plan_pago`
 - `id UUID PK`
 - `proceso_cierre_id UUID FK -> proceso_cierre(id) NOT NULL`
 - `cantidad_cuotas int NOT NULL`
 - `fecha_vencimiento_primera_cuota date NOT NULL`
 - `UNIQUE(proceso_cierre_id)`
 
-#### Detalle CAMBIO_PARAMETRO: `proceso_cierre_cambio_parametro`
+#### `proceso_cierre_cambio_parametro`
 - `id UUID PK`
 - `proceso_cierre_id UUID FK -> proceso_cierre(id) NOT NULL`
 - `parametro varchar(150) NOT NULL`
@@ -265,10 +289,9 @@ WHERE estado = 'ACTIVO';
 - `valor_nuevo varchar(500) NOT NULL`
 - `UNIQUE(proceso_cierre_id)`
 
-#### Motivo REGULARIZACION
-- No tiene tabla de detalle adicional.
+Para `REGULARIZACION` no existe tabla adicional.
 
-### 5.4 Historial, observaciones y auditoría
+### 5.4 Complementarias
 
 #### `compromiso_pago`
 - `id UUID PK`
@@ -292,8 +315,7 @@ WHERE estado = 'ACTIVO';
 - `entity_type varchar(80) NOT NULL`
 - `entity_id UUID NOT NULL`
 - `action varchar(50) NOT NULL`
-- `actor_id varchar(120) NOT NULL`
-- `actor_type varchar(20) NOT NULL`
+- `actor_id UUID NULL`
 - `trace_id varchar(120) NULL`
 - `request_path varchar(255) NULL`
 - `old_values jsonb NULL`
@@ -304,54 +326,34 @@ WHERE estado = 'ACTIVO';
 
 ## 6) Reglas de negocio consolidadas
 
-### 6.1 Reglas globales
-1. Se desarrolla primero `morosos-service`.
-2. `auth-service` se desarrolla después.
-3. No se bloquea funcionalidad por autenticación en etapa inicial.
-4. Todos los campos de observación son opcionales (`nullable`).
-5. Las observaciones no bloquean acciones, cambios de etapa ni cierres.
-6. Las observaciones no participan de lógica decisional de negocio.
-
-### 6.2 Reglas de seguimiento
-1. Un inmueble puede tener como máximo un proceso de seguimiento activo.
-2. El inicio de seguimiento depende de combinación grupo+distrito habilitada.
-3. No se inicia seguimiento para inmuebles inactivos.
-4. Cada avance/repetición/cierre genera evento auditable.
-
-### 6.3 Reglas de cierre
-1. Si motivo = `PLAN_DE_PAGO`, detalle PLAN_DE_PAGO obligatorio.
-2. Si motivo = `CAMBIO_PARAMETRO`, detalle CAMBIO_PARAMETRO obligatorio.
-3. Si motivo = `REGULARIZACION`, no debe existir detalle.
-
-### 6.4 Reglas sobre motivos de cierre
-1. Motivos con `isSystem=true`:
-   - no editables
-   - no eliminables
-   - sí activables/desactivables
-2. Motivos del sistema obligatorios:
-   - `REGULARIZACION`
-   - `PLAN_DE_PAGO`
-   - `CAMBIO_PARAMETRO`
-3. Motivos configurables (`isSystem=false`):
-   - eliminables solo si uso = 0
-   - si uso > 0, solo desactivables
-4. No eliminar motivos con uso > 0.
-
-### 6.5 Reglas de eliminación segura
-1. No eliminar grupos con inmuebles asociados.
-2. No eliminar etapas con procesos asociados.
-3. No eliminar motivos con usos > 0.
-
-### 6.6 Acciones masivas
-1. Deben ser transaccionales.
-2. Deben ser auditables.
-3. Deben devolver resultado detallado (procesados, omitidos, error).
+1. Se desarrolla primero `morosos-service`, luego `auth-service`.
+2. `seguimiento_habilitado` en inmueble **se mantiene** y funciona como excepción particular sobre la regla general grupo+distrito.
+3. Observaciones: siempre opcionales (`NULL`), no bloquean acciones, cambios de etapa ni cierres.
+4. Estados válidos de proceso: `ABIERTO`, `PAUSADO`, `CERRADO`.
+5. No permitir cerrar un proceso ya cerrado.
+6. No permitir acciones operativas sobre procesos cerrados.
+7. Un inmueble solo puede tener un proceso `ABIERTO` a la vez.
+8. Motivos de sistema (`isSystem=true`) no editables, no eliminables, sí activables/desactivables.
+9. Motivos configurables (`isSystem=false`):
+   - se pueden crear
+   - se pueden editar
+   - se pueden activar/desactivar
+   - se pueden eliminar solo si no tienen usos
+   - si tienen usos, solo se pueden desactivar
+10. No eliminar grupos con inmuebles asociados.
+11. No eliminar etapas con procesos asociados.
+12. No eliminar motivos con uso > 0.
+13. Acciones masivas: transaccionales y auditables.
+14. Cierre por motivo:
+    - `PLAN_DE_PAGO` requiere detalle en `proceso_cierre_plan_pago`.
+    - `CAMBIO_PARAMETRO` requiere detalle en `proceso_cierre_cambio_parametro`.
+    - `REGULARIZACION` no admite detalle.
 
 ---
 
-## 7) Endpoints REST — `morosos-service` (primero)
+## 7) Endpoints REST (morosos primero)
 
-### 7.1 Configuración
+### Configuración
 - `GET /api/v1/grupos`
 - `POST /api/v1/grupos`
 - `PUT /api/v1/grupos/{id}`
@@ -381,43 +383,42 @@ WHERE estado = 'ACTIVO';
 - `PATCH /api/v1/motivos-cierre/{id}/activo`
 - `DELETE /api/v1/motivos-cierre/{id}`
 
-### 7.2 Inmuebles
+### Inmuebles
 - `GET /api/v1/inmuebles` (filtros + paginación)
 - `GET /api/v1/inmuebles/{id}`
 - `PUT /api/v1/inmuebles/{id}`
 - `PATCH /api/v1/inmuebles/{id}/activo`
 - `PATCH /api/v1/inmuebles/{id}/seguimiento-habilitado`
 
-### 7.3 Importación de inmuebles
+### Importación
 - `POST /api/v1/inmuebles/importaciones`
 - `GET /api/v1/inmuebles/importaciones/{id}`
 - `GET /api/v1/inmuebles/importaciones/{id}/errores`
 
-### 7.4 Deuda
+### Deuda
 - `GET /api/v1/deuda/cargas`
 - `POST /api/v1/deuda/cargas`
 - `GET /api/v1/deuda/cargas/{id}`
 - `GET /api/v1/deuda/cargas/{id}/detalles`
 - `GET /api/v1/deuda/cargas/{id}/errores`
 
-### 7.5 Seguimiento
+### Seguimiento
 - `GET /api/v1/seguimiento/bandeja`
 - `POST /api/v1/seguimiento/iniciar`
 - `POST /api/v1/seguimiento/avanzar`
 - `POST /api/v1/seguimiento/repetir`
+- `POST /api/v1/seguimiento/pausar`
+- `POST /api/v1/seguimiento/reabrir`
 - `POST /api/v1/seguimiento/cerrar`
 - `POST /api/v1/seguimiento/compromisos`
 - `GET /api/v1/seguimiento/inmuebles/{inmuebleId}/historial`
 
-### 7.6 Historial, reportes y auditoría
+### Reportes y auditoría
 - `GET /api/v1/reportes/{reporteId}`
 - `GET /api/v1/reportes/{reporteId}/export?formato=pdf|xlsx`
 - `GET /api/v1/auditoria/movimientos`
 
----
-
-## 8) Endpoints futuros — `auth-service` (después)
-
+### Endpoints futuros de `auth-service`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
@@ -427,82 +428,79 @@ WHERE estado = 'ACTIVO';
 - `PUT /api/v1/auth/roles/{id}`
 - `GET /api/v1/auth/permisos`
 
-Integración posterior en `morosos-service`:
-- validación JWT en requests
-- extracción de actor desde claims
-- reemplazo de usuario técnico por usuario autenticado en auditoría
-
 ---
 
-## 9) DTOs
+## 8) DTOs
 
 Convenciones:
-- `*Request` para entrada.
-- `*Response` para salida.
-- `PageResponse<T>` para listados.
-- `BulkActionResultResponse` para acciones masivas.
+- `*Request` entrada.
+- `*Response` salida.
+- `PageResponse<T>` para paginación.
+- `BulkActionResultResponse` para masivos.
 
-DTOs mínimos por dominio:
-- Configuración: `GrupoRequest/Response`, `DistritoRequest/Response`, `GrupoDistritoConfigRequest/Response`, `EtapaConfigRequest/Response`, `MotivoCierreRequest/Response`, `ParametroSeguimientoRequest/Response`.
-- Inmuebles: `InmuebleFilterRequest`, `InmuebleUpdateRequest`, `InmuebleResponse`.
-- Importación: `ImportacionInmuebleRequest`, `ImportacionResultadoResponse`, `ImportacionErrorResponse`.
-- Deuda: `CargaDeudaRequest/Response`, `CargaDeudaDetalleResponse`, `CargaDeudaErrorResponse`.
-- Seguimiento: `IniciarSeguimientoRequest`, `AvanzarEtapaRequest`, `RepetirEtapaRequest`, `CompromisoPagoRequest/Response`, `HistorialSeguimientoResponse`.
-- Cierre:
-  - `CerrarProcesoRequest`
-    - `casoSeguimientoId`
-    - `motivoCodigo`
-    - `observacion?`
-    - `planPago? { cantidadCuotas, fechaVencimientoPrimeraCuota }`
-    - `cambioParametro? { parametro, valorAnterior, valorNuevo }`
-
----
-
-## 10) Validaciones
-
-### 10.1 Validaciones obligatorias de cierre
-- `PLAN_DE_PAGO` requiere `proceso_cierre_plan_pago`.
-- `CAMBIO_PARAMETRO` requiere `proceso_cierre_cambio_parametro`.
-- `REGULARIZACION` no admite tabla de detalle.
-
-### 10.2 Validaciones de integridad
-- FKs de tablas de detalle hacia `proceso_cierre`.
-- `UNIQUE(proceso_cierre_id)` en tablas de detalle.
-- Constraint de único proceso activo por inmueble.
-
-### 10.3 Validaciones operativas
-- No iniciar seguimiento si no está habilitado por grupo+distrito.
-- No iniciar seguimiento si ya existe proceso activo.
-- No avanzar a etapa inválida según motor de reglas.
-- En acciones masivas: validación previa + ejecución transaccional.
+DTOs principales:
+- `GrupoRequest/Response`, `DistritoRequest/Response`, `GrupoDistritoConfigRequest/Response`.
+- `EtapaConfigRequest/Response`, `EtapaReordenarRequest`.
+- `MotivoCierreRequest/Response`.
+- `ParametroSeguimientoRequest/Response`.
+- `InmuebleFilterRequest`, `InmuebleUpdateRequest`, `InmuebleResponse`.
+- `ImportacionInmuebleRequest`, `ImportacionResultadoResponse`, `ImportacionErrorResponse`.
+- `CargaDeudaRequest`, `CargaDeudaResponse`, `CargaDeudaDetalleResponse`, `CargaDeudaErrorResponse`.
+- `IniciarSeguimientoRequest`, `AvanzarEtapaRequest`, `RepetirEtapaRequest`, `PausarCasoRequest`, `ReabrirCasoRequest`.
+- `CerrarProcesoRequest`:
+  - `casoSeguimientoId`
+  - `motivoCodigo`
+  - `observacion?`
+  - `planPago? { cantidadCuotas, fechaVencimientoPrimeraCuota }`
+  - `cambioParametro? { parametro, valorAnterior, valorNuevo }`
+- `CompromisoPagoRequest/Response`.
+- `CasoEventoResponse`, `HistorialSeguimientoResponse`.
+- `ErrorResponse`.
 
 ---
 
-## 11) Manejo de errores
+## 9) Validaciones
 
-Contrato estándar:
+1. `CHECK (estado IN ('ABIERTO', 'PAUSADO', 'CERRADO'))`.
+2. Único caso `ABIERTO` por inmueble (índice parcial).
+3. `UNIQUE(caso_seguimiento_id)` en `proceso_cierre`.
+4. FK y `UNIQUE(proceso_cierre_id)` en tablas detalle de cierre.
+5. No cerrar procesos ya cerrados.
+6. No permitir acciones sobre procesos cerrados.
+7. Validación motivo/detalle:
+   - `PLAN_DE_PAGO` requiere detalle.
+   - `CAMBIO_PARAMETRO` requiere detalle.
+   - `REGULARIZACION` no admite detalle.
+8. Validar regla general (`grupo_distrito_config`) + excepción particular (`inmueble.seguimiento_habilitado`) para habilitar seguimiento.
+9. En acciones masivas: validación previa, ejecución transaccional y auditoría obligatoria.
+
+---
+
+## 10) Manejo de errores
+
+Formato estándar:
 
 ```json
 {
   "timestamp": "2026-04-28T12:00:00Z",
   "status": 409,
   "code": "BUSINESS_RULE_CONFLICT",
-  "message": "El inmueble ya tiene un proceso activo",
+  "message": "No se permite cerrar un caso ya cerrado",
   "details": [
-    {"field": "inmuebleId", "error": "Solo se permite un proceso activo"}
+    {"field": "casoSeguimientoId", "error": "Estado actual CERRADO"}
   ],
-  "traceId": "a1b2c3d4"
+  "traceId": "4f1c9e8b"
 }
 ```
 
-Códigos HTTP:
+HTTP sugeridos:
 - `400` request inválido
 - `404` no encontrado
 - `409` conflicto de negocio
-- `422` validación de regla
+- `422` validación funcional
 - `500` error inesperado
 
-Excepciones de dominio sugeridas:
+Excepciones de dominio:
 - `ValidationException`
 - `BusinessRuleException`
 - `ConflictException`
@@ -510,28 +508,17 @@ Excepciones de dominio sugeridas:
 
 ---
 
-## 12) Auditoría
+## 11) Auditoría
 
-Requisitos:
-- Auditoría obligatoria para:
-  - altas/ediciones/bajas permitidas
-  - avance de seguimiento
-  - cierres
-  - acciones masivas
-  - cambios de catálogos sensibles
-- Registro de:
-  - actor
-  - acción
-  - entidad
-  - valores previos/nuevos cuando aplique
-  - `trace_id`
-  - timestamp
-- En etapa inicial: actor técnico.
-- En etapa posterior: actor obtenido de JWT sin alterar estructura de auditoría.
+- Toda acción relevante registra evento en `audit_log`.
+- `actor_id UUID NULL` (sin `actor_username` por ahora).
+- Mientras no exista `auth-service`, se usa actor técnico temporal.
+- Al integrar JWT, `actor_id` será el identificador del usuario autenticado.
+- Se registran: acción, entidad, cambios old/new, `trace_id`, path y timestamp.
 
 ---
 
-## 13) Estructura de paquetes (Spring Boot)
+## 12) Estructura de paquetes (Spring Boot)
 
 ```text
 pe.morosos
@@ -540,7 +527,7 @@ pe.morosos
   │   ├─ api
   │   ├─ exception
   │   └─ util
-  ├─ security          (temporal técnico + adaptación futura JWT)
+  ├─ security        (modo temporal + futura integración JWT)
   ├─ audit
   ├─ grupo
   ├─ distrito
@@ -564,30 +551,31 @@ Patrón por módulo:
 - `controller`
 - `service`
 - `repository`
-- `entity` (o `domain`)
+- `entity` / `domain`
 - `dto`
 - `mapper`
 - `validator`
 
 ---
 
-## 14) Roadmap oficial
+## 13) Roadmap
 
-1. Implementar `morosos-service` completo (funcionalidad primero).
-2. Consolidar configuración, inmuebles, deuda, seguimiento, cierre, historial, reportes.
-3. Mantener auditoría y campos de actor listos para JWT.
-4. Implementar `auth-service` en fase posterior.
-5. Integrar JWT en `morosos-service` sin romper contratos existentes.
+1. Implementar `morosos-service` end-to-end.
+2. Completar configuración + inmuebles + importación + deuda.
+3. Completar seguimiento + cierre + compromisos + historial.
+4. Consolidar reportes y auditoría.
+5. Implementar `auth-service`.
+6. Integrar JWT en `morosos-service`.
 
 ---
 
-## Plan de inicio con Codex
+## 14) Plan de inicio con Codex
 
 ### Etapa 0 — Base técnica (morosos-service)
 - Spring Boot
 - PostgreSQL
 - Flyway
-- perfiles `dev` / `test`
+- perfiles `dev/test`
 - OpenAPI
 - manejo global de errores
 - auditoría base con usuario técnico
@@ -600,7 +588,7 @@ Patrón por módulo:
 - parámetros
 - motivos de cierre
 
-**Seed obligatorio:**
+Seed obligatorio:
 - `REGULARIZACION`
 - `PLAN_DE_PAGO`
 - `CAMBIO_PARAMETRO`
@@ -611,31 +599,34 @@ Patrón por módulo:
 - paginación
 - detalle
 - edición
-- validación grupo + distrito
+- validación de grupo+distrito
+- soporte de excepción por `inmueble.seguimiento_habilitado`
 
 ### Etapa 3 — Importación de inmuebles
 - carga de archivo
 - validación de estructura
 - procesamiento
-- reporte de errores por fila
+- errores por fila
 
 ### Etapa 4 — Deuda
-- cargas de deuda
+- cargas
 - detalle
 - errores
-- actualización de estado de deuda por inmueble
+- consultas por período (`DATE`, primer día del mes)
 
 ### Etapa 5 — Seguimiento
 - bandeja
 - iniciar proceso
 - avanzar etapa
 - repetir etapa
+- pausar/reabrir
 - cerrar proceso
 - compromiso
 - motor de reglas
+- timeline por `tipo_evento`
 
 ### Etapa 6 — Historial y reportes
-- historial operativo
+- historial por inmueble
 - auditoría consultable
 - reportes y exportaciones
 
@@ -651,12 +642,6 @@ Patrón por módulo:
 
 ---
 
-## Criterios de implementación (límites de alcance)
+## Cierre ejecutivo
 
-- NO implementar auth primero.
-- NO agregar gateway.
-- NO agregar mensajería.
-- NO sobreingeniería.
-- Mantener simple pero escalable.
-- Mantener coherencia contractual con frontend.
-
+Este informe deja una especificación única, consistente y accionable para iniciar desarrollo real, respetando la prioridad de `morosos-service`, manteniendo simplicidad arquitectónica y asegurando compatibilidad futura con `auth-service`.
