@@ -13,6 +13,7 @@ import {
   Users2,
   Activity,
   Layers,
+  CircleCheck,
   Building2 as BuildingIcon,
   Bell,
   HandCoins,
@@ -59,6 +60,7 @@ const items: NavItem[] = [
       { to: "/configuracion/grupos", label: "Grupos", icon: Users2 },
       { to: "/configuracion/seguimiento", label: "Seguimiento", icon: Activity },
       { to: "/configuracion/etapas", label: "Etapas", icon: Layers },
+      { to: "/configuracion/motivos-cierre", label: "Motivos de cierre", icon: CircleCheck },
     ],
   },
 ];

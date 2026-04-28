@@ -8,7 +8,6 @@ import {
   Settings2,
   Bell,
   CalendarClock,
-  Pause,
   History,
   CircleDollarSign,
 } from "lucide-react";
@@ -42,8 +41,6 @@ interface ParametrosSeguimiento {
   cuotasParaMoroso: number;
   reanudacionPorIncumplimiento: boolean;
   diasEntreEtapas: number;
-  pausarEnPlanDePago: boolean;
-  cierreAutomaticoAlRegularizar: boolean;
   notificarCambiosEtapa: boolean;
   modoOperacion: "manual" | "asistido";
 }
@@ -52,8 +49,6 @@ const valoresIniciales: ParametrosSeguimiento = {
   cuotasParaMoroso: 3,
   reanudacionPorIncumplimiento: true,
   diasEntreEtapas: 15,
-  pausarEnPlanDePago: true,
-  cierreAutomaticoAlRegularizar: true,
   notificarCambiosEtapa: true,
   modoOperacion: "asistido",
 };
@@ -126,8 +121,6 @@ export default function ConfiguracionSeguimiento() {
     (
       [
         ["reanudacionPorIncumplimiento", "Reanudación por incumplimiento de compromiso"],
-        ["pausarEnPlanDePago", "Pausar al firmar plan de pago"],
-        ["cierreAutomaticoAlRegularizar", "Cierre automático al regularizar"],
         ["notificarCambiosEtapa", "Notificar cambios de etapa"],
       ] as const
     ).forEach(([k, label]) => {
@@ -333,27 +326,11 @@ export default function ConfiguracionSeguimiento() {
           >
             <div className="divide-y divide-border">
               <ToggleRow
-                icon={Pause}
-                title="Pausar al firmar plan de pago"
-                description="Cuando se registra un plan de pago vigente, el proceso queda pausado y no avanza de etapa hasta su finalización o incumplimiento."
-                checked={form.pausarEnPlanDePago}
-                onChange={(v) => setForm((f) => ({ ...f, pausarEnPlanDePago: v }))}
-              />
-              <ToggleRow
                 icon={History}
                 title="Reanudación por incumplimiento de compromiso"
                 description="Si un compromiso de pago no se cumple, el proceso se reanuda automáticamente en la etapa donde fue pausado."
                 checked={form.reanudacionPorIncumplimiento}
                 onChange={(v) => setForm((f) => ({ ...f, reanudacionPorIncumplimiento: v }))}
-              />
-              <ToggleRow
-                icon={ShieldAlert}
-                title="Cierre automático al regularizar"
-                description="Cierra el proceso de seguimiento cuando la cuenta deja de cumplir el umbral de morosidad por regularización total."
-                checked={form.cierreAutomaticoAlRegularizar}
-                onChange={(v) =>
-                  setForm((f) => ({ ...f, cierreAutomaticoAlRegularizar: v }))
-                }
               />
               <ToggleRow
                 icon={Bell}
