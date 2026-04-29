@@ -1,0 +1,156 @@
+package pe.morosos.seguimiento.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pe.morosos.audit.service.AuditService;
+import pe.morosos.common.exception.BusinessRuleException;
+import pe.morosos.etapa.entity.EtapaConfig;
+import pe.morosos.etapa.repository.EtapaConfigRepository;
+import pe.morosos.inmueble.entity.Inmueble;
+import pe.morosos.motivocierre.entity.MotivoCierre;
+import pe.morosos.seguimiento.MotorReglasSeguimiento;
+import pe.morosos.seguimiento.dto.BulkActionResultResponse;
+import pe.morosos.seguimiento.entity.*;
+import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
+
+@Service
+@RequiredArgsConstructor
+public class SeguimientoService {
+    private final MotorReglasSeguimiento motor;
+    private final CasoSeguimientoRepository casoRepository;
+    private final EtapaConfigRepository etapaRepository;
+    private final CasoEventoService casoEventoService;
+    private final ProcesoCierreService procesoCierreService;
+    private final CompromisoPagoService compromisoPagoService;
+    private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+    private final pe.morosos.deuda.repository.CargaDeudaRepository cargaDeudaRepository;
+    private final pe.morosos.deuda.repository.CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
+    private final pe.morosos.seguimiento.repository.CasoEventoRepository casoEventoRepository;
+    private final pe.morosos.seguimiento.repository.ProcesoCierreRepository procesoCierreRepository;
+    private final pe.morosos.seguimiento.repository.ProcesoCierrePlanPagoRepository procesoCierrePlanPagoRepository;
+    private final pe.morosos.seguimiento.repository.ProcesoCierreCambioParametroRepository procesoCierreCambioParametroRepository;
+    private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
+
+    @Transactional
+    public BulkActionResultResponse iniciar(List<UUID> inmuebleIds, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(inmuebleIds.size());
+        EtapaConfig primera = etapaRepository.findFirstByActivoTrueOrderByOrdenAsc()
+                .orElseThrow(() -> new BusinessRuleException("No existe etapa activa para iniciar seguimiento"));
+        for (UUID id : inmuebleIds) {
+            try {
+                Inmueble inmueble = motor.validarInicioSeguimiento(id);
+                CasoSeguimiento c = new CasoSeguimiento();
+                c.setInmueble(inmueble); c.setEtapaActual(primera); c.setEstado(CasoSeguimientoEstado.ABIERTO);
+                c.setFechaInicio(Instant.now()); c.setFechaUltimoMovimiento(Instant.now()); c.setObservacion(observacion);
+                c.setCreatedAt(Instant.now());
+                c = casoRepository.save(c);
+                casoEventoService.crearEvento(c, CasoEventoTipo.INICIO_PROCESO, null, primera, observacion, null);
+                auditService.log("CASO_SEGUIMIENTO", c.getId(), "INICIAR_SEGUIMIENTO", null, null, null, null, null);
+                result.aplicado(id, "Seguimiento iniciado");
+            } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public BulkActionResultResponse avanzar(List<UUID> casoIds, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID id : casoIds) {
+            try {
+                CasoSeguimiento caso = motor.validarCasoOperable(id);
+                EtapaConfig origen = caso.getEtapaActual();
+                EtapaConfig siguiente = motor.validarAvanceEtapa(caso);
+                caso.setEtapaActual(siguiente); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now());
+                casoRepository.save(caso);
+                casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, origen, siguiente, observacion, null);
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "AVANZAR_ETAPA", null, null, null, null, null);
+                result.aplicado(id, "Etapa avanzada");
+            } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public BulkActionResultResponse repetir(List<UUID> casoIds, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID id : casoIds) {
+            try {
+                CasoSeguimiento caso = motor.validarCasoOperable(id);
+                motor.validarRepeticionEtapa(caso);
+                caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
+                casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, caso.getEtapaActual(), caso.getEtapaActual(), observacion, null);
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
+                result.aplicado(id, "Etapa repetida");
+            } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public BulkActionResultResponse pausar(List<UUID> casoIds, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID id : casoIds) {
+            try {
+                CasoSeguimiento caso = motor.validarCasoOperable(id);
+                motor.validarPausar(caso);
+                caso.setEstado(CasoSeguimientoEstado.PAUSADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
+                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA")));
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "PAUSAR_CASO", null, null, null, null, null);
+                result.aplicado(id, "Caso pausado");
+            } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public BulkActionResultResponse reabrir(List<UUID> casoIds, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID id : casoIds) {
+            try {
+                CasoSeguimiento caso = motor.validarCasoOperable(id);
+                motor.validarReabrir(caso);
+                caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
+                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REAPERTURA")));
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REABRIR_CASO", null, null, null, null, null);
+                result.aplicado(id, "Caso reabierto");
+            } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public CasoSeguimiento cerrar(UUID casoId, String motivoCodigo, String observacion, ProcesoCierreService.PlanPagoData planPago,
+                                  ProcesoCierreService.CambioParametroData cambioParametro) {
+        CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
+        MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
+        procesoCierreService.crearCierre(caso, motivo, observacion, planPago, cambioParametro);
+        caso.setEstado(CasoSeguimientoEstado.CERRADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
+        casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
+        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "CERRAR_PROCESO", null, null, null, null, null);
+        return caso;
+    }
+
+    @Transactional
+    public CompromisoPago registrarCompromiso(UUID casoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
+        CasoSeguimiento caso = motor.validarCasoOperable(casoId);
+        motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
+        CompromisoPago c = compromisoPagoService.crear(caso, fechaDesde, fechaHasta, monto, observacion);
+        java.util.Map<String, Object> meta = new java.util.HashMap<>();
+        meta.put("fechaDesde", fechaDesde.toString());
+        meta.put("fechaHasta", fechaHasta.toString());
+        meta.put("monto", monto);
+        casoEventoService.crearEvento(caso, CasoEventoTipo.COMPROMISO_REGISTRADO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+                objectMapper.valueToTree(meta));
+        auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
+        return c;
+    }
+}
