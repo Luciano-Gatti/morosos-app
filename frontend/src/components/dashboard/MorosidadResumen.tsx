@@ -1,7 +1,7 @@
 import { resumenMorosidad } from "@/data/mock";
 
-export function MorosidadResumen() {
-  const { totalInmuebles, alDia, deudores, morosos } = resumenMorosidad;
+export function MorosidadResumen({ data = resumenMorosidad }: { data?: typeof resumenMorosidad }) {
+  const { totalInmuebles, alDia, deudores, morosos } = data;
   const pctMorosos = (morosos / totalInmuebles) * 100;
   const pctDeudores = (deudores / totalInmuebles) * 100;
   const pctAlDia = (alDia / totalInmuebles) * 100;
