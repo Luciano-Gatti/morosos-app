@@ -26,7 +26,11 @@ public class ReporteController {
                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
                              @RequestParam(required = false) String action,
                              @RequestParam(required = false) String entityType,
+                             @RequestParam(required = false) String tipoAccion,
+                             @RequestParam(required = false) java.util.UUID grupoId,
+                             @RequestParam(required = false) java.util.UUID distritoId,
+                             @RequestParam(required = false) java.util.UUID actorId,
                              @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return reporteService.obtenerReporte(reporteId, fechaDesde, fechaHasta, action, entityType, pageable);
+        return reporteService.obtenerReporte(reporteId, fechaDesde, fechaHasta, action, entityType, tipoAccion, grupoId, distritoId, actorId, pageable);
     }
 }

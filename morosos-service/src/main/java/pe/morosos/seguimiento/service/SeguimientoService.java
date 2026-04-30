@@ -2,13 +2,16 @@ package pe.morosos.seguimiento.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import pe.morosos.deuda.entity.CargaDeudaEstado;
+import pe.morosos.seguimiento.dto.SeguimientoBandejaAccionesResponse;
+import pe.morosos.seguimiento.dto.SeguimientoBandejaRowResponse;
 import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.service.AuditService;
 import pe.morosos.common.exception.BusinessRuleException;
@@ -40,7 +43,110 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.ProcesoCierreCambioParametroRepository procesoCierreCambioParametroRepository;
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
 
-    @Transactional
+    
+
+    @Transactional(readOnly = true)
+    public Page<SeguimientoBandejaRowResponse> findBandeja(String query, UUID grupoId, UUID distritoId, UUID etapaId,
+                                                           CasoSeguimientoEstado estado, Integer cuotasMin, Pageable pageable) {
+        int minCuotas = cuotasMin == null ? 0 : cuotasMin;
+        Optional<pe.morosos.deuda.entity.CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
+                List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
+
+        UUID cargaId = cargaOpt.map(pe.morosos.deuda.entity.CargaDeuda::getId).orElse(null);
+        List<Object[]> rows = cargaId == null ? List.of() : cargaDeudaDetalleRepository.findDeudaByCarga(cargaId);
+        Map<UUID, Object[]> deudaByInmueble = new HashMap<>();
+        for (Object[] r : rows) deudaByInmueble.put((UUID) r[0], r);
+
+        List<CasoSeguimiento> casos = casoRepository.findAll();
+        Map<UUID, CasoSeguimiento> casoByInmueble = new HashMap<>();
+        for (CasoSeguimiento caso : casos) casoByInmueble.put(caso.getInmueble().getId(), caso);
+
+        List<SeguimientoBandejaRowResponse> data = new ArrayList<>();
+        for (Object[] r : rows) {
+            UUID inmuebleId = (UUID) r[0];
+            Integer cuotas = (Integer) r[1];
+            BigDecimal monto = (BigDecimal) r[2];
+            CasoSeguimiento caso = casoByInmueble.get(inmuebleId);
+            if (cuotas != null && cuotas < minCuotas) continue;
+            if (!matchesFilters(caso, query, grupoId, distritoId, etapaId, estado)) continue;
+            data.add(toRow(caso, inmuebleId, cuotas, monto));
+        }
+
+        data.sort(buildComparator(pageable));
+        int from = Math.min((int) pageable.getOffset(), data.size());
+        int to = Math.min(from + pageable.getPageSize(), data.size());
+        return new PageImpl<>(data.subList(from, to), pageable, data.size());
+    }
+
+    private boolean matchesFilters(CasoSeguimiento caso, String query, UUID grupoId, UUID distritoId, UUID etapaId, CasoSeguimientoEstado estado) {
+        if (caso == null) return false;
+        var i = caso.getInmueble();
+        if (grupoId != null && !grupoId.equals(i.getGrupo().getId())) return false;
+        if (distritoId != null && !distritoId.equals(i.getDistrito().getId())) return false;
+        if (etapaId != null && (caso.getEtapaActual() == null || !etapaId.equals(caso.getEtapaActual().getId()))) return false;
+        if (estado != null && caso.getEstado() != estado) return false;
+        if (query != null && !query.isBlank()) {
+            String q = query.toLowerCase(Locale.ROOT);
+            if (!(contains(i.getCuenta(), q) || contains(i.getTitular(), q) || contains(i.getDireccion(), q))) return false;
+        }
+        return true;
+    }
+
+    private boolean contains(String value, String query){ return value != null && value.toLowerCase(Locale.ROOT).contains(query); }
+
+    private SeguimientoBandejaRowResponse toRow(CasoSeguimiento caso, UUID inmuebleId, Integer cuotas, BigDecimal monto) {
+        var i = caso.getInmueble();
+        Instant ultimo = caso.getFechaUltimoMovimiento();
+        Long dias = ultimo == null ? null : Duration.between(ultimo, Instant.now()).toDays();
+        return new SeguimientoBandejaRowResponse(
+                caso.getId(),
+                inmuebleId,
+                i.getCuenta(),
+                i.getTitular(),
+                i.getDireccion(),
+                i.getGrupo().getNombre(),
+                i.getDistrito().getNombre(),
+                cuotas == null ? 0 : cuotas,
+                monto == null ? BigDecimal.ZERO : monto,
+                caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
+                caso.getEstado().name(),
+                ultimo,
+                dias,
+                accionesDisponibles(caso)
+        );
+    }
+
+    private SeguimientoBandejaAccionesResponse accionesDisponibles(CasoSeguimiento caso) {
+        boolean abierto = caso.getEstado() == CasoSeguimientoEstado.ABIERTO;
+        boolean pausado = caso.getEstado() == CasoSeguimientoEstado.PAUSADO;
+        boolean cerrado = caso.getEstado() == CasoSeguimientoEstado.CERRADO;
+        boolean esFinal = caso.getEtapaActual() != null && caso.getEtapaActual().isEsFinal();
+        return new SeguimientoBandejaAccionesResponse(
+                false,
+                abierto && !esFinal,
+                !cerrado,
+                abierto,
+                pausado,
+                abierto,
+                !cerrado
+        );
+    }
+
+    private Comparator<SeguimientoBandejaRowResponse> buildComparator(Pageable pageable) {
+        Comparator<SeguimientoBandejaRowResponse> cmp = Comparator.comparing(SeguimientoBandejaRowResponse::fechaUltimoMovimiento,
+                Comparator.nullsLast(Comparator.naturalOrder())).reversed();
+        for (Sort.Order order : pageable.getSort()) {
+            Comparator<SeguimientoBandejaRowResponse> c = switch (order.getProperty()) {
+                case "cuotasAdeudadas", "cuotasVencidas" -> Comparator.comparing(SeguimientoBandejaRowResponse::cuotasAdeudadas, Comparator.nullsLast(Comparator.naturalOrder()));
+                case "montoAdeudado", "montoVencido" -> Comparator.comparing(SeguimientoBandejaRowResponse::montoAdeudado, Comparator.nullsLast(Comparator.naturalOrder()));
+                case "fechaUltimoMovimiento" -> Comparator.comparing(SeguimientoBandejaRowResponse::fechaUltimoMovimiento, Comparator.nullsLast(Comparator.naturalOrder()));
+                default -> cmp;
+            };
+            cmp = order.isAscending() ? c : c.reversed();
+        }
+        return cmp;
+    }
+@Transactional
     public BulkActionResultResponse iniciar(List<UUID> inmuebleIds, String observacion) {
         BulkActionResultResponse result = new BulkActionResultResponse(inmuebleIds.size());
         EtapaConfig primera = etapaRepository.findFirstByActivoTrueOrderByOrdenAsc()
