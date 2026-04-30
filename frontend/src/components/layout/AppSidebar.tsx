@@ -45,7 +45,7 @@ const items: NavItem[] = [
       { to: "/reportes/morosos-grupo-distrito", label: "Morosos por grupo y distrito", icon: BuildingIcon },
       { to: "/reportes/acciones-regularizacion", label: "Regularizaciones y planes", icon: HandCoins },
       { to: "/reportes/estado-inmuebles", label: "Estado de inmuebles", icon: ListChecks },
-      { to: "/reportes/acciones-fechas", label: "Acciones entre fechas — avisos, intimaciones y cortes", icon: CalendarRange },
+      { to: "/reportes/acciones-fechas", label: "Acciones entre fechas", icon: CalendarRange },
       { to: "/reportes/historial-movimientos", label: "Historial de movimientos", icon: History },
     ],
   },
