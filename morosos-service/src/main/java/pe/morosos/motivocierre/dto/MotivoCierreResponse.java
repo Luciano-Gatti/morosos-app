@@ -7,6 +7,8 @@ public record MotivoCierreResponse(
         UUID id,
         String codigo,
         String nombre,
+        String descripcion,
+        long usos,
         boolean isSystem,
         boolean activo,
         String createdBy,

@@ -19,6 +19,9 @@ public class MotivoCierre extends BaseEntity {
     @Column(name = "nombre", nullable = false, unique = true, length = 150)
     private String nombre;
 
+    @Column(name = "descripcion", columnDefinition = "text")
+    private String descripcion;
+
     @Column(name = "is_system", nullable = false)
     private boolean isSystem;
 

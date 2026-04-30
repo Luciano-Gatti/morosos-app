@@ -19,6 +19,7 @@ import pe.morosos.etapa.dto.EtapaReordenarRequest;
 import pe.morosos.etapa.entity.EtapaConfig;
 import pe.morosos.etapa.mapper.EtapaConfigMapper;
 import pe.morosos.etapa.repository.EtapaConfigRepository;
+import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -27,10 +28,15 @@ public class EtapaConfigService {
     private final EtapaConfigRepository repository;
     private final EtapaConfigMapper mapper;
     private final UsageValidationService usageValidationService;
+    private final CasoSeguimientoRepository casoSeguimientoRepository;
 
     @Transactional(readOnly = true)
     public List<EtapaConfigResponse> findAll() {
-        return repository.findAllByOrderByOrdenAsc().stream().map(mapper::toResponse).toList();
+        List<EtapaConfig> etapas = repository.findAllByOrderByOrdenAsc();
+        List<UUID> etapaIds = etapas.stream().map(EtapaConfig::getId).toList();
+        Map<UUID, Long> conteos = casoSeguimientoRepository.countByEtapaActualIds(etapaIds).stream()
+                .collect(java.util.stream.Collectors.toMap(r -> (UUID) r[0], r -> ((Number) r[1]).longValue()));
+        return etapas.stream().map(e -> mapper.toResponse(e, conteos.getOrDefault(e.getId(), 0L))).toList();
     }
 
     @Transactional

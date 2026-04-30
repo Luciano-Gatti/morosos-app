@@ -16,10 +16,13 @@ public class SeguimientoBandejaMapper {
                 deudaDetalle.getInmueble().getCuenta(),
                 deudaDetalle.getInmueble().getTitular(),
                 deudaDetalle.getInmueble().getDireccion(),
+                deudaDetalle.getInmueble().getGrupo().getId(),
                 deudaDetalle.getInmueble().getGrupo().getNombre(),
+                deudaDetalle.getInmueble().getDistrito().getId(),
                 deudaDetalle.getInmueble().getDistrito().getNombre(),
                 deudaDetalle.getCuotasVencidas(),
                 deudaDetalle.getMontoVencido() == null ? BigDecimal.ZERO : deudaDetalle.getMontoVencido(),
+                caso == null || caso.getEtapaActual() == null ? null : caso.getEtapaActual().getId(),
                 caso == null ? null : caso.getEtapaActual().getNombre(),
                 caso == null ? null : caso.getEstado().name(),
                 caso == null ? null : caso.getFechaUltimoMovimiento()

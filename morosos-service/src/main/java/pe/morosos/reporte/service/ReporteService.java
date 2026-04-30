@@ -80,7 +80,14 @@ public class ReporteService {
         Instant fin = (fechaHasta == null ? LocalDate.now(ZoneOffset.UTC) : fechaHasta.plusDays(1)).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<Object[]> baseRows = entityManager.createQuery("""
-                select e.fechaEvento, e.tipoEvento, i.cuenta, i.titular, g.nombre, d.nombre, eo.codigo, eo.nombre, ed.codigo, ed.nombre, e.createdBy, e.observacion, mc.codigo
+                select e.fechaEvento, e.tipoEvento,
+                       i.id, i.cuenta, i.titular,
+                       c.id,
+                       g.id, g.nombre,
+                       d.id, d.nombre,
+                       eo.id, eo.codigo, eo.nombre,
+                       ed.id, ed.codigo, ed.nombre,
+                       e.createdBy, e.observacion, mc.codigo
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -101,22 +108,30 @@ public class ReporteService {
                 .getResultList();
 
         List<AccionesFechasDetalleResponse> mapped = baseRows.stream()
-                .map(this::toDetalle)
+                .map(this::toDetalleAccionesFecha)
                 .filter(r -> tipoAccion == null || tipoAccion.isBlank() || r.tipoAccion().equalsIgnoreCase(tipoAccion))
                 .toList();
 
         long total = mapped.size();
         if (total == 0) {
-            return new AccionesFechasResponse(new AccionesFechasResumenResponse(0,0,0,null), List.of(), List.of(), new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0));
+            return new AccionesFechasResponse(
+                    new AccionesFechasResumenResponse(0, 0, 0, null),
+                    List.of(),
+                    List.of(),
+                    new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0));
         }
 
         Map<String, Long> porTipoMap = mapped.stream().collect(Collectors.groupingBy(AccionesFechasDetalleResponse::tipoAccion, LinkedHashMap::new, Collectors.counting()));
         List<AccionesFechasPorTipoResponse> porTipo = porTipoMap.entrySet().stream()
-                .sorted((a,b)->Long.compare(b.getValue(),a.getValue()))
-                .map(e -> new AccionesFechasPorTipoResponse(e.getKey(), e.getValue(), e.getValue()*100d/total)).toList();
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .map(e -> new AccionesFechasPorTipoResponse(e.getKey(), labelTipoAccion(e.getKey()), e.getValue(), e.getValue() * 100d / total))
+                .toList();
 
-        List<AccionesFechasSerieDiariaResponse> serie = mapped.stream().collect(Collectors.groupingBy(x -> x.fecha().toLocalDate(), TreeMap::new, Collectors.counting()))
-                .entrySet().stream().map(e -> new AccionesFechasSerieDiariaResponse(e.getKey(), e.getValue())).toList();
+        List<AccionesFechasSerieDiariaResponse> serie = mapped.stream()
+                .collect(Collectors.groupingBy(x -> x.fecha().toLocalDate(), TreeMap::new, Collectors.counting()))
+                .entrySet().stream()
+                .map(e -> new AccionesFechasSerieDiariaResponse(e.getKey(), e.getValue()))
+                .toList();
 
         String masFrecuente = porTipo.isEmpty() ? null : porTipo.get(0).tipoAccion();
         long actores = mapped.stream().map(AccionesFechasDetalleResponse::actorId).filter(Objects::nonNull).distinct().count();
@@ -129,49 +144,84 @@ public class ReporteService {
         return new AccionesFechasResponse(resumen, porTipo, serie, detalle);
     }
 
-    private AccionesFechasDetalleResponse toDetalle(Object[] r){
+    private AccionesFechasDetalleResponse toDetalleAccionesFecha(Object[] r) {
         Instant fecha = (Instant) r[0];
         String tipoEvento = ((Enum<?>) r[1]).name();
-        String etapaDestinoCodigo = (String) r[8];
-        String motivoCierreCodigo = (String) r[12];
-        String tipoAccion = mapTipoAccion(tipoEvento, etapaDestinoCodigo, motivoCierreCodigo);
-        return new AccionesFechasDetalleResponse(fecha.atOffset(ZoneOffset.UTC), tipoAccion, (String) r[2], (String) r[3], (String) r[4], (String) r[5], (String) r[7], (String) r[9], (UUID) r[10], (String) r[11]);
+        String etapaOrigenCodigo = (String) r[11];
+        String etapaDestinoCodigo = (String) r[14];
+        String motivoCierreCodigo = (String) r[18];
+        String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaDestinoCodigo, motivoCierreCodigo);
+        return new AccionesFechasDetalleResponse(
+                fecha.atOffset(ZoneOffset.UTC),
+                tipoAccion,
+                labelTipoAccion(tipoAccion),
+                (String) r[3],
+                (String) r[4],
+                (UUID) r[2],
+                (UUID) r[5],
+                (UUID) r[6],
+                (String) r[7],
+                (UUID) r[8],
+                (String) r[9],
+                (UUID) r[10],
+                (String) r[12],
+                (UUID) r[13],
+                (String) r[15],
+                (UUID) r[16],
+                (String) r[17]);
     }
 
-    private String mapTipoAccion(String tipoEvento, String etapaDestinoCodigo, String motivoCierreCodigo){
+    private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaDestinoCodigo, String motivoCierreCodigo) {
         if ("REPETICION_ETAPA".equals(tipoEvento)) return "REPETICION_ETAPA";
+        if ("OBSERVACION".equals(tipoEvento)) return "PAUSA";
+        if ("CAMBIO_PARAMETRO".equals(tipoEvento)) return "REAPERTURA";
+        if ("COMPROMISO_REGISTRADO".equals(tipoEvento)) return "COMPROMISO_PAGO";
         if ("CIERRE_PROCESO".equals(tipoEvento)) {
             if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) return "REGULARIZACION";
             if ("PLAN_DE_PAGO".equalsIgnoreCase(motivoCierreCodigo)) return "PLAN_DE_PAGO";
             return "CIERRE";
         }
-        if ("COMPROMISO_REGISTRADO".equals(tipoEvento)) return "COMPROMISO_PAGO";
-        if ("OBSERVACION".equals(tipoEvento)) return "PAUSA";
-        if ("CAMBIO_PARAMETRO".equals(tipoEvento)) return "REAPERTURA";
         if ("AVANCE_ETAPA".equals(tipoEvento) || "INICIO_PROCESO".equals(tipoEvento)) {
-            String c = etapaDestinoCodigo == null ? "" : etapaDestinoCodigo.toUpperCase(Locale.ROOT);
+            String codigo = (etapaDestinoCodigo != null ? etapaDestinoCodigo : etapaOrigenCodigo);
+            String c = codigo == null ? "" : codigo.toUpperCase(Locale.ROOT);
             if (c.contains("AVISO_DEUDA")) return "AVISO_DEUDA";
             if (c.contains("INTIMACION")) return "INTIMACION";
             if (c.contains("AVISO_CORTE")) return "AVISO_CORTE";
             if (c.contains("CORTE")) return "CORTE";
         }
-        return tipoEvento;
+        return "CIERRE";
     }
 
+    private String labelTipoAccion(String tipoAccion) {
+        return switch (tipoAccion) {
+            case "AVISO_DEUDA" -> "Aviso de deuda";
+            case "INTIMACION" -> "Intimación";
+            case "AVISO_CORTE" -> "Aviso de corte";
+            case "CORTE" -> "Corte";
+            case "REPETICION_ETAPA" -> "Repetición de etapa";
+            case "PAUSA" -> "Pausa";
+            case "REAPERTURA" -> "Reapertura";
+            case "CIERRE" -> "Cierre";
+            case "REGULARIZACION" -> "Regularización";
+            case "PLAN_DE_PAGO" -> "Plan de pago";
+            case "COMPROMISO_PAGO" -> "Compromiso de pago";
+            default -> tipoAccion;
+        };
+    }
 
     private AccionesRegularizacionResponse reporteAccionesRegularizacion(LocalDate fechaDesde, LocalDate fechaHasta, UUID grupoId, UUID distritoId, Pageable pageable) {
         Instant inicio = (fechaDesde == null ? LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1) : fechaDesde).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant fin = (fechaHasta == null ? LocalDate.now(ZoneOffset.UTC) : fechaHasta.plusDays(1)).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AccionesRegularizacionItemRegularizacionResponse> regs = entityManager.createQuery("""
-                select p.fechaCierre, i.cuenta, i.titular, g.nombre, d.nombre, p.createdBy, p.observacion
+                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
                 join c.inmueble i
                 join i.grupo g
                 join i.distrito d
-                where m.codigo = 'REGULARIZACION'
+                where upper(m.codigo) = 'REGULARIZACION'
                   and p.fechaCierre >= :inicio and p.fechaCierre < :fin
                   and (:grupoId is null or g.id = :grupoId)
                   and (:distritoId is null or d.id = :distritoId)
@@ -180,11 +230,16 @@ public class ReporteService {
                 .setParameter("inicio", inicio).setParameter("fin", fin)
                 .setParameter("grupoId", grupoId).setParameter("distritoId", distritoId)
                 .getResultList().stream()
-                .map(r -> new AccionesRegularizacionItemRegularizacionResponse(((Instant) r[0]).atOffset(ZoneOffset.UTC), (String) r[1], (String) r[2], (String) r[3], (String) r[4], (UUID) r[5], (String) r[6]))
+                .map(r -> new AccionesRegularizacionItemRegularizacionResponse(
+                        ((Instant) r[0]).atOffset(ZoneOffset.UTC),
+                        (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
+                        (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
+                        (UUID) r[9], (String) r[10]))
                 .toList();
 
         List<AccionesRegularizacionItemPlanPagoResponse> planes = entityManager.createQuery("""
-                select p.fechaCierre, i.cuenta, i.titular, g.nombre, d.nombre, pp.cantidadCuotas, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
+                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre,
+                       pp.cantidadCuotas, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -192,7 +247,7 @@ public class ReporteService {
                 join i.grupo g
                 join i.distrito d
                 join ProcesoCierrePlanPago pp on pp.procesoCierre.id = p.id
-                where m.codigo = 'PLAN_DE_PAGO'
+                where upper(m.codigo) = 'PLAN_DE_PAGO'
                   and p.fechaCierre >= :inicio and p.fechaCierre < :fin
                   and (:grupoId is null or g.id = :grupoId)
                   and (:distritoId is null or d.id = :distritoId)
@@ -201,11 +256,16 @@ public class ReporteService {
                 .setParameter("inicio", inicio).setParameter("fin", fin)
                 .setParameter("grupoId", grupoId).setParameter("distritoId", distritoId)
                 .getResultList().stream()
-                .map(r -> new AccionesRegularizacionItemPlanPagoResponse(((Instant) r[0]).atOffset(ZoneOffset.UTC), (String) r[1], (String) r[2], (String) r[3], (String) r[4], (Integer) r[5], (LocalDate) r[6], (UUID) r[7], (String) r[8]))
+                .map(r -> new AccionesRegularizacionItemPlanPagoResponse(
+                        ((Instant) r[0]).atOffset(ZoneOffset.UTC),
+                        (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
+                        (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
+                        (Integer) r[9], (LocalDate) r[10], (UUID) r[11], (String) r[12]))
                 .toList();
 
         List<AccionesRegularizacionItemCompromisoResponse> compromisos = entityManager.createQuery("""
-                select cp.fechaDesde, cp.fechaHasta, i.cuenta, i.titular, g.nombre, d.nombre, cp.estado, cp.montoComprometido, cp.createdBy, cp.observacion
+                select cp.fechaDesde, cp.fechaHasta, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre,
+                       cp.estado, cp.montoComprometido, cp.createdBy, cp.observacion
                 from CompromisoPago cp
                 join cp.casoSeguimiento c
                 join c.inmueble i
@@ -220,7 +280,10 @@ public class ReporteService {
                 .setParameter("fechaHasta", fin.minusSeconds(1).atOffset(ZoneOffset.UTC).toLocalDate())
                 .setParameter("grupoId", grupoId).setParameter("distritoId", distritoId)
                 .getResultList().stream()
-                .map(r -> new AccionesRegularizacionItemCompromisoResponse((LocalDate) r[0], (LocalDate) r[1], (String) r[2], (String) r[3], (String) r[4], (String) r[5], ((Enum<?>) r[6]).name(), (BigDecimal) r[7], (UUID) r[8], (String) r[9]))
+                .map(r -> new AccionesRegularizacionItemCompromisoResponse(
+                        (LocalDate) r[0], (LocalDate) r[1], (String) r[2], (String) r[3], (UUID) r[4], (UUID) r[5],
+                        (UUID) r[6], (String) r[7], (UUID) r[8], (String) r[9],
+                        ((Enum<?>) r[10]).name(), compromisoEstadoLabel(((Enum<?>) r[10]).name()), (BigDecimal) r[11], (UUID) r[12], (String) r[13]))
                 .toList();
 
         long regularizaciones = regs.size();
@@ -229,14 +292,15 @@ public class ReporteService {
         long total = regularizaciones + planesPago + compromisosPago;
         double pctReg = total == 0 ? 0 : regularizaciones * 100d / total;
         double pctPlan = total == 0 ? 0 : planesPago * 100d / total;
+        double pctCompromiso = total == 0 ? 0 : compromisosPago * 100d / total;
 
         List<AccionesRegularizacionPorTipoResponse> porTipo = total == 0 ? List.of() : List.of(
-                new AccionesRegularizacionPorTipoResponse("REGULARIZACION", regularizaciones, pctReg),
-                new AccionesRegularizacionPorTipoResponse("PLAN_DE_PAGO", planesPago, pctPlan),
-                new AccionesRegularizacionPorTipoResponse("COMPROMISO_PAGO", compromisosPago, compromisosPago * 100d / total)
+                new AccionesRegularizacionPorTipoResponse("REGULARIZACION", "Regularización", regularizaciones, pctReg),
+                new AccionesRegularizacionPorTipoResponse("PLAN_DE_PAGO", "Plan de pago", planesPago, pctPlan),
+                new AccionesRegularizacionPorTipoResponse("COMPROMISO_PAGO", "Compromiso de pago", compromisosPago, pctCompromiso)
         );
 
-        AccionesRegularizacionResumenResponse resumen = new AccionesRegularizacionResumenResponse(total, regularizaciones, planesPago, compromisosPago, pctReg, pctPlan);
+        AccionesRegularizacionResumenResponse resumen = new AccionesRegularizacionResumenResponse(total, regularizaciones, planesPago, compromisosPago, pctReg, pctPlan, pctCompromiso);
         return new AccionesRegularizacionResponse(
                 resumen,
                 porTipo,
@@ -244,6 +308,15 @@ public class ReporteService {
                 paginate(planes, pageable),
                 paginate(compromisos, pageable)
         );
+    }
+
+    private String compromisoEstadoLabel(String estado) {
+        return switch (estado) {
+            case "PENDIENTE" -> "Pendiente";
+            case "CUMPLIDO" -> "Cumplido";
+            case "INCUMPLIDO" -> "Incumplido";
+            default -> estado;
+        };
     }
 
     private <T> PageResponse<T> paginate(List<T> items, Pageable pageable) {
