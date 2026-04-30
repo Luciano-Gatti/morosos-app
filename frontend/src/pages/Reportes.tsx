@@ -30,7 +30,7 @@ import {
   FileDown,
   FileSpreadsheet,
   Building2,
-  Bell,
+  
   HandCoins,
   ListChecks,
   CalendarRange,
@@ -88,7 +88,6 @@ const ORGANISMO = "AOSC — Administración de Obras Sanitarias";
 
 type ReporteId =
   | "morosos-grupo-distrito"
-  | "acciones-notificacion"
   | "acciones-regularizacion"
   | "estado-inmuebles"
   | "acciones-fechas"
@@ -111,13 +110,6 @@ const REPORTES: ReporteDef[] = [
     conFechas: false,
   },
   {
-    id: "acciones-notificacion",
-    titulo: "Avisos, intimaciones y cortes",
-    descripcion: "Acciones de notificación realizadas.",
-    icono: Bell,
-    conFechas: true,
-  },
-  {
     id: "acciones-regularizacion",
     titulo: "Regularizaciones y planes",
     descripcion: "Regularizaciones, planes de pago y compromisos.",
@@ -134,7 +126,8 @@ const REPORTES: ReporteDef[] = [
   {
     id: "acciones-fechas",
     titulo: "Acciones entre fechas",
-    descripcion: "Detalle de todas las acciones en el período.",
+    descripcion:
+      "Avisos, intimaciones, cortes y demás acciones del período, con evolución diaria y detalle.",
     icono: CalendarRange,
     conFechas: true,
   },
@@ -390,9 +383,6 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       {Header}
       <div className="px-4 py-4">
         {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito />}
-        {reporte.id === "acciones-notificacion" && (
-          <ReporteAcciones desde={desde} hasta={hasta} tipos={TIPOS_NOTIFICACION} variante="notificacion" />
-        )}
         {reporte.id === "acciones-regularizacion" && (
           <ReporteAcciones desde={desde} hasta={hasta} tipos={TIPOS_REGULARIZACION} variante="regularizacion" />
         )}
@@ -873,46 +863,145 @@ function ReporteEstadoInmuebles() {
    ============================================================ */
 
 function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Date | null }) {
-  const filtradas = useMemo(() => filtrarAcciones(desde, hasta), [desde, hasta]);
+  const ALL_TIPOS: AccionTipo[] = useMemo(
+    () => [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION],
+    [],
+  );
+  const [tiposSeleccionados, setTiposSeleccionados] = useState<AccionTipo[]>(ALL_TIPOS);
+
+  const toggleTipo = (t: AccionTipo) => {
+    setTiposSeleccionados((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+    );
+  };
+  const seleccionarTodos = () => setTiposSeleccionados(ALL_TIPOS);
+  const limpiarTodos = () => setTiposSeleccionados([]);
+
+  const filtradas = useMemo(
+    () => filtrarAcciones(desde, hasta, tiposSeleccionados.length === 0 ? [] : tiposSeleccionados),
+    [desde, hasta, tiposSeleccionados],
+  );
   const serie = useMemo(() => serieDiaria(filtradas), [filtradas]);
+  const conteos = useMemo(() => conteoPorTipo(filtradas, ALL_TIPOS), [filtradas, ALL_TIPOS]);
+  const conteosVisibles = useMemo(
+    () => conteos.filter((c) => tiposSeleccionados.includes(c.tipo)),
+    [conteos, tiposSeleccionados],
+  );
+
   const PAGE = 25;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE));
-  const slice = filtradas.slice((page - 1) * PAGE, page * PAGE);
+  const safePage = Math.min(page, totalPages);
+  const slice = filtradas.slice((safePage - 1) * PAGE, safePage * PAGE);
 
-  const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
-  const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
   const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
+  const tipoTop = [...conteos].sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—";
+  const total = filtradas.length;
 
   return (
     <div className="space-y-5">
       <KpiBar
         items={[
-          { label: "Total acciones", value: numberFmt.format(filtradas.length), tone: "primary" },
+          { label: "Total acciones", value: numberFmt.format(total), tone: "primary" },
           { label: "Días con actividad", value: numberFmt.format(serie.length) },
           { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
-          {
-            label: "Tipo más frecuente",
-            value: conteos.sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—",
-          },
+          { label: "Tipo más frecuente", value: tipoTop },
         ]}
       />
 
-      <ChartBox id="rep-acciones-fechas-chart" title="Acciones por día">
-        <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-          <XAxis dataKey="fechaLabel" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip />
-          <Line
-            type="monotone"
-            dataKey="total"
-            stroke="hsl(215 65% 32%)"
-            strokeWidth={2}
-            dot={false}
-          />
-        </LineChart>
-      </ChartBox>
+      {/* Filtros por tipo de acción */}
+      <div className="rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            Tipos
+          </div>
+          {ALL_TIPOS.map((t) => {
+            const activo = tiposSeleccionados.includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTipo(t)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
+                  activo
+                    ? "border-border bg-surface text-foreground shadow-sm"
+                    : "border-transparent bg-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: COLORS_TIPO[t] ?? "#94a3b8", opacity: activo ? 1 : 0.4 }}
+                />
+                {t}
+              </button>
+            );
+          })}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={seleccionarTodos}
+              className="rounded-[4px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
+            >
+              Todos
+            </button>
+            <span className="text-muted-foreground/60">·</span>
+            <button
+              type="button"
+              onClick={limpiarTodos}
+              className="rounded-[4px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
+            >
+              Ninguno
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartBox id="rep-acciones-fechas-chart" title="Acciones por día">
+          <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+            <XAxis dataKey="fechaLabel" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke="hsl(215 65% 32%)"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ChartBox>
+
+        <ChartBox id="rep-acciones-fechas-tipo-chart" title="Acciones por tipo">
+          <BarChart data={conteosVisibles} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+            <XAxis dataKey="tipo" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
+              {conteosVisibles.map((c, i) => (
+                <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartBox>
+      </div>
+
+      <div>
+        <SectionTitle>Resumen por tipo</SectionTitle>
+        <DataTable
+          head={["Tipo de acción", "Cantidad", "% del total"]}
+          rows={conteosVisibles.map((c) => [
+            c.tipo,
+            numberFmt.format(c.cantidad),
+            total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
+          ])}
+          alignRight={[1, 2]}
+        />
+      </div>
 
       <div>
         <SectionTitle>Detalle de acciones en el período</SectionTitle>
@@ -929,7 +1018,7 @@ function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Da
           ])}
         />
         <Paginador
-          page={page}
+          page={safePage}
           totalPages={totalPages}
           setPage={setPage}
           total={filtradas.length}
@@ -1231,23 +1320,17 @@ async function runExport(
     return;
   }
 
-  if (reporte.id === "acciones-notificacion" || reporte.id === "acciones-regularizacion") {
-    const tipos = reporte.id === "acciones-notificacion" ? TIPOS_NOTIFICACION : TIPOS_REGULARIZACION;
+  if (reporte.id === "acciones-regularizacion") {
+    const tipos = TIPOS_REGULARIZACION;
     const filtradas = filtrarAcciones(rango.desde, rango.hasta, tipos);
     const conteos = conteoPorTipo(filtradas, tipos);
     const total = filtradas.length;
     const head = ["Tipo de acción", "Cantidad", "% del total"];
     const body = conteos.map((c) => [c.tipo, c.cantidad, total === 0 ? "—" : pctFmt((c.cantidad / total) * 100)]);
-    const chartId = reporte.id === "acciones-notificacion" ? "rep-acciones-notificacion-chart" : "rep-acciones-regularizacion-chart";
-    const planes = reporte.id === "acciones-regularizacion"
-      ? getPlanesDePago(rango.desde, rango.hasta)
-      : [];
-    const regularizaciones = reporte.id === "acciones-regularizacion"
-      ? filtradas.filter((a) => a.tipo === "Regularización")
-      : [];
-    const compromisos = reporte.id === "acciones-regularizacion"
-      ? filtradas.filter((a) => a.tipo === "Compromiso de pago")
-      : [];
+    const chartId = "rep-acciones-regularizacion-chart";
+    const planes = getPlanesDePago(rango.desde, rango.hasta);
+    const regularizaciones = filtradas.filter((a) => a.tipo === "Regularización");
+    const compromisos = filtradas.filter((a) => a.tipo === "Compromiso de pago");
     const detalleAccionHead = ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"];
     const toDetalleBody = (rows: AccionRegistro[]) =>
       rows.map((a) => [
@@ -1409,6 +1492,11 @@ async function runExport(
 
   if (reporte.id === "acciones-fechas") {
     const filtradas = filtrarAcciones(rango.desde, rango.hasta);
+    const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
+    const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
+    const total = filtradas.length;
+    const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
+    const tipoTop = [...conteos].sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—";
     const head = ["Fecha", "Cuenta", "Titular", "Tipo", "Grupo", "Distrito", "Usuario"];
     const body = filtradas.map((a) => [
       dateFmt.format(a.fecha),
@@ -1419,21 +1507,42 @@ async function runExport(
       a.distrito,
       a.usuario,
     ]);
+    const resumenHead = ["Tipo de acción", "Cantidad", "% del total"];
+    const resumenBody = conteos.map((c) => [
+      c.tipo,
+      c.cantidad,
+      total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
+    ]);
     if (kind === "pdf") {
       await exportarReportePdf({
         meta: {
           ...meta,
           kpis: [
-            { label: "Total acciones", value: numberFmt.format(filtradas.length) },
+            { label: "Total acciones", value: numberFmt.format(total) },
             { label: "Días con actividad", value: numberFmt.format(serieDiaria(filtradas).length) },
+            { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
+            { label: "Tipo más frecuente", value: tipoTop },
           ],
         },
-        chartElementIds: ["rep-acciones-fechas-chart"],
-        table: { head, body },
+        chartElementIds: ["rep-acciones-fechas-chart", "rep-acciones-fechas-tipo-chart"],
+        table: {
+          head: resumenHead,
+          body: resumenBody,
+          columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
+        },
+        extraTables: [
+          { title: "Detalle de acciones en el período", head, body },
+        ],
         filename,
       });
     } else {
-      exportarReporteXlsx({ sheets: [{ name: "Acciones", head, body }], filename });
+      exportarReporteXlsx({
+        sheets: [
+          { name: "Resumen por tipo", head: resumenHead, body: resumenBody },
+          { name: "Detalle", head, body },
+        ],
+        filename,
+      });
     }
     return;
   }
