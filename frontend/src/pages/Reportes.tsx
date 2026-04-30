@@ -34,7 +34,6 @@ import {
   HandCoins,
   ListChecks,
   CalendarRange,
-  PieChart as PieChartIcon,
   Filter,
   History,
 } from "lucide-react";
@@ -93,7 +92,6 @@ type ReporteId =
   | "acciones-regularizacion"
   | "estado-inmuebles"
   | "acciones-fechas"
-  | "porcentajes-morosidad"
   | "historial-movimientos";
 
 interface ReporteDef {
@@ -139,13 +137,6 @@ const REPORTES: ReporteDef[] = [
     descripcion: "Detalle de todas las acciones en el período.",
     icono: CalendarRange,
     conFechas: true,
-  },
-  {
-    id: "porcentajes-morosidad",
-    titulo: "Porcentajes de morosidad",
-    descripcion: "Indicadores de morosidad por grupo y total.",
-    icono: PieChartIcon,
-    conFechas: false,
   },
   {
     id: "historial-movimientos",
@@ -407,7 +398,6 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
         )}
         {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles />}
         {reporte.id === "acciones-fechas" && <ReporteAccionesFechas desde={desde} hasta={hasta} />}
-        {reporte.id === "porcentajes-morosidad" && <ReportePorcentajesMorosidad />}
         {reporte.id === "historial-movimientos" && <ReporteHistorialMovimientos />}
       </div>
     </div>
@@ -951,59 +941,6 @@ function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Da
 }
 
 /* ============================================================
-   Reporte 6 — Porcentajes de morosidad
-   ============================================================ */
-
-function ReportePorcentajesMorosidad() {
-  const total = useMemo(() => getMorosidadTotal(), []);
-  const grupos = useMemo(() => getMorososPorGrupo(), []);
-
-  return (
-    <div className="space-y-5">
-      <KpiBar
-        items={[
-          { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
-          { label: "Deudores", value: numberFmt.format(total.deudores), tone: "primary" },
-          { label: "Morosos", value: numberFmt.format(total.morosos), tone: "danger" },
-          { label: "Al día", value: numberFmt.format(total.alDia), tone: "ok" },
-          { label: "% morosidad total", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
-        ]}
-      />
-
-      <ChartBox id="rep-pct-grupos-chart" title="% de morosidad por grupo">
-        <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-          <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
-          <YAxis tick={{ fontSize: 11 }} unit="%" />
-          <Tooltip formatter={(v: number) => pctFmt(v)} />
-          <Bar dataKey="porcentaje" radius={[3, 3, 0, 0]}>
-            {grupos.map((_, i) => (
-              <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ChartBox>
-
-      <div>
-        <SectionTitle>Detalle por grupo</SectionTitle>
-        <DataTable
-          head={["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
-          rows={grupos.map((g) => [
-            g.grupo,
-            g.distrito,
-            numberFmt.format(g.totalInmuebles),
-            numberFmt.format(g.deudores),
-            numberFmt.format(g.morosos),
-            pctFmt(g.porcentaje),
-          ])}
-          alignRight={[2, 3, 4, 5]}
-        />
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
    Reporte 7 — Historial de movimientos
    ============================================================ */
 
@@ -1497,32 +1434,6 @@ async function runExport(
       });
     } else {
       exportarReporteXlsx({ sheets: [{ name: "Acciones", head, body }], filename });
-    }
-    return;
-  }
-
-  if (reporte.id === "porcentajes-morosidad") {
-    const total = getMorosidadTotal();
-    const grupos = getMorososPorGrupo();
-    const head = ["Grupo", "Distrito", "Padrón", "Morosos", "% Morosidad"];
-    const body = grupos.map((g) => [g.grupo, g.distrito, g.totalInmuebles, g.morosos, pctFmt(g.porcentaje)]);
-    if (kind === "pdf") {
-      await exportarReportePdf({
-        meta: {
-          ...meta,
-          kpis: [
-            { label: "Total padrón", value: numberFmt.format(total.totalInmuebles) },
-            { label: "Morosos", value: numberFmt.format(total.morosos) },
-            { label: "Al día", value: numberFmt.format(total.alDia) },
-            { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad) },
-          ],
-        },
-        chartElementIds: ["rep-pct-grupos-chart"],
-        table: { head, body, columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } } },
-        filename,
-      });
-    } else {
-      exportarReporteXlsx({ sheets: [{ name: "Morosidad", head, body }], filename });
     }
     return;
   }

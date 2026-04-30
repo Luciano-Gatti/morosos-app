@@ -19,7 +19,6 @@ import {
   HandCoins,
   ListChecks,
   CalendarRange,
-  PieChart as PieChartIcon,
   History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,7 +47,6 @@ const items: NavItem[] = [
       { to: "/reportes/acciones-regularizacion", label: "Regularizaciones y planes", icon: HandCoins },
       { to: "/reportes/estado-inmuebles", label: "Estado de inmuebles", icon: ListChecks },
       { to: "/reportes/acciones-fechas", label: "Acciones entre fechas", icon: CalendarRange },
-      { to: "/reportes/porcentajes-morosidad", label: "Porcentajes de morosidad", icon: PieChartIcon },
       { to: "/reportes/historial-movimientos", label: "Historial de movimientos", icon: History },
     ],
   },
