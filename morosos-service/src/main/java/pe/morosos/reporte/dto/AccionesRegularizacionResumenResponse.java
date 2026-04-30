@@ -6,5 +6,6 @@ public record AccionesRegularizacionResumenResponse(
         long planesPago,
         long compromisosPago,
         double porcentajeRegularizaciones,
-        double porcentajePlanesPago
+        double porcentajePlanesPago,
+        double porcentajeCompromisosPago
 ) {}

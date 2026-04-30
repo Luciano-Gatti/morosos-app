@@ -14,6 +14,7 @@ import pe.morosos.motivocierre.dto.MotivoCierreResponse;
 import pe.morosos.motivocierre.entity.MotivoCierre;
 import pe.morosos.motivocierre.mapper.MotivoCierreMapper;
 import pe.morosos.motivocierre.repository.MotivoCierreRepository;
+import pe.morosos.seguimiento.repository.ProcesoCierreRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -22,10 +23,15 @@ public class MotivoCierreService {
     private final MotivoCierreRepository repository;
     private final MotivoCierreMapper mapper;
     private final UsageValidationService usageValidationService;
+    private final ProcesoCierreRepository procesoCierreRepository;
 
     @Transactional(readOnly = true)
     public List<MotivoCierreResponse> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        List<MotivoCierre> motivos = repository.findAll();
+        List<UUID> motivoIds = motivos.stream().map(MotivoCierre::getId).toList();
+        java.util.Map<UUID, Long> usos = procesoCierreRepository.countByMotivoIds(motivoIds).stream()
+                .collect(java.util.stream.Collectors.toMap(r -> (UUID) r[0], r -> ((Number) r[1]).longValue()));
+        return motivos.stream().map(m -> mapper.toResponse(m, usos.getOrDefault(m.getId(), 0L))).toList();
     }
 
     @Transactional

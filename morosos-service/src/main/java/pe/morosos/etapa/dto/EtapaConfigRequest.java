@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 public record EtapaConfigRequest(
         @NotBlank @Size(max = 50) String codigo,
         @NotBlank @Size(max = 150) String nombre,
+        @Size(max = 2000) String descripcion,
         @NotNull @Positive Integer orden,
         @NotNull Boolean activo,
         @NotNull Boolean esFinal

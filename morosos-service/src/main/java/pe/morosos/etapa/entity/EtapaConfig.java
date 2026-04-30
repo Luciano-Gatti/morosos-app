@@ -19,6 +19,9 @@ public class EtapaConfig extends BaseEntity {
     @Column(name = "nombre", nullable = false, length = 150)
     private String nombre;
 
+    @Column(name = "descripcion", columnDefinition = "text")
+    private String descripcion;
+
     @Column(name = "orden", nullable = false, unique = true)
     private Integer orden;
 

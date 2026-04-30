@@ -7,8 +7,12 @@ public record AccionesRegularizacionItemRegularizacionResponse(
         OffsetDateTime fecha,
         String cuenta,
         String titular,
-        String grupo,
-        String distrito,
+        UUID inmuebleId,
+        UUID casoId,
+        UUID grupoId,
+        String grupoNombre,
+        UUID distritoId,
+        String distritoNombre,
         UUID actorId,
         String observacion
 ) {}
