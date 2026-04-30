@@ -32,7 +32,7 @@ const meta: Record<
   },
 };
 
-export function AccionesMesGrid() {
+export function AccionesMesGrid({ data = accionesMes }: { data?: typeof accionesMes }) {
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card shadow-institutional">
       <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -50,7 +50,7 @@ export function AccionesMesGrid() {
       </header>
 
       <div className="grid flex-1 grid-cols-2 grid-rows-2 divide-x divide-y divide-border">
-        {accionesMes.map((a) => {
+        {data.map((a) => {
           const m = meta[a.clave];
           if (!m) return null;
           const Icon = m.icon;

@@ -46,9 +46,9 @@ const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label
   },
 };
 
-export function UltimosMovimientos() {
+export function UltimosMovimientos({ data = ultimosMovimientos }: { data?: typeof ultimosMovimientos }) {
   const navigate = useNavigate();
-  const visibles = ultimosMovimientos.slice(0, 5);
+  const visibles = data.slice(0, 5);
   return (
     <div className="rounded-lg border border-border bg-card shadow-institutional">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -61,7 +61,7 @@ export function UltimosMovimientos() {
           </p>
         </div>
         <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {visibles.length} de {ultimosMovimientos.length}
+          {visibles.length} de {data.length}
         </span>
       </header>
 

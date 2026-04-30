@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Upload,
@@ -39,12 +39,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import {
-  inmueblesPadron,
-  gruposInmueble,
-  distritosInmueble,
-  type Inmueble,
-} from "@/data/inmuebles";
+import { inmueblesPadron, gruposInmueble, distritosInmueble, type Inmueble } from "@/data/inmuebles";
+import { USE_API } from "@/lib/apiClient";
+import { inmueblesApi } from "@/services/api/inmueblesApi";
 import { ImportarInmueblesDialog } from "@/components/inmuebles/ImportarInmueblesDialog";
 
 type SortKey = "cuenta" | "titular" | "direccion" | "grupo" | "distrito" | "activo";
@@ -68,10 +65,13 @@ export default function Inmuebles() {
   const [sortKey, setSortKey] = useState<SortKey>("cuenta");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<Inmueble[]>(inmueblesPadron);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return inmueblesPadron.filter((it) => {
+    return rows.filter((it) => {
       if (grupo !== "all" && it.grupo !== grupo) return false;
       if (distrito !== "all" && it.distrito !== distrito) return false;
       if (estado === "activo" && !it.activo) return false;
@@ -86,7 +86,7 @@ export default function Inmuebles() {
       }
       return it[field].toLowerCase().includes(q);
     });
-  }, [query, field, grupo, distrito, estado]);
+  }, [query, field, grupo, distrito, estado, rows]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
@@ -107,6 +107,16 @@ export default function Inmuebles() {
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageRows = sorted.slice(pageStart, pageStart + PAGE_SIZE);
 
+
+  useEffect(() => {
+    if (!USE_API) return;
+    setLoading(true);
+    inmueblesApi
+      .list({ page: page - 1, size: PAGE_SIZE, q: query || undefined, grupo: grupo !== "all" ? grupo : undefined, distrito: distrito !== "all" ? distrito : undefined, activo: estado === "all" ? undefined : estado === "activo" })
+      .then((res) => setRows(res.content as Inmueble[]))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [page, query, grupo, distrito, estado]);
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -148,6 +158,8 @@ export default function Inmuebles() {
       <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <main className="flex-1 px-6 py-6">
+        {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando inmuebles…</div>}
+        {error && <div className="mb-2 text-xs text-status-debt">Error API: {error}. Mostrando datos disponibles.</div>}
         {/* Barra de filtros */}
         <div className="rounded-md border border-border bg-surface shadow-sm">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">

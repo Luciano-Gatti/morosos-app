@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -23,6 +23,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { USE_API } from "@/lib/apiClient";
+import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { inmueblesPadron } from "@/data/inmuebles";
 import {
   getHistorialInmueble,
@@ -36,7 +38,37 @@ export default function HistorialSeguimiento() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const inmueble = useMemo(() => inmueblesPadron.find((i) => i.id === id), [id]);
-  const historial = useMemo(() => (id ? getHistorialInmueble(id) : null), [id]);
+  const [historialApi, setHistorialApi] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const historial = useMemo(() => {
+    if (USE_API && historialApi) {
+      const procesos = Array.isArray(historialApi.casos) ? historialApi.casos.map((c: any) => ({
+        id: c.id ?? c.casoId ?? `caso-${Math.random()}`,
+        estado: (c.estado || "abierto").toLowerCase(),
+        registros: (Array.isArray(c.eventos) ? c.eventos : []).map((e: any) => ({
+          id: e.id ?? `${c.id}-evt`,
+          fecha: e.fecha ?? e.fechaEvento ?? "-",
+          etapa: e.etapaNombre ?? e.etapa ?? "Sin etapa",
+          estado: e.estado ?? c.estado ?? "Activo",
+          responsable: e.actorNombre ?? e.actorId ?? "Sistema",
+          tipoAccion: e.tipoAccion ?? e.tipo ?? "Evento",
+          descripcion: e.descripcion ?? e.detalle ?? "",
+          metadata: e.metadata ?? e.planPago ?? e.cambioParametro ?? null,
+        })),
+        cierre: c.cierre ?? null,
+        compromisos: c.compromisos ?? [],
+      })) : [];
+      return { procesos, observacionesLibres: Array.isArray(historialApi.observaciones) ? historialApi.observaciones : [] };
+    }
+    return id ? getHistorialInmueble(id) : null;
+  }, [id, historialApi]);
+
+  useEffect(() => {
+    if (!USE_API || !id) return;
+    setLoading(true);
+    seguimientoApi.historialInmueble(id).then(setHistorialApi).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [id]);
 
   const [vista, setVista] = useState<"timeline" | "tabla">("timeline");
 
@@ -64,10 +96,8 @@ export default function HistorialSeguimiento() {
     );
   }
 
-  const procesoActual =
-    historial.procesos.find((p) => p.estado === "abierto") ??
-    historial.procesos[historial.procesos.length - 1];
-  const ultimoRegistro = procesoActual.registros[procesoActual.registros.length - 1];
+  const procesoActual = historial.procesos.find((p) => p.estado === "abierto") ?? historial.procesos[historial.procesos.length - 1] ?? null;
+  const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "-", fecha: "-", estado: "-", responsable: "-" };
 
   const totalRegistros = historial.procesos.reduce((s, p) => s + p.registros.length, 0);
   const totalProcesos = historial.procesos.length;
@@ -100,6 +130,8 @@ export default function HistorialSeguimiento() {
       />
 
       <main className="flex-1 space-y-6 px-6 py-6">
+        {loading && <div className="text-xs text-muted-foreground">Cargando historial…</div>}
+        {error && <div className="text-xs text-status-debt">Error al cargar historial: {error}. Mostrando fallback.</div>}
         {/* Cabecera con datos del inmueble */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <div className="border-b border-border bg-surface-muted/40 px-5 py-3">
@@ -115,14 +147,20 @@ export default function HistorialSeguimiento() {
           </div>
         </section>
 
+
+        {historial.procesos.length === 0 && (
+          <section className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
+            No hay historial registrado para este inmueble.
+          </section>
+        )}
         {/* Resumen del estado actual */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <ResumenCard
             label="Proceso actual"
-            valor={procesoActual.id}
-            sub={procesoActual.estado === "abierto" ? "En curso" : "Último cerrado"}
+            valor={procesoActual?.id ?? "-"}
+            sub={procesoActual?.estado === "abierto" ? "En curso" : "Último cerrado"}
             icon={GitBranch}
-            tone={procesoActual.estado === "abierto" ? "active" : "neutral"}
+            tone={procesoActual?.estado === "abierto" ? "active" : "neutral"}
           />
           <ResumenCard
             label="Etapa actual"
