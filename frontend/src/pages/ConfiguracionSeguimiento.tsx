@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Save,
   RotateCcw,
@@ -34,6 +34,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { configuracionApi } from "@/services/api/configuracionApi";
+import { mapParametroSeguimiento } from "@/adapters/parametrosSeguimiento";
+import { ApiError } from "@/lib/apiClient";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
 
@@ -91,6 +94,38 @@ export default function ConfiguracionSeguimiento() {
   const [guardado, setGuardado] = useState<ParametrosSeguimiento>(valoresIniciales);
   const [form, setForm] = useState<ParametrosSeguimiento>(valoresIniciales);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [parametrosDisponibles, setParametrosDisponibles] = useState<Set<string>>(new Set());
+  const [empty, setEmpty] = useState(false);
+
+  const fetchParametros = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await configuracionApi.parametrosSeguimiento();
+      const rows = (data?.content ?? data ?? []).map(mapParametroSeguimiento);
+      setParametrosDisponibles(new Set(rows.map((r) => r.codigo)));
+      setEmpty(rows.length === 0);
+      const get = (code: string) => rows.find((r: any) => r.codigo === code)?.valor;
+      const next = {
+        cuotasParaMoroso: Number(get("CUOTAS_PARA_MOROSO") ?? valoresIniciales.cuotasParaMoroso),
+        reanudacionPorIncumplimiento: Boolean(get("REANUDACION_POR_INCUMPLIMIENTO") ?? valoresIniciales.reanudacionPorIncumplimiento),
+        diasEntreEtapas: Number(get("DIAS_ENTRE_ETAPAS") ?? valoresIniciales.diasEntreEtapas),
+        notificarCambiosEtapa: Boolean(get("NOTIFICAR_CAMBIOS_ETAPA") ?? valoresIniciales.notificarCambiosEtapa),
+        modoOperacion: String(get("MODO_OPERACION") ?? valoresIniciales.modoOperacion) === "manual" ? "manual" : "asistido",
+      } as ParametrosSeguimiento;
+      setGuardado(next);
+      setForm(next);
+    } catch (e) {
+      setError("No se pudieron cargar los parámetros de seguimiento");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchParametros(); }, []);
 
   const cambios = useMemo(() => {
     const diffs: { key: keyof ParametrosSeguimiento; label: string; antes: string; despues: string }[] = [];
@@ -148,13 +183,35 @@ export default function ConfiguracionSeguimiento() {
     setConfirmOpen(true);
   };
 
-  const handleConfirmar = () => {
-    setGuardado(form);
-    setConfirmOpen(false);
-    toast({
-      title: "Parámetros actualizados",
-      description: "La configuración del proceso de seguimiento fue guardada.",
-    });
+  const handleConfirmar = async () => {
+    try {
+      setSaving(true);
+      const cambiosMap = [
+        ["CUOTAS_PARA_MOROSO", form.cuotasParaMoroso],
+        ["REANUDACION_POR_INCUMPLIMIENTO", form.reanudacionPorIncumplimiento],
+        ["DIAS_ENTRE_ETAPAS", form.diasEntreEtapas],
+        ["NOTIFICAR_CAMBIOS_ETAPA", form.notificarCambiosEtapa],
+        ["MODO_OPERACION", form.modoOperacion],
+      ].filter(([codigo]) => parametrosDisponibles.has(codigo)) as readonly [string, string | number | boolean][];
+      if (cambiosMap.length === 0) {
+        toast({
+          title: "Sin parámetros editables",
+          description: "El backend no devolvió parámetros configurables.",
+          variant: "destructive",
+        });
+        return;
+      }
+      for (const [codigo, valor] of cambiosMap) {
+        await configuracionApi.actualizarParametroSeguimiento(codigo, { valor });
+      }
+      await fetchParametros();
+      setConfirmOpen(false);
+      toast({ title: "Parámetros actualizados", description: "La configuración del proceso de seguimiento fue guardada." });
+    } catch (e) {
+      toast({ title: "Error al guardar", description: e instanceof ApiError ? e.message : "No se pudieron guardar los parámetros.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDescartar = () => {
@@ -177,7 +234,7 @@ export default function ConfiguracionSeguimiento() {
               variant="outline"
               size="sm"
               onClick={handleDescartar}
-              disabled={!hayCambios}
+              disabled={!hayCambios || saving}
               className="h-8 gap-1.5 text-[12.5px]"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -186,7 +243,7 @@ export default function ConfiguracionSeguimiento() {
             <Button
               size="sm"
               onClick={handleGuardar}
-              disabled={!hayCambios}
+              disabled={!hayCambios || saving}
               className="h-8 gap-1.5 text-[12.5px]"
             >
               <Save className="h-3.5 w-3.5" />
@@ -198,6 +255,13 @@ export default function ConfiguracionSeguimiento() {
 
       <main className="flex-1 px-6 py-6">
         <div className="mx-auto max-w-4xl space-y-5">
+          {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[12.5px] text-destructive">{error}</div>}
+          {loading && <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3 text-[12.5px] text-muted-foreground">Cargando parámetros...</div>}
+          {!loading && !error && empty && (
+            <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-6 text-[12.5px] text-muted-foreground">
+              No hay parámetros de seguimiento configurados en backend.
+            </div>
+          )}
           {/* Aviso superior */}
           <div className="flex items-start gap-3 rounded-md border border-primary/20 bg-primary-soft/40 px-4 py-3">
             <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -463,6 +527,7 @@ export default function ConfiguracionSeguimiento() {
             </Button>
             <Button
               onClick={handleConfirmar}
+              disabled={saving}
               className={cn(
                 "h-9 text-[13px]",
                 procesosImpactados > 0 &&

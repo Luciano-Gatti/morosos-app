@@ -11,6 +11,8 @@ export const configuracionApi = {
   crearDistrito: (body: unknown) => apiClient.post(`/api/v1/distritos`, body),
   actualizarDistrito: (id: string, body: unknown) => apiClient.put(`/api/v1/distritos/${id}`, body),
   toggleDistritoActivo: (id: string, activo: boolean) => apiClient.patch(`/api/v1/distritos/${id}/activo`, { activo }),
+  parametrosSeguimiento: (params?: Record<string, any>) => apiClient.get(`/api/v1/parametros-seguimiento${buildQueryParams(params)}`),
+  actualizarParametroSeguimiento: (codigo: string, body: unknown) => apiClient.put(`/api/v1/parametros-seguimiento/${codigo}`, body),
 
   grupoDistritoConfig: (params?: Record<string, any>) => apiClient.get(`/api/v1/grupo-distrito-config${buildQueryParams(params)}`),
   actualizarGrupoDistritoConfig: (id: string, body: unknown) => apiClient.put(`/api/v1/grupo-distrito-config/${id}`, body),

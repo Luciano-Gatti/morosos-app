@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -45,17 +45,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { cargasDeuda, type CargaEstado } from "@/data/cargasDeuda";
-import {
-  generarInmueblesCarga,
-  generarErroresImportacion,
-  type InmuebleCarga,
-} from "@/data/detalleCarga";
+import { type CargaDeuda, type CargaEstado } from "@/data/cargasDeuda";
+import type { InmuebleCarga, ErrorImportacion } from "@/data/detalleCarga";
+import { deudaApi } from "@/services/api/deudaApi";
 
 type SortKey = "cuenta" | "titular" | "direccion" | "cuotas" | "monto";
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 12;
+
+const toEstado = (v: string): CargaEstado => v === "COMPLETADA" ? "completada" : v === "COMPLETADA_CON_ERRORES" ? "con_errores" : v === "FALLIDA" ? "fallida" : "procesando";
+const mapCarga = (row: any): CargaDeuda => ({ id: String(row.id ?? ""), fecha: row.fecha ?? row.createdAt ?? new Date().toISOString(), nombre: row.nombre ?? row.archivo ?? `Carga #${row.id ?? "-"}`, usuario: row.usuario ?? row.operador ?? "-", estado: toEstado(row.estado ?? "PROCESANDO"), morosos: Number(row.morosos ?? 0), montoTotal: Number(row.montoTotal ?? 0), procesados: Number(row.procesados ?? 0), creados: Number(row.creados ?? 0), errores: Number(row.errores ?? 0), noEncontradas: Number(row.noEncontradas ?? 0) });
 
 const moneyFmt = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -75,7 +75,9 @@ function formatFecha(iso: string) {
 export default function CargaDetalle() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const carga = cargasDeuda.find((c) => c.id === id);
+  const [carga, setCarga] = useState<CargaDeuda | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [cuotasMin, setCuotasMin] = useState("");
@@ -85,15 +87,31 @@ export default function CargaDetalle() {
   const [page, setPage] = useState(1);
   const [erroresOpen, setErroresOpen] = useState(false);
 
-  const inmuebles = useMemo<InmuebleCarga[]>(
-    () => (carga ? generarInmueblesCarga(carga.id, Math.min(carga.morosos, 240)) : []),
-    [carga],
-  );
+  const [inmuebles, setInmuebles] = useState<InmuebleCarga[]>([]);
+  const [erroresList, setErroresList] = useState<ErrorImportacion[]>([]);
 
-  const erroresList = useMemo(
-    () => (carga ? generarErroresImportacion(carga.id, carga.errores + carga.noEncontradas) : []),
-    [carga],
-  );
+  useEffect(() => {
+    const load = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        setError(null);
+        const [c, d, e] = await Promise.all([
+          deudaApi.getCarga(id),
+          deudaApi.getDetalles(id, { page: page - 1, size: PAGE_SIZE }),
+          deudaApi.getErrores(id, { page: 0, size: 200 }),
+        ]);
+        setCarga(mapCarga(c));
+        setInmuebles((d?.content ?? d ?? []).map((r: any) => ({ cuenta: String(r.cuenta ?? r.idCuenta ?? "-"), titular: r.titular ?? "-", direccion: r.direccion ?? "-", cuotas: Number(r.cuotas ?? 0), monto: Number(r.monto ?? 0) })));
+        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: r.descripcion ?? r.error ?? "Error" })));
+      } catch (err) {
+        setError("No se pudo cargar el detalle");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id, page]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -361,7 +379,7 @@ export default function CargaDetalle() {
                 {pageRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-[13px] text-muted-foreground">
-                      No se encontraron inmuebles con los filtros aplicados.
+                      {loading ? "Cargando detalle..." : error ?? "No se encontraron inmuebles con los filtros aplicados."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -470,7 +488,7 @@ export default function CargaDetalle() {
                 {erroresList.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center text-[13px] text-muted-foreground">
-                      Esta carga no registró errores.
+                      {loading ? "Cargando errores..." : "Esta carga no registró errores."}
                     </TableCell>
                   </TableRow>
                 )}
