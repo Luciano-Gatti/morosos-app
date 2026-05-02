@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -66,6 +66,9 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { configuracionApi } from "@/services/api/configuracionApi";
+import { ApiError } from "@/lib/apiClient";
+import { mapMotivoCierre } from "@/adapters/motivosCierre";
 import {
   motivosCierreIniciales,
   type MotivoCierre,
@@ -85,7 +88,7 @@ const emptyForm: FormState = { nombre: "", descripcion: "", activo: true };
 
 export default function ConfiguracionMotivosCierre() {
   const { toast } = useToast();
-  const [motivos, setMotivos] = useState<MotivoCierre[]>(motivosCierreIniciales);
+  const [motivos, setMotivos] = useState<MotivoCierre[]>([]);
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
 
@@ -93,6 +96,28 @@ export default function ConfiguracionMotivosCierre() {
   const [editing, setEditing] = useState<MotivoCierre | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<MotivoCierre | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchMotivos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await configuracionApi.motivosCierre({ size: 200 });
+      const rows = (data?.content ?? data ?? []).map(mapMotivoCierre);
+      setMotivos(rows);
+    } catch (e) {
+      setError("No se pudieron cargar los motivos de cierre.");
+      if (motivosCierreIniciales.length > 0) setMotivos(motivosCierreIniciales);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMotivos();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -141,7 +166,7 @@ export default function ConfiguracionMotivosCierre() {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nombre = form.nombre.trim();
     if (!nombre) {
       toast({
@@ -165,7 +190,13 @@ export default function ConfiguracionMotivosCierre() {
       return;
     }
 
+    try {
     if (editing) {
+      await configuracionApi.actualizarMotivoCierre(editing.id, {
+        nombre,
+        descripcion: form.descripcion.trim() || null,
+        activo: form.activo,
+      });
       setMotivos((prev) =>
         prev.map((m) =>
           m.id === editing.id
@@ -183,6 +214,11 @@ export default function ConfiguracionMotivosCierre() {
         description: `Se guardaron los cambios en "${nombre}".`,
       });
     } else {
+      await configuracionApi.crearMotivoCierre({
+        nombre,
+        descripcion: form.descripcion.trim() || null,
+        activo: form.activo,
+      });
       const nuevo: MotivoCierre = {
         id: `mc-${Date.now()}`,
         nombre,
@@ -200,9 +236,16 @@ export default function ConfiguracionMotivosCierre() {
 
     setDialogOpen(false);
     setEditing(null);
+    await fetchMotivos();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar el motivo.", variant: "destructive" });
+    }
   };
 
-  const toggleActivo = (m: MotivoCierre) => {
+  const toggleActivo = async (m: MotivoCierre) => {
+    try {
+      setSaving(true);
+      await configuracionApi.toggleMotivoCierreActivo(m.id, !m.activo);
     setMotivos((prev) =>
       prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x)),
     );
@@ -210,9 +253,15 @@ export default function ConfiguracionMotivosCierre() {
       title: m.activo ? "Motivo desactivado" : "Motivo activado",
       description: `"${m.nombre}" ahora está ${m.activo ? "inactivo" : "activo"}.`,
     });
+      await fetchMotivos();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo actualizar el estado.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
     if (deleteTarget.isSystem) {
       toast({
@@ -232,12 +281,19 @@ export default function ConfiguracionMotivosCierre() {
       setDeleteTarget(null);
       return;
     }
-    setMotivos((prev) => prev.filter((m) => m.id !== deleteTarget.id));
-    toast({
-      title: "Motivo eliminado",
-      description: `Se eliminó "${deleteTarget.nombre}".`,
-    });
-    setDeleteTarget(null);
+    try {
+      await configuracionApi.eliminarMotivoCierre(deleteTarget.id);
+      setMotivos((prev) => prev.filter((m) => m.id !== deleteTarget.id));
+      toast({
+        title: "Motivo eliminado",
+        description: `Se eliminó "${deleteTarget.nombre}".`,
+      });
+      setDeleteTarget(null);
+      await fetchMotivos();
+    } catch (e) {
+      toast({ title: "No se puede eliminar", description: e instanceof ApiError ? e.message : "El backend rechazó la eliminación.", variant: "destructive" });
+      setDeleteTarget(null);
+    }
   };
 
   const isEmpty = motivos.length === 0;
@@ -251,13 +307,15 @@ export default function ConfiguracionMotivosCierre() {
           { label: "Configuración", to: "/configuracion" },
           { label: "Motivos de cierre" },
         ]}
-        actions={
-        undefined
-        }
       />
 
       <main className="flex-1 px-6 py-6">
         <div className="mx-auto max-w-6xl space-y-5">
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[12.5px] text-destructive">
+              {error}
+            </div>
+          )}
           {/* Aviso */}
           <div className="flex items-start gap-3 rounded-md border border-primary/20 bg-primary-soft/40 px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -278,11 +336,7 @@ export default function ConfiguracionMotivosCierre() {
               { label: "Total", value: counts.total, key: "todos" as Filtro },
               { label: "Activos", value: counts.activos, key: "activos" as Filtro },
               { label: "Sistema", value: counts.sistema, key: "sistema" as Filtro },
-              {
-                label: "Configurables",
-                value: counts.configurables,
-                key: "configurables" as Filtro,
-              },
+              { label: "Configurables", value: counts.configurables, key: "configurables" as Filtro },
             ].map((c) => (
               <button
                 key={c.key}
@@ -347,7 +401,9 @@ export default function ConfiguracionMotivosCierre() {
               </Button>
             </header>
 
-            {isEmpty ? (
+            {loading ? (
+              <div className="px-4 py-12 text-center text-[13px] text-muted-foreground">Cargando motivos...</div>
+            ) : isEmpty ? (
               <div className="px-4 py-16 text-center">
                 <ListChecks className="mx-auto h-10 w-10 text-muted-foreground/40" />
                 <p className="mt-3 text-[13px] font-medium text-foreground">
@@ -435,6 +491,7 @@ export default function ConfiguracionMotivosCierre() {
                                 <Switch
                                   checked={m.activo}
                                   onCheckedChange={() => toggleActivo(m)}
+                                  disabled={saving}
                                   aria-label="Activar / desactivar"
                                 />
                                 <span
