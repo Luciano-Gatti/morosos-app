@@ -47,16 +47,17 @@ export function mapReporteMorosos(payload: any): {
 }
 
 export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
-  const rows = payload?.content ?? payload?.rows ?? payload ?? [];
+  const root = payload ?? {};
+  const rows = root?.detalle ?? root?.content ?? root?.rows ?? root ?? [];
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
     id: String(r.id ?? r.accionId ?? ""),
     fecha: toDate(r.fecha ?? r.fechaAccion),
-    tipo: toStr(r.tipo ?? r.tipoAccion) as AccionTipo,
+    tipo: toStr(r.tipoAccion ?? r.tipo ?? r.tipoAccionLabel) as AccionTipo,
     cuenta: toStr(r.cuenta),
     titular: toStr(r.titular),
-    grupo: toStr(r.grupo),
-    distrito: toStr(r.distrito),
-    usuario: toStr(r.usuario ?? r.actor),
+    grupo: toStr(r.grupoNombre ?? r.grupo),
+    distrito: toStr(r.distritoNombre ?? r.distrito),
+    usuario: toStr(r.actorId ?? r.usuario ?? r.actor),
   }));
 }
 
@@ -65,16 +66,17 @@ export function mapReporteAccionesRegularizacion(payload: any): AccionRegistro[]
 }
 
 export function mapReporteEstadoInmuebles(payload: any): InmuebleEstadoRow[] {
-  const rows = payload?.content ?? payload?.rows ?? payload ?? [];
+  const root = payload ?? {};
+  const rows = root?.filas ?? root?.rows ?? root?.content ?? root ?? [];
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
     cuenta: toStr(r.cuenta),
     titular: toStr(r.titular),
-    grupo: toStr(r.grupo),
-    distrito: toStr(r.distrito),
+    grupo: toStr(r.grupoNombre ?? r.grupo),
+    distrito: toStr(r.distritoNombre ?? r.distrito),
     cuotasAdeudadas: toNum(r.cuotasAdeudadas ?? r.cuotas),
-    deudaTotal: toNum(r.deudaTotal ?? r.montoAdeudado),
+    montoAdeudado: toNum(r.montoAdeudado ?? r.deudaTotal),
     estado: toStr(r.estado) as EstadoInmueble,
-    etapa: (r.etapa ?? null) as any,
+    etapa: toStr(r.etapa ?? r.etapaNombre),
   }));
 }
 
@@ -90,7 +92,16 @@ export function mapReportePorcentajesMorosidad(payload: any): MorosidadPorcentaj
 }
 
 export function mapReporteHistorialMovimientos(payload: any): any[] {
-  const rows = payload?.content ?? payload?.rows ?? payload ?? [];
-  return Array.isArray(rows) ? rows : [];
+  const rows = payload?.content ?? payload?.rows ?? payload?.movimientos ?? payload ?? [];
+  return (Array.isArray(rows) ? rows : []).map((r: any, i: number) => ({
+    id: String(r.id ?? r.eventId ?? `mov-${i}`),
+    fecha: toStr(r.fecha ?? r.createdAt ?? r.timestamp),
+    cuenta: toStr(r.cuenta),
+    titular: toStr(r.titular),
+    accion: toStr(r.actionLabel ?? r.resumen ?? r.action),
+    etapa: toStr(r.etapa ?? r.entityType),
+    tipo: toStr(r.action ?? r.tipo, "configuracion"),
+    usuario: toStr(r.actorId ?? r.usuario ?? r.actor, "Sistema"),
+    categoria: "movimiento",
+  }));
 }
-
