@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Filter,
   Search,
@@ -72,6 +72,10 @@ import {
   type EstadoProceso,
 } from "@/data/seguimiento";
 import { parametrosSeguimiento } from "@/data/parametrosSeguimiento";
+import { seguimientoApi } from "@/services/api/seguimientoApi";
+import { configuracionApi } from "@/services/api/configuracionApi";
+import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
+import { normalizePageResponse, normalizeSpringPage } from "@/adapters/pagination";
 import { Link } from "react-router-dom";
 import { Settings2 } from "lucide-react";
 
@@ -144,35 +148,60 @@ export default function GestionEtapas() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [accion, setAccion] = useState<AccionMasiva | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<SeguimientoRow[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [gruposApi, setGruposApi] = useState<string[]>([]);
+  const [distritosApi, setDistritosApi] = useState<string[]>([]);
+  const [etapasApi, setEtapasApi] = useState<string[]>([]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const minManual = cuotasMin.trim() === "" ? null : Number.parseInt(cuotasMin, 10);
-    return universoMorosos.filter((m) => {
-      if (q) {
-        const hay =
-          m.cuenta.toLowerCase().includes(q) ||
-          m.titular.toLowerCase().includes(q) ||
-          m.direccion.toLowerCase().includes(q);
-        if (!hay) return false;
-      }
-      if (etapaFiltro === "sin-etapa") {
-        if (m.etapa !== null) return false;
-      } else if (etapaFiltro !== "all") {
-        if (m.etapa !== etapaFiltro) return false;
-      }
-      if (estadoFiltro !== "all" && m.estado !== estadoFiltro) return false;
-      if (grupo !== "all" && m.grupo !== grupo) return false;
-      if (distrito !== "all" && m.distrito !== distrito) return false;
-      if (minManual !== null && Number.isFinite(minManual) && m.cuotasAdeudadas < minManual) return false;
-      return true;
-    });
-  }, [universoMorosos, query, etapaFiltro, estadoFiltro, grupo, distrito, cuotasMin]);
+  useEffect(() => {
+    const loadCatalogs = async () => {
+      try {
+        const [gs, ds, es] = await Promise.all([configuracionApi.grupos(), configuracionApi.distritos(), configuracionApi.etapas()]);
+        setGruposApi((gs?.content ?? gs ?? []).map((x: any) => x.nombre ?? x.grupo ?? String(x)));
+        setDistritosApi((ds?.content ?? ds ?? []).map((x: any) => x.nombre ?? x.distrito ?? String(x)));
+        setEtapasApi((es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x)));
+      } catch {}
+    };
+    loadCatalogs();
+  }, []);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => {
+    const fetchBandeja = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await seguimientoApi.getBandeja({
+          query: query || undefined,
+          grupoId: grupo === "all" ? undefined : grupo,
+          distritoId: distrito === "all" ? undefined : distrito,
+          etapaId: etapaFiltro === "all" || etapaFiltro === "sin-etapa" ? undefined : etapaFiltro,
+          estado: estadoFiltro === "all" ? undefined : estadoFiltro,
+          cuotasMin: cuotasMin || undefined,
+          page: page - 1,
+          size: PAGE_SIZE,
+        });
+        const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
+        setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
+        setTotalElements(pageData.totalElements);
+        setTotalPages(Math.max(1, pageData.totalPages));
+      } catch (e) {
+        setError("No se pudo cargar la bandeja de seguimiento");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBandeja();
+  }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page]);
+
+  const filtered = rows as any[];
+
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageRows = filtered as any[];
 
   const pageIds = pageRows.map((r) => r.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -300,7 +329,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todas las etapas</SelectItem>
                 <SelectItem value="sin-etapa" className="text-[13px]">Sin etapa asignada</SelectItem>
-                {etapasSeguimiento.map((e) => (
+                {(etapasApi.length ? etapasApi : etapasSeguimiento).map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -332,7 +361,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los grupos</SelectItem>
-                {gruposSeguimiento.map((g) => (
+                {(gruposApi.length ? gruposApi : gruposSeguimiento).map((g) => (
                   <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>
                 ))}
               </SelectContent>
@@ -344,7 +373,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los distritos</SelectItem>
-                {distritosSeguimiento.map((d) => (
+                {(distritosApi.length ? distritosApi : distritosSeguimiento).map((d) => (
                   <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>
                 ))}
               </SelectContent>
@@ -466,7 +495,7 @@ export default function GestionEtapas() {
                 {pageRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={11} className="h-32 text-center text-[13px] text-muted-foreground">
-                      No se encontraron inmuebles con los filtros aplicados.
+                      {loading ? "Cargando bandeja..." : error ?? "No se encontraron inmuebles con los filtros aplicados."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -487,10 +516,10 @@ export default function GestionEtapas() {
             <div>
               Mostrando{" "}
               <span className="tabular font-medium text-foreground">
-                {filtered.length === 0 ? 0 : pageStart + 1}–
-                {Math.min(pageStart + PAGE_SIZE, filtered.length)}
+                {totalElements === 0 ? 0 : pageStart + 1}–
+                {Math.min(pageStart + PAGE_SIZE, totalElements)}
               </span>{" "}
-              de <span className="tabular font-medium text-foreground">{filtered.length}</span>
+              de <span className="tabular font-medium text-foreground">{totalElements}</span>
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -1757,7 +1786,7 @@ function MoverEtapaDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {etapasSeguimiento.map((e) => (
+                  {(etapasApi.length ? etapasApi : etapasSeguimiento).map((e) => (
                     <SelectItem key={e} value={e} className="text-[13px]">
                       {e}
                     </SelectItem>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,9 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   CalendarIcon,
-  FileBarChart2,
   FileDown,
   FileSpreadsheet,
   Building2,
-  
   HandCoins,
   ListChecks,
   CalendarRange,
@@ -68,6 +66,9 @@ import {
 } from "@/data/reportes";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
 import { ultimosMovimientos, type MovimientoTipo } from "@/data/mock";
+import { reportesApi } from "@/services/api/reportesApi";
+import { mapReporteAccionesFechas, mapReporteAccionesRegularizacion, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
+import { USE_API } from "@/lib/apiClient";
 
 /* ---------- Helpers ---------- */
 
@@ -92,6 +93,30 @@ type ReporteId =
   | "estado-inmuebles"
   | "acciones-fechas"
   | "historial-movimientos";
+
+type ReporteSource = "api" | "mock";
+type ReporteDataState<T> = { data: T; loading: boolean; error: string | null; empty: boolean; source: ReporteSource };
+
+function getReporteMorososViewModel() {
+  const grupos = getMorososPorGrupo();
+  const distritos = getMorososPorDistrito();
+  const total = getMorosidadTotal();
+  return { grupos, distritos, total };
+}
+function getReporteEstadoInmueblesViewModel() {
+  return { rows: getEstadoInmuebles() };
+}
+function getReporteHistorialMovimientosViewModel() {
+  return { rows: ultimosMovimientos };
+}
+function getReporteAccionesFechasViewModel(desde: Date | null, hasta: Date | null) {
+  const rows = filtrarAcciones(desde, hasta);
+  return { rows };
+}
+function getReporteAccionesRegularizacionViewModel(desde: Date | null, hasta: Date | null) {
+  const rows = filtrarAcciones(desde, hasta, TIPOS_REGULARIZACION);
+  return { rows };
+}
 
 interface ReporteDef {
   id: ReporteId;
@@ -256,6 +281,201 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   const [preset, setPreset] = useState<PresetId>("mes");
   const [{ desde, hasta }, setRango] = useState(() => presetRange("mes"));
   const [exportando, setExportando] = useState(false);
+  const [morososState, setMorososState] = useState<ReporteDataState<ReturnType<typeof getReporteMorososViewModel>>>({
+    data: getReporteMorososViewModel(),
+    loading: false,
+    error: null,
+    empty: false,
+    source: "mock",
+  });
+  const [accionesFechasState, setAccionesFechasState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>>({
+    data: getReporteAccionesFechasViewModel(desde, hasta),
+    loading: false,
+    error: null,
+    empty: false,
+    source: "mock",
+  });
+  const [accionesRegularizacionState, setAccionesRegularizacionState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>>({
+    data: getReporteAccionesRegularizacionViewModel(desde, hasta),
+    loading: false,
+    error: null,
+    empty: false,
+    source: "mock",
+  });
+  const [estadoInmueblesState, setEstadoInmueblesState] = useState<ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>>({
+    data: getReporteEstadoInmueblesViewModel(),
+    loading: false,
+    error: null,
+    empty: false,
+    source: "mock",
+  });
+  const [historialState, setHistorialState] = useState<ReporteDataState<ReturnType<typeof getReporteHistorialMovimientosViewModel>>>({
+    data: getReporteHistorialMovimientosViewModel(),
+    loading: false,
+    error: null,
+    empty: false,
+    source: "mock",
+  });
+
+  useEffect(() => {
+    if (reporte.id !== "morosos-grupo-distrito" || !USE_API) return;
+    let cancelled = false;
+    setMorososState((s) => ({ ...s, loading: true, error: null }));
+    reportesApi
+      .morososGrupoDistrito()
+      .then((payload) => {
+        if (cancelled) return;
+        const vm = mapReporteMorosos(payload);
+        setMorososState({
+          data: vm,
+          loading: false,
+          error: null,
+          empty: vm.grupos.length === 0 && vm.distritos.length === 0,
+          source: "api",
+        });
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setMorososState((s) => ({
+          ...s,
+          loading: false,
+          error: e?.message ?? "No se pudo cargar el reporte.",
+          source: "mock",
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reporte.id]);
+
+  useEffect(() => {
+    if (reporte.id !== "acciones-fechas") return;
+    if (!USE_API) {
+      const vm = getReporteAccionesFechasViewModel(desde, hasta);
+      setAccionesFechasState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
+      return;
+    }
+    let cancelled = false;
+    setAccionesFechasState((s) => ({ ...s, loading: true, error: null }));
+    reportesApi
+      .accionesFechas({
+        fechaDesde: desde ? format(desde, "yyyy-MM-dd") : undefined,
+        fechaHasta: hasta ? format(hasta, "yyyy-MM-dd") : undefined,
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const vm = { rows: mapReporteAccionesFechas(payload) };
+        setAccionesFechasState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setAccionesFechasState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        toast({ title: "Error al cargar reporte", description: "No fue posible obtener acciones entre fechas.", variant: "destructive" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reporte.id, desde, hasta, toast]);
+
+  useEffect(() => {
+    if (reporte.id !== "estado-inmuebles") return;
+    if (!USE_API) {
+      const vm = getReporteEstadoInmueblesViewModel();
+      setEstadoInmueblesState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
+      return;
+    }
+    let cancelled = false;
+    setEstadoInmueblesState((s) => ({ ...s, loading: true, error: null }));
+    reportesApi
+      .estadoInmuebles()
+      .then((payload) => {
+        if (cancelled) return;
+        const vm = { rows: mapReporteEstadoInmuebles(payload) };
+        setEstadoInmueblesState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        toast({ title: "Error al cargar reporte", description: "No fue posible obtener estado de inmuebles.", variant: "destructive" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reporte.id, toast]);
+
+  useEffect(() => {
+    if (reporte.id !== "historial-movimientos") return;
+    if (!USE_API) {
+      const vm = getReporteHistorialMovimientosViewModel();
+      setHistorialState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
+      return;
+    }
+    let cancelled = false;
+    setHistorialState((s) => ({ ...s, loading: true, error: null }));
+    reportesApi
+      .historialMovimientos()
+      .then((payload) => {
+        if (cancelled) return;
+        const vm = { rows: mapReporteHistorialMovimientos(payload) };
+        setHistorialState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setHistorialState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        toast({ title: "Error al cargar reporte", description: "No fue posible obtener historial de movimientos.", variant: "destructive" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reporte.id, toast]);
+
+  useEffect(() => {
+    if (reporte.id !== "acciones-regularizacion") return;
+    if (!USE_API) {
+      const vm = getReporteAccionesRegularizacionViewModel(desde, hasta);
+      setAccionesRegularizacionState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
+      return;
+    }
+    let cancelled = false;
+    setAccionesRegularizacionState((s) => ({ ...s, loading: true, error: null }));
+    reportesApi
+      .accionesRegularizacion({
+        fechaDesde: desde ? format(desde, "yyyy-MM-dd") : undefined,
+        fechaHasta: hasta ? format(hasta, "yyyy-MM-dd") : undefined,
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const vm = { rows: mapReporteAccionesRegularizacion(payload) };
+        setAccionesRegularizacionState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setAccionesRegularizacionState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        toast({ title: "Error al cargar reporte", description: "No fue posible obtener regularizaciones.", variant: "destructive" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reporte.id, desde, hasta, toast]);
+
+  const reporteState = useMemo(() => {
+    if (reporte.id === "morosos-grupo-distrito") {
+      return morososState;
+    }
+    if (reporte.id === "estado-inmuebles") {
+      return estadoInmueblesState;
+    }
+    if (reporte.id === "historial-movimientos") {
+      return historialState;
+    }
+    if (reporte.id === "acciones-fechas") {
+      return accionesFechasState;
+    }
+    if (reporte.id === "acciones-regularizacion") {
+      return accionesRegularizacionState;
+    }
+    return { data: null, loading: false, error: null, empty: false, source: "mock" as ReporteSource };
+  }, [reporte.id, morososState, accionesFechasState, accionesRegularizacionState, estadoInmueblesState, historialState]);
 
   const setPresetSafe = (p: PresetId) => {
     setPreset(p);
@@ -362,7 +582,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   const handleExport = async (kind: "pdf" | "xlsx") => {
     setExportando(true);
     try {
-      await runExport(kind, reporte, { desde, hasta }, filtrosLabel);
+      await runExport(kind, reporte, { desde, hasta }, filtrosLabel, reporteState);
       toast({
         title: kind === "pdf" ? "PDF generado" : "Excel generado",
         description: `Reporte “${reporte.titulo}” exportado correctamente.`,
@@ -382,13 +602,13 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     <div className="flex flex-col">
       {Header}
       <div className="px-4 py-4">
-        {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito />}
+        {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito state={reporteState as ReporteDataState<ReturnType<typeof getReporteMorososViewModel>>} />}
         {reporte.id === "acciones-regularizacion" && (
-          <ReporteAcciones desde={desde} hasta={hasta} tipos={TIPOS_REGULARIZACION} variante="regularizacion" />
+          <ReporteAcciones state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>} tipos={TIPOS_REGULARIZACION} variante="regularizacion" />
         )}
-        {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles />}
-        {reporte.id === "acciones-fechas" && <ReporteAccionesFechas desde={desde} hasta={hasta} />}
-        {reporte.id === "historial-movimientos" && <ReporteHistorialMovimientos />}
+        {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles state={reporteState as ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>} />}
+        {reporte.id === "acciones-fechas" && <ReporteAccionesFechas state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>} />}
+        {reporte.id === "historial-movimientos" && <ReporteHistorialMovimientos state={reporteState as ReporteDataState<ReturnType<typeof getReporteHistorialMovimientosViewModel>>} />}
       </div>
     </div>
   );
@@ -504,10 +724,21 @@ const COLORS_TIPO: Record<string, string> = {
    Reporte 1 — Morosos por grupo y distrito
    ============================================================ */
 
-function ReporteMorososGrupoDistrito() {
-  const grupos = useMemo(() => getMorososPorGrupo(), []);
-  const distritos = useMemo(() => getMorososPorDistrito(), []);
-  const total = useMemo(() => getMorosidadTotal(), []);
+function ReporteMorososGrupoDistrito({
+  state,
+}: {
+  state: ReporteDataState<ReturnType<typeof getReporteMorososViewModel>>;
+}) {
+  if (state.loading) {
+    return <div className="rounded-md border border-border bg-surface-muted/30 px-4 py-8 text-center text-[12.5px] text-muted-foreground">Cargando reporte…</div>;
+  }
+  if (state.error) {
+    return <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-8 text-center text-[12.5px] text-destructive">{state.error}</div>;
+  }
+  const { grupos, distritos, total } = state.data;
+  if (state.empty) {
+    return <div className="rounded-md border border-border bg-surface-muted/30 px-4 py-8 text-center text-[12.5px] text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
+  }
 
   return (
     <div className="space-y-5">
@@ -590,19 +821,20 @@ function ReporteMorososGrupoDistrito() {
    ============================================================ */
 
 function ReporteAcciones({
-  desde,
-  hasta,
+  state,
   tipos,
   variante,
 }: {
-  desde: Date | null;
-  hasta: Date | null;
+  state: ReporteDataState<{ rows: AccionRegistro[] }>;
   tipos: AccionTipo[];
   variante: "notificacion" | "regularizacion";
 }) {
-  const filtradas = useMemo(() => filtrarAcciones(desde, hasta, tipos), [desde, hasta, tipos]);
+  const filtradas = useMemo(() => (state.data.rows ?? []).filter((r) => tipos.includes(r.tipo)), [state.data.rows, tipos]);
   const conteos = useMemo(() => conteoPorTipo(filtradas, tipos), [filtradas, tipos]);
   const total = filtradas.length;
+  if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
+  if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
+  if (state.empty) return <div className="text-sm text-muted-foreground">No hay acciones para el período seleccionado.</div>;
 
   return (
     <div className="space-y-5">
@@ -793,8 +1025,15 @@ function ReportePlanesDePagoDetalle({
    Reporte 4 — Estado actual de inmuebles
    ============================================================ */
 
-function ReporteEstadoInmuebles() {
-  const rows = useMemo(() => getEstadoInmuebles(), []);
+function ReporteEstadoInmuebles({
+  state,
+}: {
+  state: ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>;
+}) {
+  if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
+  if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
+  if (state.empty) return <div className="text-sm text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
+  const rows = state.data.rows;
   const morosos = rows.filter((r) => r.estado === "Moroso").length;
   const deudores = rows.filter((r) => r.estado === "Deudor").length;
   const alDia = rows.filter((r) => r.estado === "Al día").length;
@@ -862,7 +1101,11 @@ function ReporteEstadoInmuebles() {
    Reporte 5 — Acciones entre fechas
    ============================================================ */
 
-function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Date | null }) {
+function ReporteAccionesFechas({
+  state,
+}: {
+  state: ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>;
+}) {
   const ALL_TIPOS: AccionTipo[] = useMemo(
     () => [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION],
     [],
@@ -877,10 +1120,11 @@ function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Da
   const seleccionarTodos = () => setTiposSeleccionados(ALL_TIPOS);
   const limpiarTodos = () => setTiposSeleccionados([]);
 
-  const filtradas = useMemo(
-    () => filtrarAcciones(desde, hasta, tiposSeleccionados.length === 0 ? [] : tiposSeleccionados),
-    [desde, hasta, tiposSeleccionados],
-  );
+  const filtradas = useMemo(() => {
+    const base = state.data.rows ?? [];
+    if (tiposSeleccionados.length === 0) return [];
+    return base.filter((a) => tiposSeleccionados.includes(a.tipo));
+  }, [state.data.rows, tiposSeleccionados]);
   const serie = useMemo(() => serieDiaria(filtradas), [filtradas]);
   const conteos = useMemo(() => conteoPorTipo(filtradas, ALL_TIPOS), [filtradas, ALL_TIPOS]);
   const conteosVisibles = useMemo(
@@ -897,6 +1141,10 @@ function ReporteAccionesFechas({ desde, hasta }: { desde: Date | null; hasta: Da
   const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
   const tipoTop = [...conteos].sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—";
   const total = filtradas.length;
+
+  if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
+  if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
+  if (state.empty) return <div className="text-sm text-muted-foreground">No hay acciones para el período seleccionado.</div>;
 
   return (
     <div className="space-y-5">
@@ -1044,7 +1292,15 @@ const MOVIMIENTO_TIPO_LABEL: Record<MovimientoTipo, string> = {
   configuracion: "Configuración",
 };
 
-function ReporteHistorialMovimientos() {
+function ReporteHistorialMovimientos({
+  state,
+}: {
+  state: ReporteDataState<ReturnType<typeof getReporteHistorialMovimientosViewModel>>;
+}) {
+  if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
+  if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
+  if (state.empty) return <div className="text-sm text-muted-foreground">Sin movimientos para mostrar.</div>;
+  const baseRows = state.data.rows;
   const [tipo, setTipo] = useState<MovimientoTipo | "todos">("todos");
   const [busqueda, setBusqueda] = useState("");
   const [page, setPage] = useState(1);
@@ -1052,7 +1308,7 @@ function ReporteHistorialMovimientos() {
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return ultimosMovimientos.filter((m) => {
+    return baseRows.filter((m) => {
       if (tipo !== "todos" && m.tipo !== tipo) return false;
       if (!q) return true;
       return (
@@ -1270,6 +1526,7 @@ async function runExport(
   reporte: ReporteDef,
   rango: { desde: Date | null; hasta: Date | null },
   filtrosLabel: string[],
+  reporteState?: ReporteDataState<any>,
 ) {
   const stamp = new Date().toISOString().slice(0, 10);
   const baseName = reporte.titulo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -1284,9 +1541,9 @@ async function runExport(
   };
 
   if (reporte.id === "morosos-grupo-distrito") {
-    const grupos = getMorososPorGrupo();
-    const distritos = getMorososPorDistrito();
-    const total = getMorosidadTotal();
+    const grupos = reporteState?.data?.grupos ?? getMorososPorGrupo();
+    const distritos = reporteState?.data?.distritos ?? getMorososPorDistrito();
+    const total = reporteState?.data?.total ?? getMorosidadTotal();
     const head = ["Categoría", "Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"];
     const body: (string | number)[][] = [
       ...grupos.map((g) => ["Grupo", g.grupo, g.distrito, g.totalInmuebles, g.deudores, g.morosos, pctFmt(g.porcentaje)]),
@@ -1322,7 +1579,7 @@ async function runExport(
 
   if (reporte.id === "acciones-regularizacion") {
     const tipos = TIPOS_REGULARIZACION;
-    const filtradas = filtrarAcciones(rango.desde, rango.hasta, tipos);
+    const filtradas = (reporteState?.data?.rows as AccionRegistro[] | undefined) ?? filtrarAcciones(rango.desde, rango.hasta, tipos);
     const conteos = conteoPorTipo(filtradas, tipos);
     const total = filtradas.length;
     const head = ["Tipo de acción", "Cantidad", "% del total"];
@@ -1441,7 +1698,7 @@ async function runExport(
   }
 
   if (reporte.id === "estado-inmuebles") {
-    const rows = getEstadoInmuebles();
+    const rows = reporteState?.data?.rows ?? getEstadoInmuebles();
     const morosos = rows.filter((r) => r.estado === "Moroso").length;
     const deudores = rows.filter((r) => r.estado === "Deudor").length;
     const alDia = rows.filter((r) => r.estado === "Al día").length;
@@ -1491,7 +1748,7 @@ async function runExport(
   }
 
   if (reporte.id === "acciones-fechas") {
-    const filtradas = filtrarAcciones(rango.desde, rango.hasta);
+    const filtradas = reporteState?.data?.rows ?? filtrarAcciones(rango.desde, rango.hasta);
     const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
     const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
     const total = filtradas.length;
@@ -1548,20 +1805,21 @@ async function runExport(
   }
 
   if (reporte.id === "historial-movimientos") {
+    const rows = reporteState?.data?.rows ?? ultimosMovimientos;
     const head = ["Fecha", "Usuario", "Acción"];
-    const body = ultimosMovimientos.map((m) => [
+    const body = rows.map((m) => [
       m.fecha,
       m.usuario,
       m.accion,
     ]);
     if (kind === "pdf") {
-      const tiposUnicos = new Set(ultimosMovimientos.map((m) => m.tipo)).size;
-      const usuariosUnicos = new Set(ultimosMovimientos.map((m) => m.usuario)).size;
+      const tiposUnicos = new Set(rows.map((m) => m.tipo)).size;
+      const usuariosUnicos = new Set(rows.map((m) => m.usuario)).size;
       await exportarReportePdf({
         meta: {
           ...meta,
           kpis: [
-            { label: "Total movimientos", value: numberFmt.format(ultimosMovimientos.length) },
+            { label: "Total movimientos", value: numberFmt.format(rows.length) },
             { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
             { label: "Tipos representados", value: numberFmt.format(tiposUnicos) },
           ],

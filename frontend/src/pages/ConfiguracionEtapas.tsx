@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -70,6 +70,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { etapasIniciales, type EtapaConfig } from "@/data/etapas";
+import { configuracionApi } from "@/services/api/configuracionApi";
+import { mapEtapa } from "@/adapters/etapas";
+import { ApiError } from "@/lib/apiClient";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
 
@@ -81,8 +84,11 @@ interface FormState {
 
 export default function ConfiguracionEtapas() {
   const { toast } = useToast();
-  const [etapasGuardadas, setEtapasGuardadas] = useState<EtapaConfig[]>(etapasIniciales);
-  const [etapas, setEtapas] = useState<EtapaConfig[]>(etapasIniciales);
+  const [etapasGuardadas, setEtapasGuardadas] = useState<EtapaConfig[]>([]);
+  const [etapas, setEtapas] = useState<EtapaConfig[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<EtapaConfig | null>(null);
@@ -98,6 +104,32 @@ export default function ConfiguracionEtapas() {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  const fetchEtapas = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await configuracionApi.etapas({ size: 200 });
+      const rows = (data?.content ?? data ?? [])
+        .sort((a: any, b: any) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
+        .map(mapEtapa);
+      setEtapas(rows);
+      setEtapasGuardadas(rows);
+    } catch (e) {
+      setError("No se pudieron cargar las etapas.");
+      // Fallback temporal local: se usa solo si falla backend.
+      if (etapasIniciales.length > 0) {
+        setEtapas(etapasIniciales);
+        setEtapasGuardadas(etapasIniciales);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEtapas();
+  }, []);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -136,7 +168,7 @@ export default function ConfiguracionEtapas() {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nombre = form.nombre.trim();
     if (!nombre) {
       toast({
@@ -149,7 +181,9 @@ export default function ConfiguracionEtapas() {
 
     const ordenSeguro = Math.max(1, Math.min(form.orden, (editing ? etapas.length : etapas.length + 1)));
 
+    try {
     if (editing) {
+      await configuracionApi.actualizarEtapa(editing.id, { nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
       setEtapas((prev) => {
         const updated = prev.map((e) =>
           e.id === editing.id
@@ -168,6 +202,7 @@ export default function ConfiguracionEtapas() {
         description: `Se guardaron los cambios en "${nombre}".`,
       });
     } else {
+      await configuracionApi.crearEtapa({ nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
       const nueva: EtapaConfig = {
         id: `e-${Date.now()}`,
         nombre,
@@ -187,9 +222,13 @@ export default function ConfiguracionEtapas() {
 
     setDialogOpen(false);
     setEditing(null);
+    await fetchEtapas();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar la etapa.", variant: "destructive" });
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
     if (deleteTarget.procesosAsociados > 0) {
       toast({
@@ -202,20 +241,46 @@ export default function ConfiguracionEtapas() {
       setDeleteTarget(null);
       return;
     }
-    setEtapas((prev) => prev.filter((e) => e.id !== deleteTarget.id));
-    toast({
-      title: "Etapa eliminada",
-      description: `Se eliminó "${deleteTarget.nombre}".`,
-    });
-    setDeleteTarget(null);
+    try {
+      await configuracionApi.eliminarEtapa(deleteTarget.id);
+      setEtapas((prev) => prev.filter((e) => e.id !== deleteTarget.id));
+      toast({
+        title: "Etapa eliminada",
+        description: `Se eliminó "${deleteTarget.nombre}".`,
+      });
+      setDeleteTarget(null);
+      await fetchEtapas();
+    } catch (e) {
+      toast({
+        title: "No se puede eliminar la etapa",
+        description: e instanceof ApiError ? e.message : "El backend rechazó la eliminación.",
+        variant: "destructive",
+      });
+      setDeleteTarget(null);
+    }
   };
 
-  const guardarOrden = () => {
-    setEtapasGuardadas(etapas);
-    toast({
-      title: "Orden actualizado",
-      description: "La nueva secuencia de etapas fue guardada.",
-    });
+  const guardarOrden = async () => {
+    try {
+      setSaving(true);
+      await configuracionApi.reordenarEtapas({
+        etapas: etapas.map((e, index) => ({ id: e.id, orden: index + 1 })),
+      });
+      await fetchEtapas();
+      toast({
+        title: "Orden actualizado",
+        description: "La nueva secuencia de etapas fue guardada.",
+      });
+    } catch (e) {
+      setEtapas(etapasGuardadas);
+      toast({
+        title: "Error al reordenar",
+        description: e instanceof ApiError ? e.message : "No se pudo guardar el nuevo orden.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const descartarOrden = () => {
@@ -242,6 +307,11 @@ export default function ConfiguracionEtapas() {
 
       <main className="flex-1 px-6 py-6">
         <div className="mx-auto max-w-4xl space-y-5">
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[12.5px] text-destructive">
+              {error}
+            </div>
+          )}
           {/* Aviso institucional */}
           <div className="flex items-start gap-3 rounded-md border border-primary/20 bg-primary-soft/40 px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -270,7 +340,9 @@ export default function ConfiguracionEtapas() {
               </span>
             </header>
 
-            {etapas.length === 0 ? (
+            {loading ? (
+              <div className="px-4 py-12 text-center text-[13px] text-muted-foreground">Cargando etapas...</div>
+            ) : etapas.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <Layers className="mx-auto h-8 w-8 text-muted-foreground/40" />
                 <p className="mt-3 text-[13px] font-medium text-foreground">
@@ -343,12 +415,13 @@ export default function ConfiguracionEtapas() {
                   variant="ghost"
                   size="sm"
                   onClick={descartarOrden}
+                  disabled={saving}
                   className="h-8 gap-1.5 text-[12.5px]"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   Descartar
                 </Button>
-                <Button onClick={guardarOrden} size="sm" className="h-8 gap-1.5 text-[12.5px]">
+                <Button onClick={guardarOrden} size="sm" disabled={saving} className="h-8 gap-1.5 text-[12.5px]">
                   <Save className="h-3.5 w-3.5" />
                   Guardar orden
                 </Button>

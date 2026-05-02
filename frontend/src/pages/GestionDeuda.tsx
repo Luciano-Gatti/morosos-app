@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Upload,
@@ -45,12 +45,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cargasDeuda, type CargaDeuda, type CargaEstado } from "@/data/cargasDeuda";
+import { type CargaDeuda, type CargaEstado } from "@/data/cargasDeuda";
+import { deudaApi } from "@/services/api/deudaApi";
+import { useToast } from "@/hooks/use-toast";
 
 type SortKey = "fecha" | "nombre" | "morosos" | "montoTotal";
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 10;
+
+function toEstado(value: string): CargaEstado {
+  const v = value?.toUpperCase?.() ?? "";
+  if (v === "COMPLETADA") return "completada";
+  if (v === "COMPLETADA_CON_ERRORES") return "con_errores";
+  if (v === "FALLIDA") return "fallida";
+  return "procesando";
+}
+
+function mapCargaApi(row: any): CargaDeuda {
+  return {
+    id: String(row.id ?? row.cargaId ?? ""),
+    fecha: row.fecha ?? row.fechaCarga ?? row.createdAt ?? new Date().toISOString(),
+    nombre: row.nombre ?? row.archivo ?? `Carga #${row.id ?? "-"}`,
+    usuario: row.usuario ?? row.operador ?? "-",
+    estado: toEstado(row.estado),
+    morosos: Number(row.morosos ?? row.totalMorosos ?? 0),
+    montoTotal: Number(row.montoTotal ?? row.totalMonto ?? 0),
+    procesados: Number(row.procesados ?? row.registrosProcesados ?? 0),
+    creados: Number(row.creados ?? row.registrosCreados ?? 0),
+    errores: Number(row.errores ?? row.totalErrores ?? 0),
+    noEncontradas: Number(row.noEncontradas ?? row.totalNoEncontradas ?? 0),
+  };
+}
 
 const moneyFmt = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -80,22 +106,38 @@ export default function GestionDeuda() {
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<CargaDeuda[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchCargas = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const now = new Date();
+        const fromDate = periodo === "all" ? undefined : new Date(now.getTime() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const estadoApi = estado === "all" ? undefined : ({ completada: "COMPLETADA", con_errores: "COMPLETADA_CON_ERRORES", fallida: "FALLIDA", procesando: "PROCESANDO" } as const)[estado];
+        const res = await deudaApi.getCargas({ page: page - 1, size: PAGE_SIZE, estado: estadoApi, fromDate });
+        setRows((res.content || []).map(mapCargaApi));
+        setTotalPages(Math.max(1, res.totalPages || 1));
+        setTotalElements(res.totalElements || 0);
+      } catch (e) {
+        setError("No se pudo cargar la gestión de deuda");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCargas();
+  }, [page, estado, periodo]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const now = Date.now();
-    const limitMs =
-      periodo === "all" ? null : parseInt(periodo, 10) * 24 * 60 * 60 * 1000;
-    return cargasDeuda.filter((c) => {
-      if (estado !== "all" && c.estado !== estado) return false;
-      if (limitMs !== null && now - new Date(c.fecha).getTime() > limitMs) return false;
-      if (!q) return true;
-      return (
-        c.nombre.toLowerCase().includes(q) ||
-        c.usuario.toLowerCase().includes(q)
-      );
-    });
-  }, [query, estado, periodo]);
+    return rows.filter((c) => !q || c.nombre.toLowerCase().includes(q) || c.usuario.toLowerCase().includes(q));
+  }, [rows, query]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
@@ -103,21 +145,15 @@ export default function GestionDeuda() {
       const av = a[sortKey];
       const bv = b[sortKey];
       let cmp = 0;
-      if (typeof av === "number" && typeof bv === "number") {
-        cmp = av - bv;
-      } else {
-        cmp = String(av).localeCompare(String(bv), "es", { numeric: true });
-      }
+      if (typeof av === "number" && typeof bv === "number") cmp = av - bv; else cmp = String(av).localeCompare(String(bv), "es", { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
   }, [filtered, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageRows = sorted.slice(pageStart, pageStart + PAGE_SIZE);
-
+  const pageRows = sorted;
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -285,7 +321,7 @@ export default function GestionDeuda() {
                 {pageRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center text-[13px] text-muted-foreground">
-                      No se encontraron cargas con los filtros aplicados.
+                      {loading ? "Cargando cargas..." : error ?? "No se encontraron cargas con los filtros aplicados."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -301,10 +337,10 @@ export default function GestionDeuda() {
             <div>
               Mostrando{" "}
               <span className="tabular font-medium text-foreground">
-                {sorted.length === 0 ? 0 : pageStart + 1}–
-                {Math.min(pageStart + PAGE_SIZE, sorted.length)}
+                {totalElements === 0 ? 0 : pageStart + 1}–
+                {Math.min(pageStart + PAGE_SIZE, totalElements)}
               </span>{" "}
-              de <span className="tabular font-medium text-foreground">{sorted.length}</span> cargas
+              de <span className="tabular font-medium text-foreground">{totalElements}</span> cargas
             </div>
             <div className="flex items-center gap-1">
               <Button
