@@ -68,6 +68,7 @@ export default function Inmuebles() {
   const [rows, setRows] = useState<Inmueble[]>(inmueblesPadron);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -116,7 +117,7 @@ export default function Inmuebles() {
       .then((res) => setRows(res.content as Inmueble[]))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [page, query, grupo, distrito, estado]);
+  }, [page, query, grupo, distrito, estado, reloadTick]);
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -155,7 +156,7 @@ export default function Inmuebles() {
         }
       />
 
-      <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} />
+      <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => setReloadTick((n) => n + 1)} />
 
       <main className="flex-1 px-6 py-6">
         {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando inmuebles…</div>}

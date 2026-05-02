@@ -19,10 +19,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { inmueblesApi } from "@/services/api/inmueblesApi";
+import { useToast } from "@/hooks/use-toast";
+import { USE_API, ApiError } from "@/lib/apiClient";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onImported?: () => void;
 }
 
 type Fase = "seleccion" | "procesando" | "resultado";
@@ -101,7 +105,8 @@ function isValido(name: string) {
   return EXTENSIONES_VALIDAS.some((ext) => lower.endsWith(ext));
 }
 
-export function ImportarInmueblesDialog({ open, onOpenChange }: Props) {
+export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Props) {
+  const { toast } = useToast();
   const [fase, setFase] = useState<Fase>("seleccion");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,14 +141,38 @@ export function ImportarInmueblesDialog({ open, onOpenChange }: Props) {
     setFile(f);
   };
 
-  const procesar = () => {
+  const procesar = async () => {
     if (!file) return;
     setFase("procesando");
-    // Simulación de procesamiento
-    setTimeout(() => {
-      setResultado(generarResultadoMock(file));
+    try {
+      if (!USE_API) {
+        setResultado(generarResultadoMock(file));
+        setFase("resultado");
+        return;
+      }
+      const imp = await inmueblesApi.importarInmuebles(file);
+      const id = String(imp.id ?? "");
+      const estado = await inmueblesApi.getImportacionInmueble(id);
+      const erroresPage = await inmueblesApi.getErroresImportacionInmueble(id, { page: 0, size: 50 });
+      setResultado({
+        procesados: Number(estado.procesados ?? estado.totalRegistros ?? 0),
+        creados: Number(estado.creados ?? 0),
+        actualizados: Number(estado.actualizados ?? 0),
+        errores: Number(estado.errores ?? 0),
+        noEncontradas: 0,
+        detalleErrores: (erroresPage.content ?? []).map((e: any) => ({
+          fila: Number(e.fila ?? e.rowNumber ?? 0),
+          cuenta: String(e.cuenta ?? "-"),
+          motivo: String(e.motivo ?? e.descripcion ?? "Error"),
+        })),
+      });
       setFase("resultado");
-    }, 1100);
+      onImported?.();
+      toast({ title: "Importación finalizada", description: "El archivo fue procesado correctamente." });
+    } catch (e) {
+      toast({ title: "Error de importación", description: e instanceof ApiError ? e.message : "No se pudo importar el archivo.", variant: "destructive" });
+      setFase("seleccion");
+    }
   };
 
   return (

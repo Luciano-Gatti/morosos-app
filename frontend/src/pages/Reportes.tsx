@@ -26,11 +26,9 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   CalendarIcon,
-  FileBarChart2,
   FileDown,
   FileSpreadsheet,
   Building2,
-  
   HandCoins,
   ListChecks,
   CalendarRange,
