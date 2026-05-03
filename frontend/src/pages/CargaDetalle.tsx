@@ -51,8 +51,10 @@ import { deudaApi } from "@/services/api/deudaApi";
 
 type SortKey = "cuenta" | "titular" | "direccion" | "cuotas" | "monto";
 type SortDir = "asc" | "desc";
+type ErroresSortKey = "fila" | "cuenta";
 
 const PAGE_SIZE = 12;
+const ERRORES_PAGE_SIZE = 12;
 
 const toEstado = (v: string): CargaEstado => v === "COMPLETADA" ? "completada" : v === "COMPLETADA_CON_ERRORES" ? "con_errores" : v === "FALLIDA" ? "fallida" : "procesando";
 const mapCarga = (row: any): CargaDeuda => ({ id: String(row.id ?? ""), fecha: row.fecha ?? row.createdAt ?? new Date().toISOString(), nombre: row.nombre ?? row.archivo ?? `Carga #${row.id ?? "-"}`, usuario: row.usuario ?? row.operador ?? "-", estado: toEstado(row.estado ?? "PROCESANDO"), morosos: Number(row.morosos ?? 0), montoTotal: Number(row.montoTotal ?? 0), procesados: Number(row.procesados ?? 0), creados: Number(row.creados ?? 0), errores: Number(row.errores ?? 0), noEncontradas: Number(row.noEncontradas ?? 0) });
@@ -86,9 +88,14 @@ export default function CargaDetalle() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [erroresOpen, setErroresOpen] = useState(false);
+  const [erroresSearch, setErroresSearch] = useState("");
+  const [erroresSortKey, setErroresSortKey] = useState<ErroresSortKey>("fila");
+  const [erroresSortDir, setErroresSortDir] = useState<SortDir>("asc");
   const [erroresPage, setErroresPage] = useState(1);
   const [erroresTotalPages, setErroresTotalPages] = useState(1);
   const [erroresTotalElements, setErroresTotalElements] = useState(0);
+  const [erroresLoading, setErroresLoading] = useState(false);
+  const [erroresError, setErroresError] = useState<string | null>(null);
 
   const [inmuebles, setInmuebles] = useState<InmuebleCarga[]>([]);
   const [erroresList, setErroresList] = useState<ErrorImportacion[]>([]);
@@ -102,7 +109,7 @@ export default function CargaDetalle() {
         setLoading(true);
         setError(null);
         const sort = `${sortKey},${sortDir}`;
-        const [c, d, e] = await Promise.all([
+        const [c, d] = await Promise.all([
           deudaApi.getCarga(id),
           deudaApi.getDetalles(id, {
             page: page - 1,
@@ -112,15 +119,11 @@ export default function CargaDetalle() {
             montoMin: montoMin === "" ? undefined : Number(montoMin),
             sort,
           }),
-          deudaApi.getErrores(id, { page: erroresPage - 1, size: PAGE_SIZE }),
         ]);
         setCarga(mapCarga(c));
         setInmuebles((d?.content ?? d ?? []).map((r: any) => ({ cuenta: String(r.cuenta ?? r.idCuenta ?? "-"), titular: r.titular ?? "-", direccion: r.direccion ?? "-", cuotas: Number(r.cuotas ?? 0), monto: Number(r.monto ?? 0) })));
         setDetalleTotalPages(Math.max(1, d?.totalPages || 1));
         setDetalleTotalElements(d?.totalElements || 0);
-        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: r.descripcion ?? r.error ?? "Error" })));
-        setErroresTotalPages(Math.max(1, e?.totalPages || 1));
-        setErroresTotalElements(e?.totalElements || 0);
       } catch (err) {
         setError("No se pudo cargar el detalle");
       } finally {
@@ -128,7 +131,31 @@ export default function CargaDetalle() {
       }
     };
     load();
-  }, [id, page, query, cuotasMin, montoMin, sortKey, sortDir, erroresPage]);
+  }, [id, page, query, cuotasMin, montoMin, sortKey, sortDir]);
+
+  useEffect(() => {
+    const loadErrores = async () => {
+      if (!id) return;
+      try {
+        setErroresLoading(true);
+        setErroresError(null);
+        const e = await deudaApi.getErrores(id, {
+          page: erroresPage - 1,
+          size: ERRORES_PAGE_SIZE,
+          search: erroresSearch.trim() || undefined,
+          sort: `${erroresSortKey},${erroresSortDir}`,
+        });
+        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: r.descripcion ?? r.error ?? "Error" })));
+        setErroresTotalPages(Math.max(1, e?.totalPages || 1));
+        setErroresTotalElements(e?.totalElements || 0);
+      } catch {
+        setErroresError("No se pudo cargar el listado de errores");
+      } finally {
+        setErroresLoading(false);
+      }
+    };
+    loadErrores();
+  }, [id, erroresPage, erroresSearch, erroresSortKey, erroresSortDir]);
 
   const totalPages = Math.max(1, detalleTotalPages);
   const safePage = Math.min(page, totalPages);
@@ -145,6 +172,14 @@ export default function CargaDetalle() {
   };
 
   const hasFilters = query !== "" || cuotasMin !== "" || montoMin !== "";
+  const toggleErroresSort = (key: ErroresSortKey) => {
+    if (erroresSortKey === key) setErroresSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setErroresSortKey(key);
+      setErroresSortDir("asc");
+    }
+    setErroresPage(1);
+  };
   const resetFilters = () => {
     setQuery("");
     setCuotasMin("");
@@ -452,17 +487,25 @@ export default function CargaDetalle() {
               Descargar log
             </Button>
           </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={erroresSearch}
+              onChange={(e) => {
+                setErroresSearch(e.target.value);
+                setErroresPage(1);
+              }}
+              placeholder="Buscar por cuenta o descripción..."
+              className="h-8 pl-8 text-[12.5px]"
+            />
+          </div>
 
           <div className="max-h-[55vh] overflow-y-auto rounded-md border border-border">
             <Table>
               <TableHeader className="sticky top-0 bg-surface">
                 <TableRow className="border-border bg-surface-muted/60 hover:bg-surface-muted/60">
-                  <TableHead className="w-[80px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Fila
-                  </TableHead>
-                  <TableHead className="w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Cuenta
-                  </TableHead>
+                  <SortableErroresHead label="Fila" k="fila" sortKey={erroresSortKey} sortDir={erroresSortDir} onClick={toggleErroresSort} className="w-[80px]" />
+                  <SortableErroresHead label="Cuenta" k="cuenta" sortKey={erroresSortKey} sortDir={erroresSortDir} onClick={toggleErroresSort} className="w-[140px]" />
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Descripción del error
                   </TableHead>
@@ -472,7 +515,7 @@ export default function CargaDetalle() {
                 {erroresList.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center text-[13px] text-muted-foreground">
-                      {loading ? "Cargando errores..." : "Esta carga no registró errores."}
+                      {erroresLoading ? "Cargando errores..." : erroresError ?? "Esta carga no registró errores."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -591,6 +634,15 @@ interface SortableHeadProps {
   align?: "left" | "right";
 }
 
+interface SortableErroresHeadProps {
+  label: string;
+  k: ErroresSortKey;
+  sortKey: ErroresSortKey;
+  sortDir: SortDir;
+  onClick: (k: ErroresSortKey) => void;
+  className?: string;
+}
+
 function SortableHead({ label, k, sortKey, sortDir, onClick, className, align = "left" }: SortableHeadProps) {
   const active = sortKey === k;
   const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
@@ -610,6 +662,19 @@ function SortableHead({ label, k, sortKey, sortDir, onClick, className, align = 
           active && "text-foreground",
         )}
       >
+        {label}
+        <Icon className={cn("h-3 w-3 opacity-60", active && "opacity-100")} />
+      </button>
+    </TableHead>
+  );
+}
+
+function SortableErroresHead({ label, k, sortKey, sortDir, onClick, className }: SortableErroresHeadProps) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={cn("h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground", className)}>
+      <button type="button" onClick={() => onClick(k)} className={cn("flex w-full items-center gap-1.5 transition-colors hover:text-foreground", active && "text-foreground")}>
         {label}
         <Icon className={cn("h-3 w-3 opacity-60", active && "opacity-100")} />
       </button>
