@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -30,8 +30,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { inmueblesPadron, distritosInmueble } from "@/data/inmuebles";
 import { gruposIniciales, seguimientoHabilitadoEn } from "@/data/grupos";
+import { inmueblesApi } from "@/services/api/inmueblesApi";
+import { ApiError, USE_API } from "@/lib/apiClient";
 
 interface ConfigState {
   grupo: string;
@@ -46,11 +49,23 @@ interface ConfigState {
 export default function InmuebleDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const inmueble = useMemo(
-    () => inmueblesPadron.find((i) => i.id === id),
-    [id],
-  );
+  const inmuebleMock = useMemo(() => inmueblesPadron.find((i) => i.id === id), [id]);
+  const [inmuebleApiData, setInmuebleApiData] = useState<any | null>(null);
+  const inmueble = USE_API
+    ? (inmuebleApiData
+      ? {
+          id: String(inmuebleApiData.id ?? id ?? ""),
+          cuenta: String(inmuebleApiData.cuenta ?? "-"),
+          titular: String(inmuebleApiData.titular ?? "-"),
+          direccion: String(inmuebleApiData.direccion ?? "-"),
+          grupo: String(inmuebleApiData.grupoNombre ?? inmuebleApiData.grupo ?? "-"),
+          distrito: String(inmuebleApiData.distritoNombre ?? inmuebleApiData.distrito ?? "-"),
+          activo: Boolean(inmuebleApiData.activo ?? true),
+        }
+      : null)
+    : inmuebleMock;
 
   // Grupos del catálogo filtrados según el distrito seleccionado.
   const distritoInicial = inmueble?.distrito ?? distritosInmueble[0];
@@ -78,6 +93,12 @@ export default function InmuebleDetalle() {
 
   const [editing, setEditing] = useState(false);
   const [config, setConfig] = useState<ConfigState>(initial);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [togglingActivo, setTogglingActivo] = useState(false);
+  const [togglingSeguimiento, setTogglingSeguimiento] = useState(false);
+  const notFound = !inmueble;
 
   const dirty = JSON.stringify(config) !== JSON.stringify(initial);
 
@@ -103,7 +124,137 @@ export default function InmuebleDetalle() {
   const seguimientoElegible =
     config.activo && seguimientoPorParHabilitado;
 
-  if (!inmueble) {
+  const fetchInmueble = async (targetId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await inmueblesApi.getById(targetId);
+      setInmuebleApiData(data);
+    } catch (e: unknown) {
+      setInmuebleApiData(null);
+      setError(e instanceof ApiError ? e.message : "No se pudo cargar el inmueble.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!id) return;
+    if (!USE_API) {
+      setEditing(false);
+      return;
+    }
+    try {
+      setSaving(true);
+      await inmueblesApi.update(id, {
+        telefono: config.telefono,
+        email: config.email,
+        observaciones: config.observaciones || undefined,
+      } as any);
+      await fetchInmueble(id);
+      setEditing(false);
+      toast({ title: "Cambios guardados", description: "El inmueble fue actualizado correctamente." });
+    } catch (e: unknown) {
+      toast({
+        title: "Error al guardar",
+        description: e instanceof ApiError ? e.message : "No se pudieron guardar los cambios.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setConfig(initial);
+    setEditing(false);
+  };
+
+  const handleToggleActivo = async (nextActivo: boolean) => {
+    if (!editing || !id) return;
+    if (!USE_API) {
+      setConfig((prev) => ({
+        ...prev,
+        activo: nextActivo,
+        seguimientoHabilitado: nextActivo ? prev.seguimientoHabilitado : false,
+      }));
+      return;
+    }
+    try {
+      setTogglingActivo(true);
+      await inmueblesApi.toggleActivo(id, nextActivo);
+      await fetchInmueble(id);
+      toast({ title: nextActivo ? "Inmueble activado" : "Inmueble inactivado" });
+    } catch (e: unknown) {
+      toast({
+        title: "Error al actualizar estado",
+        description: e instanceof ApiError ? e.message : "No se pudo actualizar el estado del inmueble.",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingActivo(false);
+    }
+  };
+
+  const handleToggleSeguimiento = async (nextSeguimientoHabilitado: boolean) => {
+    if (!editing || !id) return;
+    if (!USE_API) {
+      setConfig((prev) => ({ ...prev, seguimientoHabilitado: nextSeguimientoHabilitado }));
+      return;
+    }
+    try {
+      setTogglingSeguimiento(true);
+      await inmueblesApi.toggleSeguimiento(id, nextSeguimientoHabilitado);
+      await fetchInmueble(id);
+      toast({ title: nextSeguimientoHabilitado ? "Seguimiento habilitado" : "Seguimiento deshabilitado" });
+    } catch (e: unknown) {
+      toast({
+        title: "Error al actualizar seguimiento",
+        description: e instanceof ApiError ? e.message : "No se pudo actualizar el seguimiento.",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingSeguimiento(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!USE_API || !id) return;
+    fetchInmueble(id);
+  }, [id]);
+
+  useEffect(() => {
+    setConfig(initial);
+    setEditing(false);
+  }, [initial]);
+
+  if (loading) {
+    return (
+      <>
+        <AppHeader title="Inmueble" breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: "Detalle" }]} />
+        <main className="flex-1 px-6 py-10">
+          <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
+            Cargando inmueble...
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <AppHeader title="Error al cargar inmueble" breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: "Detalle" }]} />
+        <main className="flex-1 px-6 py-10">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-8 text-center text-[13px] text-destructive">
+            {error}
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (notFound) {
     return (
       <>
         <AppHeader
@@ -123,16 +274,6 @@ export default function InmuebleDetalle() {
       </>
     );
   }
-
-  const handleSave = () => {
-    // Aquí se persistiría la configuración. Por ahora solo se actualiza el estado local.
-    setEditing(false);
-  };
-
-  const handleCancel = () => {
-    setConfig(initial);
-    setEditing(false);
-  };
 
   return (
     <>
@@ -174,7 +315,7 @@ export default function InmuebleDetalle() {
                   size="sm"
                   className="h-9 gap-2"
                   onClick={handleSave}
-                  disabled={!dirty}
+                  disabled={!dirty || saving}
                 >
                   <Save className="h-4 w-4" />
                   Guardar cambios
@@ -312,14 +453,8 @@ export default function InmuebleDetalle() {
                 label="Inmueble activo"
                 hint="Si se desactiva, no se generarán nuevas gestiones."
                 checked={config.activo}
-                disabled={!editing}
-                onCheckedChange={(v) =>
-                  setConfig({
-                    ...config,
-                    activo: v,
-                    seguimientoHabilitado: v ? config.seguimientoHabilitado : false,
-                  })
-                }
+                disabled={!editing || togglingActivo}
+                onCheckedChange={handleToggleActivo}
               />
 
               <ToggleRow
@@ -331,11 +466,9 @@ export default function InmuebleDetalle() {
                 }
                 checked={config.seguimientoHabilitado}
                 disabled={
-                  !editing || !config.activo || !seguimientoPorParHabilitado
+                  !editing || !config.activo || !seguimientoPorParHabilitado || togglingSeguimiento
                 }
-                onCheckedChange={(v) =>
-                  setConfig({ ...config, seguimientoHabilitado: v })
-                }
+                onCheckedChange={handleToggleSeguimiento}
               />
 
               <div className="md:col-span-2">

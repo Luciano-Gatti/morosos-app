@@ -60,6 +60,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import {
   inmueblesMorosos,
@@ -127,6 +128,40 @@ type AccionMasiva =
   | { kind: "cerrar" }
   | { kind: "compromiso" };
 
+export type BulkSeguimientoPayload = {
+  ids: string[];
+  observacion?: string;
+};
+
+export type CerrarProcesoPayload = {
+  casoSeguimientoId: string;
+  motivoCodigo: string;
+  observacion?: string;
+  planPago?: {
+    cantidadCuotas: number;
+    fechaVencimientoPrimeraCuota: string;
+  };
+  cambioParametro?: {
+    parametro: string;
+    valorAnterior: string;
+    valorNuevo: string;
+  };
+};
+
+export type CompromisoPagoPayload = {
+  casoSeguimientoId: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  montoComprometido?: number;
+  observacion?: string;
+};
+
+type AccionDialogConfirmPayload =
+  | { kind: "enviar-etapa" | "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
+  | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> };
+
+
 export default function GestionEtapas() {
   const { toast } = useToast();
   const umbralCuotas = parametrosSeguimiento.cuotasParaMoroso;
@@ -150,6 +185,7 @@ export default function GestionEtapas() {
   const [accion, setAccion] = useState<AccionMasiva | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
   const [rows, setRows] = useState<SeguimientoRow[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -169,31 +205,32 @@ export default function GestionEtapas() {
     loadCatalogs();
   }, []);
 
+  const fetchBandeja = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await seguimientoApi.getBandeja({
+        query: query || undefined,
+        grupoId: grupo === "all" ? undefined : grupo,
+        distritoId: distrito === "all" ? undefined : distrito,
+        etapaId: etapaFiltro === "all" || etapaFiltro === "sin-etapa" ? undefined : etapaFiltro,
+        estado: estadoFiltro === "all" ? undefined : estadoFiltro,
+        cuotasMin: cuotasMin || undefined,
+        page: page - 1,
+        size: PAGE_SIZE,
+      });
+      const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
+      setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
+      setTotalElements(pageData.totalElements);
+      setTotalPages(Math.max(1, pageData.totalPages));
+    } catch (e) {
+      setError("No se pudo cargar la bandeja de seguimiento");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchBandeja = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await seguimientoApi.getBandeja({
-          query: query || undefined,
-          grupoId: grupo === "all" ? undefined : grupo,
-          distritoId: distrito === "all" ? undefined : distrito,
-          etapaId: etapaFiltro === "all" || etapaFiltro === "sin-etapa" ? undefined : etapaFiltro,
-          estado: estadoFiltro === "all" ? undefined : estadoFiltro,
-          cuotasMin: cuotasMin || undefined,
-          page: page - 1,
-          size: PAGE_SIZE,
-        });
-        const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
-        setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
-        setTotalElements(pageData.totalElements);
-        setTotalPages(Math.max(1, pageData.totalPages));
-      } catch (e) {
-        setError("No se pudo cargar la bandeja de seguimiento");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchBandeja();
   }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page]);
 
@@ -253,10 +290,56 @@ export default function GestionEtapas() {
     setPage(1);
   };
 
-  const confirmarAccion = (titulo: string, descripcion: string) => {
-    toast({ title: titulo, description: descripcion });
-    setAccion(null);
-    clearSelection();
+  const confirmarAccion = async (data: AccionDialogConfirmPayload) => {
+    const selectedRows = rows.filter((r) => selected.has(r.id));
+    if (!USE_API) {
+      const total = selected.size;
+      toast({ title: "Acción aplicada", description: `${total} inmueble(s) procesado(s) correctamente.` });
+      setAccion(null);
+      clearSelection();
+      return;
+    }
+    try {
+      setMutating(true);
+      let result: any = null;
+      if (data.kind === "iniciar") {
+        const inmuebleIds = selectedRows.filter((r) => !r.casoId).map((r) => r.inmuebleId || r.id);
+        result = await seguimientoApi.iniciar({ inmuebleIds, observacion: data.payload.observacion });
+      } else if (data.kind === "enviar-siguiente" || data.kind === "enviar-etapa") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        result = await seguimientoApi.avanzar({ casoIds, observacion: data.payload.observacion });
+      } else if (data.kind === "repetir-etapa") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        result = await seguimientoApi.repetir({ casoIds, observacion: data.payload.observacion });
+      } else if (data.kind === "pausar") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion });
+      } else if (data.kind === "reabrir") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        result = await seguimientoApi.reabrir({ casoIds, observacion: data.payload.observacion });
+      } else if (data.kind === "cerrar") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        for (const casoSeguimientoId of casoIds) {
+          result = await seguimientoApi.cerrar({ casoSeguimientoId, ...data.payload });
+        }
+      } else if (data.kind === "compromiso") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        for (const casoSeguimientoId of casoIds) {
+          result = await seguimientoApi.registrarCompromiso({ casoSeguimientoId, ...data.payload });
+        }
+      }
+      const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
+      const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
+      const errores = Number(result?.errores ?? result?.errors ?? 0);
+      toast({ title: "Acción ejecutada", description: `Aplicados: ${aplicados} · Omitidos: ${omitidos} · Errores: ${errores}` });
+      await fetchBandeja();
+      setAccion(null);
+      clearSelection();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo ejecutar la acción.", variant: "destructive" });
+    } finally {
+      setMutating(false);
+    }
   };
 
   return (
@@ -553,6 +636,7 @@ export default function GestionEtapas() {
         seleccionados={seleccionados}
         onCancel={() => setAccion(null)}
         onConfirm={confirmarAccion}
+        mutating={mutating}
       />
     </>
   );
@@ -791,11 +875,13 @@ function AccionDialog({
   seleccionados,
   onCancel,
   onConfirm,
+  mutating = false,
 }: {
   accion: AccionMasiva | null;
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
-  onConfirm: (titulo: string, descripcion: string) => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
 }) {
   const open = accion !== null;
 
@@ -807,6 +893,7 @@ function AccionDialog({
         seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        mutating={mutating}
       />
     );
   }
@@ -818,6 +905,7 @@ function AccionDialog({
         seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        mutating={mutating}
       />
     );
   }
@@ -829,6 +917,7 @@ function AccionDialog({
         seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        mutating={mutating}
       />
     );
   }
@@ -840,6 +929,7 @@ function AccionDialog({
         seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        mutating={mutating}
       />
     );
   }
@@ -890,7 +980,7 @@ function AccionDialog({
           </Button>
           <Button
             onClick={() =>
-              onConfirm(info.titulo, `${total} inmueble(s) procesado(s) correctamente.`)
+              onConfirm({ kind: accion?.kind as any, payload: {} })
             }
           >
             Confirmar
@@ -906,11 +996,13 @@ function ConfirmarEtapaDialog({
   seleccionados,
   onCancel,
   onConfirm,
+  mutating = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
-  onConfirm: (titulo: string, descripcion: string) => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
 }) {
   const total = seleccionados.length;
   const isSiguiente = accion.kind === "enviar-siguiente";
@@ -920,6 +1012,7 @@ function ConfirmarEtapaDialog({
     return d;
   });
   const [observacion, setObservacion] = useState("");
+  const [montoComprometido, setMontoComprometido] = useState("");
   const [calOpen, setCalOpen] = useState(false);
 
   const avanzados = isSiguiente
@@ -939,12 +1032,12 @@ function ConfirmarEtapaDialog({
       if (avanzados) partes.push(`${avanzados} avanzaron a su siguiente etapa`);
       if (iniciados) partes.push(`${iniciados} iniciaron en "${etapasSeguimiento[0]}"`);
       if (omitidos) partes.push(`${omitidos} ya estaban en la última etapa y fueron omitidos`);
-      onConfirm("Inmuebles enviados a etapa siguiente", `${partes.join(". ")}.`);
+      onConfirm({ kind: "enviar-siguiente", payload: { observacion: observacion.trim() || undefined } });
       return;
     }
     if (repetidos) partes.push(`${repetidos} re-emitieron su etapa actual`);
     if (omitidos) partes.push(`${omitidos} sin etapa fueron omitidos`);
-    onConfirm("Etapa repetida", `${partes.join(". ")}.`);
+    onConfirm({ kind: "repetir-etapa", payload: { observacion: observacion.trim() || undefined } });
   };
 
   return (
@@ -1061,7 +1154,7 @@ function ConfirmarEtapaDialog({
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={onCancel} className="h-9">Cancelar</Button>
-            <Button onClick={handleConfirm} disabled={aplicables === 0} className="h-9">
+            <Button onClick={handleConfirm} disabled={aplicables === 0 || mutating} className="h-9">
               Confirmar acción
             </Button>
           </div>
@@ -1073,16 +1166,18 @@ function ConfirmarEtapaDialog({
 
 /* -------- Modal institucional: Cerrar proceso (motivo dinámico) -------- */
 
-type MotivoCierre = "regularizacion" | "plan-pago" | "judicializacion" | "otro";
+type MotivoCierre = "REGULARIZACION" | "PLAN_DE_PAGO" | "CAMBIO_PARAMETRO" | "JUDICIALIZACION" | "OTRO";
 
 function CerrarProcesoDialog({
   seleccionados,
   onCancel,
   onConfirm,
+  mutating = false,
 }: {
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
-  onConfirm: (titulo: string, descripcion: string) => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1093,7 +1188,11 @@ function CerrarProcesoDialog({
   })();
 
   const [motivo, setMotivo] = useState<MotivoCierre | "">("");
+  const [parametro, setParametro] = useState("");
+  const [valorAnterior, setValorAnterior] = useState("");
+  const [valorNuevo, setValorNuevo] = useState("");
   const [observacion, setObservacion] = useState("");
+  const [montoComprometido, setMontoComprometido] = useState("");
 
   // Regularización
   const [fechaReg, setFechaReg] = useState<Date | undefined>(today);
@@ -1111,35 +1210,27 @@ function CerrarProcesoDialog({
 
   const puedeConfirmar = (() => {
     if (!motivo) return false;
-    if (motivo === "regularizacion") return !!fechaReg;
-    if (motivo === "plan-pago") return !!fechaPlan && !!fechaPrimera && cuotasValidas;
-    if (motivo === "otro" || motivo === "judicializacion")
+    if (motivo === "REGULARIZACION") return !!fechaReg;
+    if (motivo === "PLAN_DE_PAGO") return !!fechaPlan && !!fechaPrimera && cuotasValidas;
+    if (motivo === "CAMBIO_PARAMETRO") return parametro.trim() && valorAnterior.trim() && valorNuevo.trim();
+    if (motivo === "OTRO" || motivo === "JUDICIALIZACION")
       return observacion.trim().length > 0;
     return false;
   })();
 
   const handleConfirm = () => {
     if (!puedeConfirmar) return;
-    let descripcion = "";
-    if (motivo === "regularizacion" && fechaReg) {
-      descripcion = `${total} inmueble(s) cerrados por regularización total (fecha ${format(
-        fechaReg,
-        "dd/MM/yyyy",
-      )}).`;
-    } else if (motivo === "plan-pago" && fechaPlan && fechaPrimera) {
-      descripcion = `${total} inmueble(s) cerrados con plan de pago de ${cuotasNum} cuota(s). Primer vencimiento: ${format(
-        fechaPrimera,
-        "dd/MM/yyyy",
-      )}.`;
-    } else if (motivo === "judicializacion") {
-      descripcion = `${total} inmueble(s) cerrados por judicialización (${format(
-        today,
-        "dd/MM/yyyy",
-      )}).`;
-    } else {
-      descripcion = `${total} inmueble(s) cerrados (${format(today, "dd/MM/yyyy")}).`;
+    const payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> = {
+      motivoCodigo: motivo,
+      observacion: observacion.trim() || undefined,
+    };
+    if (motivo === "PLAN_DE_PAGO" && fechaPrimera) {
+      payload.planPago = { cantidadCuotas: cuotasNum, fechaVencimientoPrimeraCuota: format(fechaPrimera, "yyyy-MM-dd") };
     }
-    onConfirm("Proceso cerrado", descripcion);
+    if (motivo === "CAMBIO_PARAMETRO") {
+      payload.cambioParametro = { parametro: parametro.trim(), valorAnterior: valorAnterior.trim(), valorNuevo: valorNuevo.trim() };
+    }
+    onConfirm({ kind: "cerrar", payload });
   };
 
   return (
@@ -1195,16 +1286,16 @@ function CerrarProcesoDialog({
                 <SelectValue placeholder="Seleccionar motivo..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="regularizacion" className="text-[13px]">
+                <SelectItem value="REGULARIZACION" className="text-[13px]">
                   Regularización total
                 </SelectItem>
-                <SelectItem value="plan-pago" className="text-[13px]">
+                <SelectItem value="PLAN_DE_PAGO" className="text-[13px]">
                   Plan de pago
                 </SelectItem>
-                <SelectItem value="judicializacion" className="text-[13px]">
+                <SelectItem value="JUDICIALIZACION" className="text-[13px]">
                   Judicialización
                 </SelectItem>
-                <SelectItem value="otro" className="text-[13px]">
+                <SelectItem value="OTRO" className="text-[13px]">
                   Otro
                 </SelectItem>
               </SelectContent>
@@ -1212,7 +1303,7 @@ function CerrarProcesoDialog({
           </div>
 
           {/* CASO 1: Regularización total */}
-          {motivo === "regularizacion" && (
+          {motivo === "REGULARIZACION" && (
             <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 px-4 py-3.5">
               <div className="space-y-1.5">
                 <Label className="text-[12px] font-medium">
@@ -1257,7 +1348,7 @@ function CerrarProcesoDialog({
           )}
 
           {/* CASO 2: Plan de pago */}
-          {motivo === "plan-pago" && (
+          {motivo === "PLAN_DE_PAGO" && (
             <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 px-4 py-3.5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -1367,7 +1458,7 @@ function CerrarProcesoDialog({
           )}
 
           {/* CASO 3: Otros / Judicialización */}
-          {(motivo === "otro" || motivo === "judicializacion") && (
+          {(motivo === "OTRO" || motivo === "JUDICIALIZACION") && (
             <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 px-4 py-3.5">
               <div className="text-[11.5px] text-muted-foreground">
                 Fecha de cierre:{" "}
@@ -1381,6 +1472,17 @@ function CerrarProcesoDialog({
                 onChange={setObservacion}
                 required
               />
+            </div>
+          )}
+
+          {motivo === "CAMBIO_PARAMETRO" && (
+            <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 px-4 py-3.5">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Input value={parametro} onChange={(e) => setParametro(e.target.value)} placeholder="Parámetro" className="h-9 text-[13px]" />
+                <Input value={valorAnterior} onChange={(e) => setValorAnterior(e.target.value)} placeholder="Valor anterior" className="h-9 text-[13px]" />
+                <Input value={valorNuevo} onChange={(e) => setValorNuevo(e.target.value)} placeholder="Valor nuevo" className="h-9 text-[13px]" />
+              </div>
+              <ObservacionField value={observacion} onChange={setObservacion} required={false} />
             </div>
           )}
 
@@ -1400,7 +1502,7 @@ function CerrarProcesoDialog({
           <Button variant="outline" onClick={onCancel} className="h-9">
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!puedeConfirmar} className="h-9">
+          <Button onClick={handleConfirm} disabled={!puedeConfirmar || mutating} className="h-9">
             Confirmar cierre
           </Button>
         </DialogFooter>
@@ -1449,10 +1551,12 @@ function CompromisoPagoDialog({
   seleccionados,
   onCancel,
   onConfirm,
+  mutating = false,
 }: {
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
-  onConfirm: (titulo: string, descripcion: string) => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1464,6 +1568,7 @@ function CompromisoPagoDialog({
   const [desde, setDesde] = useState<Date | undefined>(today);
   const [hasta, setHasta] = useState<Date | undefined>(en30);
   const [observacion, setObservacion] = useState("");
+  const [montoComprometido, setMontoComprometido] = useState("");
   const [openDesde, setOpenDesde] = useState(false);
   const [openHasta, setOpenHasta] = useState(false);
 
@@ -1472,13 +1577,7 @@ function CompromisoPagoDialog({
 
   const handleConfirm = () => {
     if (!puedeConfirmar || !desde || !hasta) return;
-    onConfirm(
-      "Compromiso de pago registrado",
-      `${total} inmueble(s) con compromiso del ${format(desde, "dd/MM/yyyy")} al ${format(
-        hasta,
-        "dd/MM/yyyy",
-      )}. Proceso pausado.`,
-    );
+onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd"), fechaHasta: format(hasta, "yyyy-MM-dd"), montoComprometido: montoComprometido.trim() ? Number(montoComprometido) : undefined, observacion: observacion.trim() || undefined } });
   };
 
   return (
@@ -1604,6 +1703,11 @@ function CompromisoPagoDialog({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Monto comprometido <span className="text-[11px] font-normal text-muted-foreground">(opcional)</span></Label>
+            <Input type="number" min={0} value={montoComprometido} onChange={(e) => setMontoComprometido(e.target.value)} className="h-9 text-[13px]" placeholder="Ej. 150000" />
+          </div>
+
           {/* Observación */}
           <div className="space-y-1.5">
             <div className="flex items-baseline justify-between">
@@ -1651,7 +1755,7 @@ function CompromisoPagoDialog({
             <Button variant="outline" onClick={onCancel} className="h-9">
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={!puedeConfirmar} className="h-9">
+            <Button onClick={handleConfirm} disabled={!puedeConfirmar || mutating} className="h-9">
               Confirmar y pausar
             </Button>
           </div>
@@ -1699,11 +1803,13 @@ function MoverEtapaDialog({
   seleccionados,
   onCancel,
   onConfirm,
+  mutating = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-etapa" }>;
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
-  onConfirm: (titulo: string, descripcion: string) => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
 }) {
   const total = seleccionados.length;
   const [etapaDestino, setEtapaDestino] = useState<EtapaSeguimiento>(accion.etapa);
@@ -1713,6 +1819,7 @@ function MoverEtapaDialog({
     return d;
   });
   const [observacion, setObservacion] = useState("");
+  const [montoComprometido, setMontoComprometido] = useState("");
   const [calOpen, setCalOpen] = useState(false);
 
   // Validación: cantidad que ya está en una etapa posterior (no puede retroceder).
@@ -1721,12 +1828,7 @@ function MoverEtapaDialog({
   const aplicables = total - bloqueados;
 
   const handleConfirm = () => {
-    onConfirm(
-      `Movimiento a "${etapaDestino}"`,
-      `${aplicables} de ${total} inmueble(s) movidos a "${etapaDestino}"${
-        fecha ? ` con fecha programada ${format(fecha, "dd/MM/yyyy")}` : ""
-      }.`,
-    );
+onConfirm({ kind: "enviar-etapa", payload: { observacion: observacion.trim() || undefined } });
   };
 
   return (
@@ -1881,7 +1983,7 @@ function MoverEtapaDialog({
             <Button variant="outline" onClick={onCancel} className="h-9">
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={aplicables === 0} className="h-9">
+            <Button onClick={handleConfirm} disabled={aplicables === 0 || mutating} className="h-9">
               Confirmar movimiento
             </Button>
           </div>
