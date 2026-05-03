@@ -313,6 +313,22 @@ public class SeguimientoService {
     }
 
     @Transactional
+    public BulkActionResultResponse cerrarBulk(List<UUID> casoIds, String motivoCodigo, String observacion,
+                                               ProcesoCierreService.PlanPagoData planPago,
+                                               ProcesoCierreService.CambioParametroData cambioParametro) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID casoId : casoIds) {
+            try {
+                cerrar(casoId, motivoCodigo, observacion, planPago, cambioParametro);
+                result.aplicado(casoId, "Proceso cerrado");
+            } catch (Exception ex) {
+                result.error(casoId, ex.getMessage());
+            }
+        }
+        return result;
+    }
+
+    @Transactional
     public CompromisoPago registrarCompromiso(UUID casoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
         CasoSeguimiento caso = motor.validarCasoOperable(casoId);
         motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
@@ -325,5 +341,20 @@ public class SeguimientoService {
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
         return c;
+    }
+
+    @Transactional
+    public BulkActionResultResponse registrarCompromisosBulk(List<UUID> casoIds, LocalDate fechaDesde, LocalDate fechaHasta,
+                                                             BigDecimal monto, String observacion) {
+        BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
+        for (UUID casoId : casoIds) {
+            try {
+                registrarCompromiso(casoId, fechaDesde, fechaHasta, monto, observacion);
+                result.aplicado(casoId, "Compromiso registrado");
+            } catch (Exception ex) {
+                result.error(casoId, ex.getMessage());
+            }
+        }
+        return result;
     }
 }

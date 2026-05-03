@@ -10,6 +10,8 @@ export const seguimientoApi = {
   pausar: (body: unknown) => apiClient.post("/api/v1/seguimiento/pausar", body),
   reabrir: (body: unknown) => apiClient.post("/api/v1/seguimiento/reabrir", body),
   cerrar: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar", body),
+  cerrarBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar/bulk", body),
   registrarCompromiso: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
+  registrarCompromisosBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos/bulk", body),
   compromisos: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
 };
