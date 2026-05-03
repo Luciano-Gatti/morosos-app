@@ -164,15 +164,15 @@ type AccionDialogConfirmPayload =
 
 export default function GestionEtapas() {
   const { toast } = useToast();
-  const umbralCuotas = parametrosSeguimiento.cuotasParaMoroso;
+  const [umbralCuotas, setUmbralCuotas] = useState<number>(parametrosSeguimiento.cuotasParaMoroso);
 
   // Universo base: solo los inmuebles que cumplen con el umbral configurado en
   // /configuracion/seguimiento. El resto no debe aparecer en gestión de etapas.
   const universoMorosos = useMemo(
-    () => inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= umbralCuotas),
-    [umbralCuotas],
+    () => (USE_API ? rows : inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= umbralCuotas)),
+    [rows, umbralCuotas],
   );
-  const excluidosPorUmbral = inmueblesMorosos.length - universoMorosos.length;
+  const excluidosPorUmbral = USE_API ? 0 : inmueblesMorosos.length - universoMorosos.length;
 
   const [query, setQuery] = useState("");
   const [etapaFiltro, setEtapaFiltro] = useState<EtapaFiltro>("all");
@@ -192,15 +192,31 @@ export default function GestionEtapas() {
   const [gruposApi, setGruposApi] = useState<string[]>([]);
   const [distritosApi, setDistritosApi] = useState<string[]>([]);
   const [etapasApi, setEtapasApi] = useState<string[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCatalogs = async () => {
+      if (!USE_API) return;
       try {
-        const [gs, ds, es] = await Promise.all([configuracionApi.grupos(), configuracionApi.distritos(), configuracionApi.etapas()]);
+        setCatalogError(null);
+        const [gs, ds, es, ps] = await Promise.all([
+          configuracionApi.grupos(),
+          configuracionApi.distritos(),
+          configuracionApi.etapas(),
+          configuracionApi.parametrosSeguimiento(),
+        ]);
         setGruposApi((gs?.content ?? gs ?? []).map((x: any) => x.nombre ?? x.grupo ?? String(x)));
         setDistritosApi((ds?.content ?? ds ?? []).map((x: any) => x.nombre ?? x.distrito ?? String(x)));
         setEtapasApi((es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x)));
-      } catch {}
+        const params = (ps?.content ?? ps ?? []) as any[];
+        const umbral = params.find((x: any) => String(x.codigo ?? "").toUpperCase().includes("CUOTAS"));
+        const valor = Number(umbral?.valor ?? umbral?.value);
+        if (Number.isFinite(valor) && valor > 0) setUmbralCuotas(valor);
+        else setCatalogError("No se encontró el umbral moroso en API; se usa valor por defecto para UI.");
+      } catch (e) {
+        setCatalogError("No se pudieron cargar catálogos de seguimiento.");
+        toast({ title: "Error de catálogos", description: e instanceof ApiError ? e.message : "No se pudieron cargar catálogos.", variant: "destructive" });
+      }
     };
     loadCatalogs();
   }, []);
@@ -268,8 +284,8 @@ export default function GestionEtapas() {
   const clearSelection = () => setSelected(new Set());
 
   const seleccionados = useMemo(
-    () => universoMorosos.filter((m) => selected.has(m.id)),
-    [universoMorosos, selected],
+    () => rows.filter((m) => selected.has(m.id)),
+    [rows, selected],
   );
 
   const hasFilters =
@@ -351,6 +367,7 @@ export default function GestionEtapas() {
       />
 
       <main className="flex-1 px-6 py-6">
+        {catalogError && <div className="mb-2 text-xs text-destructive">{catalogError}</div>}
         {/* Aviso de universo: solo entran inmuebles que cumplen el umbral configurado */}
         <div className="mb-3 flex flex-wrap items-start gap-3 rounded-md border border-primary/20 bg-primary-soft/40 px-3 py-2.5 text-[12.5px] text-foreground">
           <Settings2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -412,7 +429,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todas las etapas</SelectItem>
                 <SelectItem value="sin-etapa" className="text-[13px]">Sin etapa asignada</SelectItem>
-                {(etapasApi.length ? etapasApi : etapasSeguimiento).map((e) => (
+                {(USE_API ? etapasApi : etapasSeguimiento).map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -444,7 +461,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los grupos</SelectItem>
-                {(gruposApi.length ? gruposApi : gruposSeguimiento).map((g) => (
+                {(USE_API ? gruposApi : gruposSeguimiento).map((g) => (
                   <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>
                 ))}
               </SelectContent>
@@ -456,7 +473,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los distritos</SelectItem>
-                {(distritosApi.length ? distritosApi : distritosSeguimiento).map((d) => (
+                {(USE_API ? distritosApi : distritosSeguimiento).map((d) => (
                   <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>
                 ))}
               </SelectContent>
@@ -1888,7 +1905,7 @@ onConfirm({ kind: "enviar-etapa", payload: { observacion: observacion.trim() || 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(etapasApi.length ? etapasApi : etapasSeguimiento).map((e) => (
+                  {(USE_API ? etapasApi : etapasSeguimiento).map((e) => (
                     <SelectItem key={e} value={e} className="text-[13px]">
                       {e}
                     </SelectItem>

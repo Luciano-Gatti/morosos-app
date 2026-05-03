@@ -89,8 +89,10 @@ function hoy() {
 
 export default function ConfiguracionGrupos() {
   const { toast } = useToast();
-  const [grupos, setGrupos] = useState<Grupo[]>(gruposIniciales);
-  const [distritosCatalogo, setDistritosCatalogo] = useState<string[]>(distritosInmueble);
+  const [grupos, setGrupos] = useState<Grupo[]>(() => (USE_API ? [] : gruposIniciales));
+  const [distritosCatalogo, setDistritosCatalogo] = useState<string[]>(() =>
+    USE_API ? [] : distritosInmueble,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
@@ -186,9 +188,10 @@ const filtered = useMemo(() => {
     );
   }, [grupos, query]);
 
-  const totalConSeguimiento = grupos.filter(
-    (g) => resumenSeguimiento(g).activos > 0,
-  ).length;
+  const totalConSeguimiento = grupos.filter((g) => {
+    if (!USE_API) return resumenSeguimiento(g).activos > 0;
+    return g.distritos.some((d) => Boolean(d.seguimientoHabilitado));
+  }).length;
 
   const openCreate = () => {
     setEditing(null);
@@ -259,6 +262,15 @@ const filtered = useMemo(() => {
   }, [distritosTarget, distritosDraft]);
 
   const handleAgregarDistrito = () => {
+    if (USE_API) {
+      toast({
+        title: "Operación no disponible",
+        description:
+          "La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!distritoNuevo) return;
     setDistritosDraft((prev) => [
       ...prev,
@@ -268,6 +280,15 @@ const filtered = useMemo(() => {
   };
 
   const handleQuitarDistrito = (distrito: string) => {
+    if (USE_API) {
+      toast({
+        title: "Operación no disponible",
+        description:
+          "La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.",
+        variant: "destructive",
+      });
+      return;
+    }
     const item = distritosDraft.find((d) => d.distrito === distrito);
     if (item && item.inmuebles > 0) {
       toast({
@@ -335,7 +356,9 @@ const filtered = useMemo(() => {
   };
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const totalInm = totalInmueblesGrupo(deleteTarget);
+    const totalInm = USE_API
+      ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+      : totalInmueblesGrupo(deleteTarget);
     if (!USE_API && totalInm > 0) {
       toast({
         title: "No se puede eliminar el grupo",
@@ -818,7 +841,7 @@ const filtered = useMemo(() => {
                   size="sm"
                   className="h-9 gap-1.5 text-[12.5px]"
                   onClick={handleAgregarDistrito}
-                  disabled={!distritoNuevo}
+                  disabled={!distritoNuevo || USE_API}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Asociar
@@ -843,6 +866,11 @@ const filtered = useMemo(() => {
               Guardar cambios
             </Button>
           </DialogFooter>
+          {USE_API && (
+            <p className="text-[12px] text-muted-foreground">
+              La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -885,13 +913,19 @@ const filtered = useMemo(() => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[15px]">
-              {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0
+              {deleteTarget &&
+              (USE_API
+                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+                : totalInmueblesGrupo(deleteTarget)) > 0
                 ? "No se puede eliminar el grupo"
                 : "Eliminar grupo"}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[12.5px]" asChild>
               <div>
-                {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0 ? (
+                {deleteTarget &&
+                (USE_API
+                  ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+                  : totalInmueblesGrupo(deleteTarget)) > 0 ? (
                   <>
                     El grupo{" "}
                     <span className="font-semibold text-foreground">
@@ -899,7 +933,11 @@ const filtered = useMemo(() => {
                     </span>{" "}
                     tiene{" "}
                     <span className="font-semibold text-foreground">
-                      {numberFmt.format(totalInmueblesGrupo(deleteTarget))}{" "}
+                      {numberFmt.format(
+                        USE_API
+                          ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+                          : totalInmueblesGrupo(deleteTarget),
+                      )}{" "}
                       inmuebles
                     </span>{" "}
                     asignados, por lo que no puede eliminarse.
@@ -922,11 +960,17 @@ const filtered = useMemo(() => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-9 text-[13px]">
-              {deleteTarget && totalInmueblesGrupo(deleteTarget) > 0
+              {deleteTarget &&
+              (USE_API
+                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+                : totalInmueblesGrupo(deleteTarget)) > 0
                 ? "Cerrar"
                 : "Cancelar"}
             </AlertDialogCancel>
-            {deleteTarget && totalInmueblesGrupo(deleteTarget) === 0 && (
+            {deleteTarget &&
+              (USE_API
+                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
+                : totalInmueblesGrupo(deleteTarget)) === 0 && (
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={mutating}
