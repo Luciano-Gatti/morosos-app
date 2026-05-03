@@ -45,8 +45,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { type CargaDeuda, type CargaEstado } from "@/types/deuda";
 import { deudaApi } from "@/services/api/deudaApi";
+import { useToast } from "@/hooks/use-toast";
+import { ApiError } from "@/lib/apiClient";
 
 type SortKey = "fecha" | "nombre" | "morosos" | "montoTotal";
 type SortDir = "asc" | "desc";
@@ -99,6 +109,7 @@ function formatFecha(iso: string) {
 }
 
 export default function GestionDeuda() {
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [estado, setEstado] = useState<"all" | CargaEstado>("all");
   const [periodo, setPeriodo] = useState<"all" | "7" | "30" | "90">("all");
@@ -110,6 +121,16 @@ export default function GestionDeuda() {
   const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPeriodo, setImportPeriodo] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const isPeriodoValido = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+  const resetImportForm = () => {
+    setImportFile(null);
+    setImportPeriodo("");
+  };
   useEffect(() => {
     const fetchCargas = async () => {
       try {
@@ -160,6 +181,41 @@ export default function GestionDeuda() {
     setPage(1);
   };
 
+  const handleImportar = async () => {
+    if (!importFile) {
+      toast({ title: "Archivo requerido", description: "Seleccioná un archivo .csv o .xlsx.", variant: "destructive" });
+      return;
+    }
+    if (!isPeriodoValido(importPeriodo)) {
+      toast({ title: "Período inválido", description: "Ingresá un período válido en formato YYYY-MM.", variant: "destructive" });
+      return;
+    }
+    const ext = importFile.name.toLowerCase();
+    if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx"))) {
+      toast({ title: "Formato no permitido", description: "Solo se permiten archivos .csv o .xlsx.", variant: "destructive" });
+      return;
+    }
+    try {
+      setImporting(true);
+      const fd = new FormData();
+      fd.append("file", importFile);
+      fd.append("periodo", `${importPeriodo}-01`);
+      await deudaApi.importarCarga(fd);
+      toast({ title: "Importación iniciada", description: "La carga de deuda se envió correctamente." });
+      resetImportForm();
+      setImportOpen(false);
+      setPage(1);
+    } catch (e) {
+      toast({
+        title: "Error de importación",
+        description: e instanceof ApiError ? e.message : "No se pudo importar la deuda.",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <>
       <AppHeader
@@ -172,7 +228,7 @@ export default function GestionDeuda() {
               <Download className="h-4 w-4" />
               Plantilla
             </Button>
-            <Button size="sm" className="h-9 gap-2">
+            <Button size="sm" className="h-9 gap-2" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" />
               Cargar deuda
             </Button>
@@ -345,6 +401,44 @@ export default function GestionDeuda() {
           </div>
         </div>
       </main>
+      <Dialog open={importOpen} onOpenChange={(v) => { if (!importing) setImportOpen(v); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar deuda</DialogTitle>
+            <DialogDescription>
+              Seleccioná archivo y período de la carga.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-foreground">Archivo (.csv o .xlsx)</label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx"
+                disabled={importing}
+                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-foreground">Período (YYYY-MM)</label>
+              <Input
+                type="month"
+                value={importPeriodo}
+                disabled={importing}
+                onChange={(e) => setImportPeriodo(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={importing} onClick={() => setImportOpen(false)}>
+              Cancelar
+            </Button>
+            <Button disabled={importing} onClick={handleImportar}>
+              {importing ? "Importando..." : "Confirmar importación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
