@@ -39,7 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { inmueblesPadron, gruposInmueble, distritosInmueble } from "@/data/inmuebles";
+import { inmueblesPadron, gruposInmueble, distritosInmueble } from "@/demo/inmueblesDemo";
 import { USE_API } from "@/lib/apiClient";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import { configuracionApi } from "@/services/api/configuracionApi";

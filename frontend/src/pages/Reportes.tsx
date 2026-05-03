@@ -61,7 +61,7 @@ import {
   serieDiaria,
   TIPOS_NOTIFICACION,
   TIPOS_REGULARIZACION,
-} from "@/data/reportes";
+} from "@/demo/reportesDemo";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
 import type { AccionRegistro, AccionTipo, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";

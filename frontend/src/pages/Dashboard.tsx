@@ -3,23 +3,25 @@ import { DistritosGrid } from "@/components/dashboard/DistritosGrid";
 import { MorosidadResumen } from "@/components/dashboard/MorosidadResumen";
 import { AccionesMesGrid } from "@/components/dashboard/AccionesMesGrid";
 import { UltimosMovimientos } from "@/components/dashboard/UltimosMovimientos";
-import { distritosStats, resumenMorosidad, accionesMes, ultimosMovimientos } from "@/data/mock";
+import { getDashboardDemoData } from "@/demo/dashboardDemo";
 import { USE_API } from "@/lib/apiClient";
 import { dashboardApi } from "@/services/api/dashboardApi";
 import { useEffect, useMemo, useState } from "react";
 import { isDashboardResumenEmpty, mapDashboardResumen, type DashboardResumenViewModel } from "@/adapters/dashboard";
 
 export default function Dashboard() {
+  const demoData = getDashboardDemoData();
+
   const [loading, setLoading] = useState(USE_API);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardResumenViewModel | null>(
     USE_API
       ? null
       : mapDashboardResumen({
-          kpis: resumenMorosidad as any,
-          accionesMes: accionesMes as any,
-          distritos: distritosStats as any,
-          movimientos: ultimosMovimientos as any,
+          kpis: demoData.resumenMorosidad as any,
+          accionesMes: demoData.accionesMes as any,
+          distritos: demoData.distritosStats as any,
+          movimientos: demoData.ultimosMovimientos as any,
         }),
   );
 
