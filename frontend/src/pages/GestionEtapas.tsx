@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
@@ -177,7 +178,8 @@ type MotivoCierreOption = {
 };
 
 type AccionDialogConfirmPayload =
-  | { kind: "enviar-etapa" | "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
+  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
   | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> };
 
@@ -382,9 +384,18 @@ export default function GestionEtapas() {
       if (data.kind === "iniciar") {
         const inmuebleIds = selectedRows.filter((r) => !r.casoId).map((r) => r.inmuebleId || r.id);
         result = await seguimientoApi.iniciar({ inmuebleIds, observacion: data.payload.observacion });
-      } else if (data.kind === "enviar-siguiente" || data.kind === "enviar-etapa") {
+      } else if (data.kind === "enviar-siguiente") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.avanzar({ casoIds, observacion: data.payload.observacion });
+      } else if (data.kind === "enviar-etapa") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        result = await seguimientoApi.enviarEtapa({
+          casoIds,
+          etapaDestinoId: data.payload.etapaDestinoId,
+          observacion: data.payload.observacion,
+          fechaProgramada: data.payload.fechaProgramada,
+          repetirMismaEtapa: Boolean(data.payload.repetirMismaEtapa),
+        });
       } else if (data.kind === "repetir-etapa") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.repetir({ casoIds, observacion: data.payload.observacion });
@@ -2027,16 +2038,32 @@ function MoverEtapaDialog({
     return d;
   });
   const [observacion, setObservacion] = useState("");
-  const [montoComprometido, setMontoComprometido] = useState("");
   const [calOpen, setCalOpen] = useState(false);
+  const [accionMismaEtapa, setAccionMismaEtapa] = useState<"repetir" | "omitir">("omitir");
 
-  // Validación: cantidad que ya está en una etapa posterior (no puede retroceder).
   const idxDestino = etapaIndex(etapaDestino);
-  const bloqueados = seleccionados.filter((m) => etapaIndex(m.etapa) > idxDestino).length;
-  const aplicables = total - bloqueados;
+  const idxPrimeraEtapa = etapasOperativas.length > 0 ? 0 : -1;
+  const destinoEsPrimeraEtapa = idxDestino === idxPrimeraEtapa;
+  const enEtapaPosterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) > idxDestino).length;
+  const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) === idxDestino).length;
+  const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) < idxDestino).length;
+  const sinSeguimiento = seleccionados.filter((m) => !m.casoId).length;
+  const sinSeguimientoIniciables = destinoEsPrimeraEtapa ? sinSeguimiento : 0;
+  const sinSeguimientoOmitidos = destinoEsPrimeraEtapa ? 0 : sinSeguimiento;
+  const mismaEtapaRepetir = accionMismaEtapa === "repetir" ? enMismaEtapa : 0;
+  const mismaEtapaOmitir = accionMismaEtapa === "omitir" ? enMismaEtapa : 0;
+  const aplicables = enEtapaAnterior + mismaEtapaRepetir + sinSeguimientoIniciables;
 
   const handleConfirm = () => {
-onConfirm({ kind: "enviar-etapa", payload: { observacion: observacion.trim() || undefined } });
+    onConfirm({
+      kind: "enviar-etapa",
+      payload: {
+        observacion: observacion.trim() || undefined,
+        etapaDestinoId: etapaDestino,
+        fechaProgramada: fecha ? format(fecha, "yyyy-MM-dd") : undefined,
+        repetirMismaEtapa: accionMismaEtapa === "repetir",
+      },
+    });
   };
 
   return (
@@ -2164,15 +2191,51 @@ onConfirm({ kind: "enviar-etapa", payload: { observacion: observacion.trim() || 
             </div>
           </div>
 
+          <div className="rounded-md border border-border bg-surface-muted/40 px-3 py-2.5 text-[12.5px]">
+            <div className="font-medium">Resumen previo (informativo)</div>
+            <ul className="mt-1 space-y-0.5 text-muted-foreground">
+              <li>Total seleccionados: {numberFmt.format(total)}</li>
+              <li>Pueden avanzar (etapa anterior): {numberFmt.format(enEtapaAnterior)}</li>
+              <li>En etapa posterior (omitidos): {numberFmt.format(enEtapaPosterior)}</li>
+              <li>En misma etapa: {numberFmt.format(enMismaEtapa)}</li>
+              <li>Sin seguimiento iniciado: {numberFmt.format(sinSeguimiento)}</li>
+              <li>Sin seguimiento a iniciar (si destino es primera): {numberFmt.format(sinSeguimientoIniciables)}</li>
+              <li>Sin seguimiento omitidos: {numberFmt.format(sinSeguimientoOmitidos)}</li>
+            </ul>
+          </div>
+
+          {enMismaEtapa > 0 && (
+            <div className="space-y-2 rounded-md border border-border px-3 py-2.5">
+              <div className="text-[12.5px]">
+                <span className="font-semibold">{enMismaEtapa}</span> casos ya se encuentran en la etapa destino. ¿Querés repetir la etapa para esos casos o dejarlos omitidos?
+              </div>
+              <RadioGroup value={accionMismaEtapa} onValueChange={(v) => setAccionMismaEtapa(v as "repetir" | "omitir")}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="repetir" id="misma-etapa-repetir" />
+                  <Label htmlFor="misma-etapa-repetir" className="text-[12.5px]">Repetir etapa actual</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="omitir" id="misma-etapa-omitir" />
+                  <Label htmlFor="misma-etapa-omitir" className="text-[12.5px]">Omitir sin cambios</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
+
           {/* Aviso de bloqueos por no-retroceso */}
-          {bloqueados > 0 && (
+          {enEtapaPosterior > 0 && (
             <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                <span className="font-semibold">{bloqueados}</span> inmueble
-                {bloqueados === 1 ? "" : "s"} ya{" "}
-                {bloqueados === 1 ? "está" : "están"} en una etapa posterior y{" "}
-                {bloqueados === 1 ? "será omitido" : "serán omitidos"} (no se permite retroceso).
+                No se puede retroceder. Algunos casos seleccionados se encuentran en una etapa posterior a la etapa destino.
+              </span>
+            </div>
+          )}
+          {sinSeguimientoOmitidos > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Algunos inmuebles no tienen seguimiento iniciado y no pueden enviarse directamente a una etapa avanzada.
               </span>
             </div>
           )}
