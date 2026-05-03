@@ -128,6 +128,7 @@ type AccionMasiva =
   | { kind: "enviar-siguiente" }
   | { kind: "repetir-etapa" }
   | { kind: "iniciar" }
+  | { kind: "pausar" }
   | { kind: "reabrir" }
   | { kind: "cerrar" }
   | { kind: "compromiso" };
@@ -335,6 +336,7 @@ export default function GestionEtapas() {
       canIniciar: USE_API ? (hasBackendActions ? canAll("puedeIniciar") : false) : selectedRows.every((m) => m.etapa === null),
       canAvanzar: USE_API ? (hasBackendActions ? canAll("puedeAvanzar") : false) : selectedRows.some((m) => m.etapa !== null),
       canRepetir: USE_API ? (hasBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null),
+      canPausar: USE_API ? (hasBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null),
       canCerrar: USE_API ? (hasBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null),
       canCompromiso: USE_API ? (hasBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true,
       canReabrir: USE_API ? (hasBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado"),
@@ -847,6 +849,7 @@ function SelectionBar({
     canIniciar: boolean;
     canAvanzar: boolean;
     canRepetir: boolean;
+    canPausar: boolean;
     canCerrar: boolean;
     canCompromiso: boolean;
     canReabrir: boolean;
@@ -915,6 +918,20 @@ function SelectionBar({
       >
         <RotateCcw className="h-3.5 w-3.5" />
         Repetir etapa
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-[12.5px]"
+        onClick={() => onAction({ kind: "pausar" })}
+        disabled={USE_API ? (selectedActions.hasAny && !selectedActions.canPausar) : !hasConEtapa}
+        title={USE_API
+          ? (selectedActions.hasAny && !selectedActions.canPausar ? disabledMsg : undefined)
+          : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
+      >
+        <PauseCircle className="h-3.5 w-3.5" />
+        Pausar proceso
       </Button>
 
       {hasSinEtapa && !hasConEtapa && (
