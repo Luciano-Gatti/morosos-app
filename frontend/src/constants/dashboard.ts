@@ -1,3 +1,8 @@
-import { accionesLabels } from "@/demo/dashboardDemo";
+import type { AccionClave } from "@/types/mock";
 
-export { accionesLabels };
+export const accionesLabels: Record<AccionClave, string> = {
+  avisos_deuda: "Avisos deuda",
+  avisos_corte: "Avisos corte",
+  intimaciones: "Intimaciones",
+  cortes: "Cortes",
+};

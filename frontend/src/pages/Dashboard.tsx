@@ -10,19 +10,19 @@ import { useEffect, useMemo, useState } from "react";
 import { isDashboardResumenEmpty, mapDashboardResumen, type DashboardResumenViewModel } from "@/adapters/dashboard";
 
 export default function Dashboard() {
-  const demoData = getDashboardDemoData();
+  const demoData = USE_API ? null : getDashboardDemoData();
 
   const [loading, setLoading] = useState(USE_API);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardResumenViewModel | null>(
     USE_API
       ? null
-      : mapDashboardResumen({
-          kpis: demoData.resumenMorosidad as any,
-          accionesMes: demoData.accionesMes as any,
-          distritos: demoData.distritosStats as any,
-          movimientos: demoData.ultimosMovimientos as any,
-        }),
+          : mapDashboardResumen({
+              kpis: demoData!.resumenMorosidad as any,
+              accionesMes: demoData!.accionesMes as any,
+              distritos: demoData!.distritosStats as any,
+              movimientos: demoData!.ultimosMovimientos as any,
+            }),
   );
 
   useEffect(() => {
@@ -61,8 +61,8 @@ export default function Dashboard() {
         {!loading && !error && data && !isEmpty && (
           <>
             <section aria-label="Resumen ejecutivo" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <MorosidadResumen data={data.resumenMorosidad as any} />
-              <AccionesMesGrid data={data.accionesMes as any} />
+              <MorosidadResumen data={data.resumenMorosidad} />
+              <AccionesMesGrid data={data.accionesMes} />
             </section>
 
             <section className="mt-6">
@@ -78,11 +78,11 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <DistritosGrid distritos={data.distritosStats as any} />
+              <DistritosGrid distritos={data.distritosStats} />
             </section>
 
             <section className="mt-6">
-              <UltimosMovimientos data={data.ultimosMovimientos as any} />
+              <UltimosMovimientos data={data.ultimosMovimientos} />
             </section>
           </>
         )}

@@ -12,9 +12,18 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ultimosMovimientos } from "@/demo/dashboardDemo";
 import type { MovimientoTipo } from "@/types/mock";
 import { useNavigate } from "react-router-dom";
+
+type MovimientoItem = {
+  id: string;
+  fecha: string;
+  cuenta: string;
+  titular: string;
+  tipo: MovimientoTipo;
+  accion: string;
+  etapa?: string;
+};
 
 const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label: string }> = {
   intimacion: { icon: Gavel, accent: "bg-accent-soft text-accent", label: "Intimación" },
@@ -47,7 +56,7 @@ const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label
   },
 };
 
-export function UltimosMovimientos({ data = ultimosMovimientos }: { data?: typeof ultimosMovimientos }) {
+export function UltimosMovimientos({ data }: { data: MovimientoItem[] }) {
   const navigate = useNavigate();
   const visibles = data.slice(0, 5);
   return (

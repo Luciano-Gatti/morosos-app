@@ -1,6 +1,11 @@
-import { resumenMorosidad } from "@/demo/dashboardDemo";
+type MorosidadResumenData = {
+  totalInmuebles: number;
+  alDia: number;
+  deudores: number;
+  morosos: number;
+};
 
-export function MorosidadResumen({ data = resumenMorosidad }: { data?: typeof resumenMorosidad }) {
+export function MorosidadResumen({ data }: { data: MorosidadResumenData }) {
   const { totalInmuebles, alDia, deudores, morosos } = data;
   const pctMorosos = (morosos / totalInmuebles) * 100;
   const pctDeudores = (deudores / totalInmuebles) * 100;
