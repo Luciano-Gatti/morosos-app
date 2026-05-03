@@ -56,3 +56,25 @@ export interface MorosidadPorcentajeTotal {
   alDia: number;
   porcentajeMorosidad: number;
 }
+export type MovimientoTipo =
+  | "intimacion"
+  | "corte"
+  | "regularizacion"
+  | "plan_pago"
+  | "compromiso"
+  | "aviso_deuda"
+  | "aviso_corte"
+  | "configuracion";
+
+export interface MovimientoRegistro {
+  id: string;
+  fecha: string;
+  cuenta: string;
+  titular: string;
+  accion: string;
+  etapa: string;
+  tipo: MovimientoTipo;
+  usuario: string;
+  categoria: string;
+}
+

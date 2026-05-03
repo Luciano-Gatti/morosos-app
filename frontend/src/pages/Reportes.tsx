@@ -63,9 +63,7 @@ import {
   TIPOS_REGULARIZACION,
 } from "@/data/reportes";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
-import { ultimosMovimientos } from "@/data/mock";
-import type { AccionRegistro, AccionTipo } from "@/types/reportes";
-import type { MovimientoTipo } from "@/types/mock";
+import type { AccionRegistro, AccionTipo, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";
 import { mapReporteAccionesFechas, mapReporteAccionesRegularizacion, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
 import { USE_API } from "@/lib/apiClient";
@@ -114,7 +112,31 @@ function getReporteEstadoInmueblesViewModel() {
   return { rows: getEstadoInmuebles() };
 }
 function getReporteHistorialMovimientosViewModel() {
-  return { rows: ultimosMovimientos };
+  const rows = filtrarAcciones(null, null).slice(0, 150).map((a, idx): MovimientoRegistro => ({
+    id: `demo-mov-${idx}-${a.id}`,
+    fecha: format(a.fecha, "yyyy-MM-dd"),
+    cuenta: a.cuenta,
+    titular: a.titular,
+    accion: a.tipo,
+    etapa: "Seguimiento",
+    tipo:
+      a.tipo === "Intimación"
+        ? "intimacion"
+        : a.tipo === "Corte"
+          ? "corte"
+          : a.tipo === "Regularización"
+            ? "regularizacion"
+            : a.tipo === "Plan de pago"
+              ? "plan_pago"
+              : a.tipo === "Compromiso de pago"
+                ? "compromiso"
+                : a.tipo === "Aviso de corte"
+                  ? "aviso_corte"
+                  : "aviso_deuda",
+    usuario: a.usuario,
+    categoria: "movimiento",
+  }));
+  return { rows };
 }
 function getReporteAccionesFechasViewModel(desde: Date | null, hasta: Date | null) {
   const rows = filtrarAcciones(desde, hasta);
@@ -1830,7 +1852,7 @@ async function runExport(
   }
 
   if (reporte.id === "historial-movimientos") {
-    const rows = reporteState?.data?.rows ?? ultimosMovimientos;
+    const rows = reporteState?.data?.rows ?? [];
     const head = ["Fecha", "Usuario", "Acción"];
     const body = rows.map((m) => [
       m.fecha,

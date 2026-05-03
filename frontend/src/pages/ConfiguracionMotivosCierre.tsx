@@ -69,10 +69,8 @@ import { cn } from "@/lib/utils";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { ApiError } from "@/lib/apiClient";
 import { mapMotivoCierre } from "@/adapters/motivosCierre";
-import {
-  motivosCierreIniciales,
-  type MotivoCierre,
-} from "@/data/motivosCierre";
+import { motivosCierreIniciales } from "@/data/motivosCierre";
+import type { MotivoCierre } from "@/types/configuracion";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
 

@@ -66,9 +66,8 @@ import {
   gruposIniciales,
   resumenSeguimiento,
   totalInmueblesGrupo,
-  type Grupo,
-  type GrupoDistrito,
 } from "@/data/grupos";
+import type { Grupo, GrupoDistrito } from "@/types/grupos";
 import { distritosInmueble } from "@/data/inmuebles";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
