@@ -7,10 +7,11 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import pe.morosos.deuda.entity.CargaDeuda;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 
-public interface CargaDeudaRepository extends JpaRepository<CargaDeuda, UUID> {
+public interface CargaDeudaRepository extends JpaRepository<CargaDeuda, UUID>, JpaSpecificationExecutor<CargaDeuda> {
     Page<CargaDeuda> findByPeriodoAndEstado(LocalDate periodo, CargaDeudaEstado estado, Pageable pageable);
     Page<CargaDeuda> findByPeriodo(LocalDate periodo, Pageable pageable);
     Page<CargaDeuda> findByEstado(CargaDeudaEstado estado, Pageable pageable);

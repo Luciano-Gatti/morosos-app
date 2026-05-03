@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Upload,
@@ -47,7 +47,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type CargaDeuda, type CargaEstado } from "@/types/deuda";
 import { deudaApi } from "@/services/api/deudaApi";
-import { useToast } from "@/hooks/use-toast";
 
 type SortKey = "fecha" | "nombre" | "morosos" | "montoTotal";
 type SortDir = "asc" | "desc";
@@ -111,8 +110,6 @@ export default function GestionDeuda() {
   const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-
   useEffect(() => {
     const fetchCargas = async () => {
       try {
@@ -121,7 +118,15 @@ export default function GestionDeuda() {
         const now = new Date();
         const fromDate = periodo === "all" ? undefined : new Date(now.getTime() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const estadoApi = estado === "all" ? undefined : ({ completada: "COMPLETADA", con_errores: "COMPLETADA_CON_ERRORES", fallida: "FALLIDA", procesando: "PROCESANDO" } as const)[estado];
-        const res = await deudaApi.getCargas({ page: page - 1, size: PAGE_SIZE, estado: estadoApi, fromDate });
+        const sort = `${sortKey},${sortDir}`;
+        const res = await deudaApi.getCargas({
+          page: page - 1,
+          size: PAGE_SIZE,
+          estado: estadoApi,
+          fromDate,
+          search: query.trim() || undefined,
+          sort,
+        });
         setRows((res.content || []).map(mapCargaApi));
         setTotalPages(Math.max(1, res.totalPages || 1));
         setTotalElements(res.totalElements || 0);
@@ -132,28 +137,11 @@ export default function GestionDeuda() {
       }
     };
     fetchCargas();
-  }, [page, estado, periodo]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((c) => !q || c.nombre.toLowerCase().includes(q) || c.usuario.toLowerCase().includes(q));
-  }, [rows, query]);
-
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
-    copy.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      let cmp = 0;
-      if (typeof av === "number" && typeof bv === "number") cmp = av - bv; else cmp = String(av).localeCompare(String(bv), "es", { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return copy;
-  }, [filtered, sortKey, sortDir]);
+  }, [page, estado, periodo, sortDir, sortKey, query]);
 
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageRows = sorted;
+  const pageRows = rows;
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -171,20 +159,6 @@ export default function GestionDeuda() {
     setPeriodo("all");
     setPage(1);
   };
-
-  // Resumen agregado del listado filtrado
-  const resumen = useMemo(() => {
-    return filtered.reduce(
-      (acc, c) => {
-        acc.cargas += 1;
-        acc.morosos += c.morosos;
-        acc.monto += c.montoTotal;
-        acc.errores += c.errores + c.noEncontradas;
-        return acc;
-      },
-      { cargas: 0, morosos: 0, monto: 0, errores: 0 },
-    );
-  }, [filtered]);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -86,9 +86,14 @@ export default function CargaDetalle() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [erroresOpen, setErroresOpen] = useState(false);
+  const [erroresPage, setErroresPage] = useState(1);
+  const [erroresTotalPages, setErroresTotalPages] = useState(1);
+  const [erroresTotalElements, setErroresTotalElements] = useState(0);
 
   const [inmuebles, setInmuebles] = useState<InmuebleCarga[]>([]);
   const [erroresList, setErroresList] = useState<ErrorImportacion[]>([]);
+  const [detalleTotalPages, setDetalleTotalPages] = useState(1);
+  const [detalleTotalElements, setDetalleTotalElements] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -96,14 +101,26 @@ export default function CargaDetalle() {
       try {
         setLoading(true);
         setError(null);
+        const sort = `${sortKey},${sortDir}`;
         const [c, d, e] = await Promise.all([
           deudaApi.getCarga(id),
-          deudaApi.getDetalles(id, { page: page - 1, size: PAGE_SIZE }),
-          deudaApi.getErrores(id, { page: 0, size: 200 }),
+          deudaApi.getDetalles(id, {
+            page: page - 1,
+            size: PAGE_SIZE,
+            search: query.trim() || undefined,
+            cuotasMin: cuotasMin === "" ? undefined : Number(cuotasMin),
+            montoMin: montoMin === "" ? undefined : Number(montoMin),
+            sort,
+          }),
+          deudaApi.getErrores(id, { page: erroresPage - 1, size: PAGE_SIZE }),
         ]);
         setCarga(mapCarga(c));
         setInmuebles((d?.content ?? d ?? []).map((r: any) => ({ cuenta: String(r.cuenta ?? r.idCuenta ?? "-"), titular: r.titular ?? "-", direccion: r.direccion ?? "-", cuotas: Number(r.cuotas ?? 0), monto: Number(r.monto ?? 0) })));
+        setDetalleTotalPages(Math.max(1, d?.totalPages || 1));
+        setDetalleTotalElements(d?.totalElements || 0);
         setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: r.descripcion ?? r.error ?? "Error" })));
+        setErroresTotalPages(Math.max(1, e?.totalPages || 1));
+        setErroresTotalElements(e?.totalElements || 0);
       } catch (err) {
         setError("No se pudo cargar el detalle");
       } finally {
@@ -111,45 +128,12 @@ export default function CargaDetalle() {
       }
     };
     load();
-  }, [id, page]);
+  }, [id, page, query, cuotasMin, montoMin, sortKey, sortDir, erroresPage]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return inmuebles.filter((r) => {
-      if (q) {
-        const hit =
-          r.cuenta.toLowerCase().includes(q) ||
-          r.titular.toLowerCase().includes(q) ||
-          r.direccion.toLowerCase().includes(q);
-        if (!hit) return false;
-      }
-      const cMin = cuotasMin === "" ? null : Number(cuotasMin);
-      if (cMin !== null && !Number.isNaN(cMin) && r.cuotas < cMin) return false;
-
-      const mMin = montoMin === "" ? null : Number(montoMin);
-      if (mMin !== null && !Number.isNaN(mMin) && r.monto < mMin) return false;
-
-      return true;
-    });
-  }, [inmuebles, query, cuotasMin, montoMin]);
-
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
-    copy.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      let cmp = 0;
-      if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
-      else cmp = String(av).localeCompare(String(bv), "es", { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return copy;
-  }, [filtered, sortKey, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, detalleTotalPages);
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageRows = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageRows = inmuebles;
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -190,11 +174,11 @@ export default function CargaDetalle() {
   }
 
   const { fecha, hora } = formatFecha(carga.fecha);
-  const sumaMonto = filtered.reduce((acc, r) => acc + r.monto, 0);
+  const sumaMonto = inmuebles.reduce((acc, r) => acc + r.monto, 0);
   const promedioCuotas =
-    filtered.length === 0
+    inmuebles.length === 0
       ? 0
-      : Math.round((filtered.reduce((a, r) => a + r.cuotas, 0) / filtered.length) * 10) / 10;
+      : Math.round((inmuebles.reduce((a, r) => a + r.cuotas, 0) / inmuebles.length) * 10) / 10;
 
   return (
     <>
@@ -303,7 +287,7 @@ export default function CargaDetalle() {
             <div className="text-right text-[11.5px] text-muted-foreground">
               <div>
                 <span className="font-medium text-foreground tabular">
-                  {numberFmt.format(filtered.length)}
+                  {numberFmt.format(detalleTotalElements)}
                 </span>{" "}
                 resultados
               </div>
@@ -411,10 +395,10 @@ export default function CargaDetalle() {
             <div>
               Mostrando{" "}
               <span className="tabular font-medium text-foreground">
-                {sorted.length === 0 ? 0 : pageStart + 1}–
-                {Math.min(pageStart + PAGE_SIZE, sorted.length)}
+                {detalleTotalElements === 0 ? 0 : pageStart + 1}–
+                {Math.min(pageStart + PAGE_SIZE, detalleTotalElements)}
               </span>{" "}
-              de <span className="tabular font-medium text-foreground">{sorted.length}</span> inmuebles
+              de <span className="tabular font-medium text-foreground">{detalleTotalElements}</span> inmuebles
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -461,7 +445,7 @@ export default function CargaDetalle() {
 
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
             <span>
-              Total: <span className="font-medium text-foreground tabular">{numberFmt.format(erroresList.length)}</span> errores
+              Total: <span className="font-medium text-foreground tabular">{numberFmt.format(erroresTotalElements)}</span> errores
             </span>
             <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-[12px]">
               <Download className="h-3.5 w-3.5" />
@@ -510,6 +494,34 @@ export default function CargaDetalle() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[12px] text-muted-foreground">
+            <div>
+              Página <span className="font-medium text-foreground">{erroresPage}</span> /{" "}
+              <span className="font-medium text-foreground">{erroresTotalPages}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setErroresPage((p) => Math.max(1, p - 1))}
+                disabled={erroresPage <= 1}
+                className="h-7 px-2 text-[12px]"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setErroresPage((p) => Math.min(erroresTotalPages, p + 1))}
+                disabled={erroresPage >= erroresTotalPages}
+                className="h-7 px-2 text-[12px]"
+              >
+                Siguiente
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
