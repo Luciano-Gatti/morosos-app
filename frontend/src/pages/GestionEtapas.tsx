@@ -92,6 +92,8 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
+const UMBRAL_VISUAL_DEFAULT = 0;
+
 // Fecha programada determinística por inmueble (solo operativa/informativa).
 function fechaProgramadaPara(id: string): Date | null {
   const n = parseInt(id, 10);
@@ -103,16 +105,17 @@ function fechaProgramadaPara(id: string): Date | null {
   return base;
 }
 
-function etapaIndex(e: EtapaSeguimiento | null): number {
+function etapaIndexEnLista(e: EtapaSeguimiento | null, etapas: EtapaSeguimiento[]): number {
   if (!e) return -1;
-  return etapasSeguimiento.indexOf(e);
+  return etapas.indexOf(e);
 }
 
-function etapaSiguiente(e: EtapaSeguimiento | null): EtapaSeguimiento | null {
-  const i = etapaIndex(e);
-  if (i === -1) return etapasSeguimiento[0];
-  if (i >= etapasSeguimiento.length - 1) return null;
-  return etapasSeguimiento[i + 1];
+function etapaSiguienteEnLista(e: EtapaSeguimiento | null, etapas: EtapaSeguimiento[]): EtapaSeguimiento | null {
+  const i = etapaIndexEnLista(e, etapas);
+  if (etapas.length === 0) return null;
+  if (i === -1) return etapas[0];
+  if (i >= etapas.length - 1) return null;
+  return etapas[i + 1];
 }
 
 const PAGE_SIZE = 15;
@@ -125,8 +128,19 @@ type AccionMasiva =
   | { kind: "enviar-siguiente" }
   | { kind: "repetir-etapa" }
   | { kind: "iniciar" }
+  | { kind: "reabrir" }
   | { kind: "cerrar" }
   | { kind: "compromiso" };
+
+type AccionesDisponiblesRow = {
+  puedeIniciar?: boolean;
+  puedeAvanzar?: boolean;
+  puedeRepetir?: boolean;
+  puedePausar?: boolean;
+  puedeReabrir?: boolean;
+  puedeCerrar?: boolean;
+  puedeRegistrarCompromiso?: boolean;
+} | null | undefined;
 
 export type BulkSeguimientoPayload = {
   ids: string[];
@@ -156,6 +170,11 @@ export type CompromisoPagoPayload = {
   observacion?: string;
 };
 
+type MotivoCierreOption = {
+  codigo: string;
+  nombre: string;
+};
+
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa" | "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
@@ -164,7 +183,8 @@ type AccionDialogConfirmPayload =
 
 export default function GestionEtapas() {
   const { toast } = useToast();
-  const [umbralCuotas, setUmbralCuotas] = useState<number>(parametrosSeguimiento.cuotasParaMoroso);
+  // En modo API este valor es solo visual hasta cargar /parametros-seguimiento.
+  const [umbralCuotas, setUmbralCuotas] = useState<number>(USE_API ? UMBRAL_VISUAL_DEFAULT : parametrosSeguimiento.cuotasParaMoroso);
 
   // Universo base: solo los inmuebles que cumplen con el umbral configurado en
   // /configuracion/seguimiento. El resto no debe aparecer en gestión de etapas.
@@ -192,27 +212,43 @@ export default function GestionEtapas() {
   const [gruposApi, setGruposApi] = useState<string[]>([]);
   const [distritosApi, setDistritosApi] = useState<string[]>([]);
   const [etapasApi, setEtapasApi] = useState<string[]>([]);
+  const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const etapasOperativas = (USE_API ? etapasApi : etapasSeguimiento) as EtapaSeguimiento[];
 
   useEffect(() => {
     const loadCatalogs = async () => {
       if (!USE_API) return;
       try {
         setCatalogError(null);
-        const [gs, ds, es, ps] = await Promise.all([
+        const [gs, ds, es, ps, ms] = await Promise.all([
           configuracionApi.grupos(),
           configuracionApi.distritos(),
           configuracionApi.etapas(),
           configuracionApi.parametrosSeguimiento(),
+          configuracionApi.motivosCierre(),
         ]);
         setGruposApi((gs?.content ?? gs ?? []).map((x: any) => x.nombre ?? x.grupo ?? String(x)));
         setDistritosApi((ds?.content ?? ds ?? []).map((x: any) => x.nombre ?? x.distrito ?? String(x)));
-        setEtapasApi((es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x)));
+        const etapasFromApi = (es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x));
+        setEtapasApi(etapasFromApi);
+        if (etapasFromApi.length === 0) {
+          setCatalogError("No hay etapas configuradas en API para operar seguimiento.");
+        }
         const params = (ps?.content ?? ps ?? []) as any[];
         const umbral = params.find((x: any) => String(x.codigo ?? "").toUpperCase().includes("CUOTAS"));
         const valor = Number(umbral?.valor ?? umbral?.value);
         if (Number.isFinite(valor) && valor > 0) setUmbralCuotas(valor);
         else setCatalogError("No se encontró el umbral moroso en API; se usa valor por defecto para UI.");
+        const motivos = (ms?.content ?? ms ?? []) as any[];
+        const motivosActivos = motivos
+          .filter((x: any) => x?.activo !== false)
+          .map((x: any) => ({
+            codigo: String(x?.codigo ?? x?.id ?? "").trim(),
+            nombre: String(x?.nombre ?? x?.descripcion ?? x?.codigo ?? "").trim(),
+          }))
+          .filter((x) => x.codigo.length > 0 && x.nombre.length > 0);
+        setMotivosCierreApi(motivosActivos);
       } catch (e) {
         setCatalogError("No se pudieron cargar catálogos de seguimiento.");
         toast({ title: "Error de catálogos", description: e instanceof ApiError ? e.message : "No se pudieron cargar catálogos.", variant: "destructive" });
@@ -287,6 +323,29 @@ export default function GestionEtapas() {
     () => rows.filter((m) => selected.has(m.id)),
     [rows, selected],
   );
+  const selectedActions = useMemo(() => {
+    const selectedRows = rows.filter((m) => selected.has(m.id));
+    const hasAny = selectedRows.length > 0;
+    const hasBackendActions = selectedRows.some((m) => !!m.accionesDisponibles);
+    const canReabrirRow = (m: SeguimientoRow) => {
+      const flag = m.accionesDisponibles?.puedeReabrir;
+      if (typeof flag === "boolean") return flag;
+      return m.estado === "Pausado";
+    };
+    const canAll = (key: keyof NonNullable<AccionesDisponiblesRow>) =>
+      selectedRows.every((m) => (m.accionesDisponibles?.[key] ?? false) === true);
+
+    return {
+      hasAny,
+      canIniciar: USE_API ? (hasBackendActions ? canAll("puedeIniciar") : false) : selectedRows.every((m) => m.etapa === null),
+      canAvanzar: USE_API ? (hasBackendActions ? canAll("puedeAvanzar") : false) : selectedRows.some((m) => m.etapa !== null),
+      canRepetir: USE_API ? (hasBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null),
+      canCerrar: USE_API ? (hasBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null),
+      canCompromiso: USE_API ? (hasBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true,
+      canReabrir: selectedRows.every(canReabrirRow),
+      hasBackendActions,
+    };
+  }, [rows, selected]);
 
   const hasFilters =
     query !== "" ||
@@ -542,6 +601,9 @@ export default function GestionEtapas() {
               count={selected.size}
               hasSinEtapa={seleccionados.some((m) => m.etapa === null)}
               hasConEtapa={seleccionados.some((m) => m.etapa !== null)}
+              hasPausado={seleccionados.some((m) => m.estado === "Pausado")}
+              etapasOperativas={etapasOperativas}
+              selectedActions={selectedActions}
               onClear={clearSelection}
               onAction={setAccion}
             />
@@ -651,6 +713,8 @@ export default function GestionEtapas() {
       <AccionDialog
         accion={accion}
         seleccionados={seleccionados}
+        etapasOperativas={etapasOperativas}
+        motivosCierre={USE_API ? motivosCierreApi : null}
         onCancel={() => setAccion(null)}
         onConfirm={confirmarAccion}
         mutating={mutating}
@@ -730,15 +794,35 @@ function SelectionBar({
   count,
   hasSinEtapa,
   hasConEtapa,
+  hasPausado,
+  etapasOperativas,
+  selectedActions,
   onClear,
   onAction,
 }: {
   count: number;
   hasSinEtapa: boolean;
   hasConEtapa: boolean;
+  hasPausado: boolean;
+  etapasOperativas: EtapaSeguimiento[];
+  selectedActions: {
+    hasAny: boolean;
+    canIniciar: boolean;
+    canAvanzar: boolean;
+    canRepetir: boolean;
+    canCerrar: boolean;
+    canCompromiso: boolean;
+    canReabrir: boolean;
+    hasBackendActions: boolean;
+  };
   onClear: () => void;
   onAction: (a: AccionMasiva) => void;
 }) {
+  const disabledMsg = USE_API
+    ? (!selectedActions.hasBackendActions
+      ? "Acción no disponible: la API no informó accionesDisponibles para la selección."
+      : "Acción no disponible para uno o más inmuebles seleccionados.")
+    : undefined;
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-primary/20 bg-primary-soft/60 px-3 py-2 text-[12.5px]">
       <div className="flex items-center gap-2 pr-1">
@@ -762,7 +846,9 @@ function SelectionBar({
         size="sm"
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
-        onClick={() => onAction({ kind: "enviar-etapa", etapa: etapasSeguimiento[0] })}
+        onClick={() => onAction({ kind: "enviar-etapa", etapa: etapasOperativas[0] ?? "Aviso de deuda" })}
+        disabled={USE_API && etapasOperativas.length === 0}
+        title={USE_API && etapasOperativas.length === 0 ? "No hay etapas disponibles desde API." : undefined}
       >
         <ChevronsRight className="h-3.5 w-3.5" />
         Enviar a etapa
@@ -773,6 +859,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "enviar-siguiente" })}
+        disabled={selectedActions.hasAny && !selectedActions.canAvanzar}
+        title={selectedActions.hasAny && !selectedActions.canAvanzar ? disabledMsg : undefined}
       >
         <ArrowRightCircle className="h-3.5 w-3.5" />
         Etapa siguiente
@@ -783,8 +871,10 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "repetir-etapa" })}
-        disabled={!hasConEtapa}
-        title={!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined}
+        disabled={USE_API ? (selectedActions.hasAny && !selectedActions.canRepetir) : !hasConEtapa}
+        title={USE_API
+          ? (selectedActions.hasAny && !selectedActions.canRepetir ? disabledMsg : undefined)
+          : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
       >
         <RotateCcw className="h-3.5 w-3.5" />
         Repetir etapa
@@ -796,6 +886,8 @@ function SelectionBar({
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
           onClick={() => onAction({ kind: "iniciar" })}
+          disabled={selectedActions.hasAny && !selectedActions.canIniciar}
+          title={selectedActions.hasAny && !selectedActions.canIniciar ? disabledMsg : undefined}
         >
           <PlayCircle className="h-3.5 w-3.5" />
           Iniciar proceso
@@ -808,9 +900,24 @@ function SelectionBar({
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
           onClick={() => onAction({ kind: "cerrar" })}
+          disabled={selectedActions.hasAny && !selectedActions.canCerrar}
+          title={selectedActions.hasAny && !selectedActions.canCerrar ? disabledMsg : undefined}
         >
           <StopCircle className="h-3.5 w-3.5" />
           Cerrar proceso
+        </Button>
+      )}
+      {hasPausado && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 text-[12.5px]"
+          onClick={() => onAction({ kind: "reabrir" })}
+          disabled={selectedActions.hasAny && !selectedActions.canReabrir}
+          title={selectedActions.hasAny && !selectedActions.canReabrir ? disabledMsg : undefined}
+        >
+          <PlayCircle className="h-3.5 w-3.5" />
+          Reabrir proceso
         </Button>
       )}
 
@@ -821,6 +928,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "compromiso" })}
+        disabled={selectedActions.hasAny && !selectedActions.canCompromiso}
+        title={selectedActions.hasAny && !selectedActions.canCompromiso ? disabledMsg : undefined}
       >
         <HandCoins className="h-3.5 w-3.5" />
         Compromiso de pago
@@ -890,12 +999,16 @@ function EstadoPill({ estado }: { estado: EstadoProceso }) {
 function AccionDialog({
   accion,
   seleccionados,
+  etapasOperativas,
+  motivosCierre,
   onCancel,
   onConfirm,
   mutating = false,
 }: {
   accion: AccionMasiva | null;
   seleccionados: InmuebleMoroso[];
+  etapasOperativas: EtapaSeguimiento[];
+  motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
@@ -905,9 +1018,11 @@ function AccionDialog({
   // Modal dedicado e institucional para mover a una etapa.
   if (accion && accion.kind === "enviar-etapa") {
     return (
-      <MoverEtapaDialog
-        accion={accion}
-        seleccionados={seleccionados}
+        <MoverEtapaDialog
+          accion={accion}
+          etapasOperativas={etapasOperativas}
+          seleccionados={seleccionados}
+        motivosCierre={motivosCierre}
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
@@ -917,9 +1032,10 @@ function AccionDialog({
 
   if (accion && (accion.kind === "enviar-siguiente" || accion.kind === "repetir-etapa")) {
     return (
-      <ConfirmarEtapaDialog
-        accion={accion}
-        seleccionados={seleccionados}
+        <ConfirmarEtapaDialog
+          accion={accion}
+          etapasOperativas={etapasOperativas}
+          seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
@@ -1010,13 +1126,17 @@ function AccionDialog({
 
 function ConfirmarEtapaDialog({
   accion,
+  etapasOperativas,
   seleccionados,
+  motivosCierre,
   onCancel,
   onConfirm,
   mutating = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
+  etapasOperativas: EtapaSeguimiento[];
   seleccionados: InmuebleMoroso[];
+  motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
@@ -1033,12 +1153,12 @@ function ConfirmarEtapaDialog({
   const [calOpen, setCalOpen] = useState(false);
 
   const avanzados = isSiguiente
-    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguiente(m.etapa) !== null).length
+    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguienteEnLista(m.etapa, etapasOperativas) !== null).length
     : 0;
   const iniciados = isSiguiente ? seleccionados.filter((m) => m.etapa === null).length : 0;
   const repetidos = !isSiguiente ? seleccionados.filter((m) => m.etapa !== null).length : 0;
   const omitidos = isSiguiente
-    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguiente(m.etapa) === null).length
+    ? seleccionados.filter((m) => m.etapa !== null && etapaSiguienteEnLista(m.etapa, etapasOperativas) === null).length
     : total - repetidos;
   const aplicables = isSiguiente ? avanzados + iniciados : repetidos;
   const Icon = isSiguiente ? ArrowRightCircle : RotateCcw;
@@ -1047,7 +1167,7 @@ function ConfirmarEtapaDialog({
     const partes: string[] = [];
     if (isSiguiente) {
       if (avanzados) partes.push(`${avanzados} avanzaron a su siguiente etapa`);
-      if (iniciados) partes.push(`${iniciados} iniciaron en "${etapasSeguimiento[0]}"`);
+      if (iniciados) partes.push(`${iniciados} iniciaron en "${etapasOperativas[0] ?? "primera etapa configurada"}"`);
       if (omitidos) partes.push(`${omitidos} ya estaban en la última etapa y fueron omitidos`);
       onConfirm({ kind: "enviar-siguiente", payload: { observacion: observacion.trim() || undefined } });
       return;
@@ -1205,6 +1325,13 @@ function CerrarProcesoDialog({
   })();
 
   const [motivo, setMotivo] = useState<MotivoCierre | "">("");
+  const motivosDemo: MotivoCierreOption[] = [
+    { codigo: "REGULARIZACION", nombre: "Regularización total" },
+    { codigo: "PLAN_DE_PAGO", nombre: "Plan de pago" },
+    { codigo: "JUDICIALIZACION", nombre: "Judicialización" },
+    { codigo: "OTRO", nombre: "Otro" },
+  ];
+  const motivosDisponibles = motivosCierre ?? motivosDemo;
   const [parametro, setParametro] = useState("");
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
@@ -1303,18 +1430,11 @@ function CerrarProcesoDialog({
                 <SelectValue placeholder="Seleccionar motivo..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="REGULARIZACION" className="text-[13px]">
-                  Regularización total
-                </SelectItem>
-                <SelectItem value="PLAN_DE_PAGO" className="text-[13px]">
-                  Plan de pago
-                </SelectItem>
-                <SelectItem value="JUDICIALIZACION" className="text-[13px]">
-                  Judicialización
-                </SelectItem>
-                <SelectItem value="OTRO" className="text-[13px]">
-                  Otro
-                </SelectItem>
+                {motivosDisponibles.map((m) => (
+                  <SelectItem key={m.codigo} value={m.codigo} className="text-[13px]">
+                    {m.nombre}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -1810,6 +1930,11 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
         titulo: "Registrar compromiso de pago",
         descripcion: "Se registrará un compromiso operativo. No modifica el estado de etapa.",
       };
+    case "reabrir":
+      return {
+        titulo: "Reabrir proceso",
+        descripcion: "Se reabrirá el caso seleccionado y volverá al flujo activo de seguimiento.",
+      };
   }
 }
 
@@ -1817,19 +1942,21 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
 
 function MoverEtapaDialog({
   accion,
+  etapasOperativas,
   seleccionados,
   onCancel,
   onConfirm,
   mutating = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-etapa" }>;
+  etapasOperativas: EtapaSeguimiento[];
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
 }) {
   const total = seleccionados.length;
-  const [etapaDestino, setEtapaDestino] = useState<EtapaSeguimiento>(accion.etapa);
+  const [etapaDestino, setEtapaDestino] = useState<EtapaSeguimiento>(accion.etapa ?? etapasOperativas[0]);
   const [fecha, setFecha] = useState<Date | undefined>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -1905,7 +2032,7 @@ onConfirm({ kind: "enviar-etapa", payload: { observacion: observacion.trim() || 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(USE_API ? etapasApi : etapasSeguimiento).map((e) => (
+                  {etapasOperativas.map((e) => (
                     <SelectItem key={e} value={e} className="text-[13px]">
                       {e}
                     </SelectItem>
