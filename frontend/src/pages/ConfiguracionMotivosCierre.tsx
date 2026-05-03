@@ -100,7 +100,7 @@ export default function ConfiguracionMotivosCierre() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMotivos = async () => {
+  const refreshMotivos = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -116,7 +116,7 @@ export default function ConfiguracionMotivosCierre() {
   };
 
   useEffect(() => {
-    fetchMotivos();
+    refreshMotivos();
   }, []);
 
   const filtered = useMemo(() => {
@@ -197,18 +197,6 @@ export default function ConfiguracionMotivosCierre() {
         descripcion: form.descripcion.trim() || null,
         activo: form.activo,
       });
-      setMotivos((prev) =>
-        prev.map((m) =>
-          m.id === editing.id
-            ? {
-                ...m,
-                nombre,
-                descripcion: form.descripcion.trim() || undefined,
-                activo: form.activo,
-              }
-            : m,
-        ),
-      );
       toast({
         title: "Motivo actualizado",
         description: `Se guardaron los cambios en "${nombre}".`,
@@ -219,15 +207,6 @@ export default function ConfiguracionMotivosCierre() {
         descripcion: form.descripcion.trim() || null,
         activo: form.activo,
       });
-      const nuevo: MotivoCierre = {
-        id: `mc-${Date.now()}`,
-        nombre,
-        descripcion: form.descripcion.trim() || undefined,
-        activo: form.activo,
-        isSystem: false,
-        usos: 0,
-      };
-      setMotivos((prev) => [nuevo, ...prev]);
       toast({
         title: "Motivo creado",
         description: `Se creó el motivo "${nombre}".`,
@@ -236,7 +215,7 @@ export default function ConfiguracionMotivosCierre() {
 
     setDialogOpen(false);
     setEditing(null);
-    await fetchMotivos();
+    await refreshMotivos();
     } catch (e) {
       toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar el motivo.", variant: "destructive" });
     }
@@ -246,14 +225,11 @@ export default function ConfiguracionMotivosCierre() {
     try {
       setSaving(true);
       await configuracionApi.toggleMotivoCierreActivo(m.id, !m.activo);
-    setMotivos((prev) =>
-      prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x)),
-    );
     toast({
       title: m.activo ? "Motivo desactivado" : "Motivo activado",
       description: `"${m.nombre}" ahora está ${m.activo ? "inactivo" : "activo"}.`,
     });
-      await fetchMotivos();
+      await refreshMotivos();
     } catch (e) {
       toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
@@ -283,13 +259,12 @@ export default function ConfiguracionMotivosCierre() {
     }
     try {
       await configuracionApi.eliminarMotivoCierre(deleteTarget.id);
-      setMotivos((prev) => prev.filter((m) => m.id !== deleteTarget.id));
       toast({
         title: "Motivo eliminado",
         description: `Se eliminó "${deleteTarget.nombre}".`,
       });
       setDeleteTarget(null);
-      await fetchMotivos();
+      await refreshMotivos();
     } catch (e) {
       toast({ title: "No se puede eliminar", description: e instanceof ApiError ? e.message : "El backend rechazó la eliminación.", variant: "destructive" });
       setDeleteTarget(null);

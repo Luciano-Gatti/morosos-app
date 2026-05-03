@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ultimosMovimientos, type MovimientoTipo } from "@/data/mock";
+import { ultimosMovimientos } from "@/data/mock";
+import type { MovimientoTipo } from "@/types/mock";
 import { useNavigate } from "react-router-dom";
 
 const tipoMeta: Record<MovimientoTipo, { icon: LucideIcon; accent: string; label: string }> = {

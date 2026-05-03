@@ -1,7 +1,6 @@
 import { apiClient, buildQueryParams } from "@/lib/apiClient";
 export const seguimientoApi = {
   getBandeja: (params: Record<string, any>) => apiClient.get(`/api/v1/seguimiento/bandeja${buildQueryParams(params)}`),
-  bandeja: (params: Record<string, any>) => apiClient.get(`/api/v1/seguimiento/bandeja${buildQueryParams(params)}`),
   historialInmueble: (inmuebleId: string) => apiClient.get(`/api/v1/seguimiento/inmuebles/${inmuebleId}/historial`),
   iniciar: (body: unknown) => apiClient.post("/api/v1/seguimiento/iniciar", body),
   avanzar: (body: unknown) => apiClient.post("/api/v1/seguimiento/avanzar", body),
@@ -13,5 +12,4 @@ export const seguimientoApi = {
   cerrarBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar/bulk", body),
   registrarCompromiso: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
   registrarCompromisosBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos/bulk", body),
-  compromisos: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
 };

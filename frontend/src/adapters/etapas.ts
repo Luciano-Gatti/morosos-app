@@ -1,4 +1,4 @@
-import type { EtapaConfig } from "@/data/etapas";
+import type { EtapaConfig } from "@/types/configuracion";
 
 export function mapEtapa(row: any): EtapaConfig {
   return {
