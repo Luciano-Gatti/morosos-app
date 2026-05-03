@@ -25,54 +25,73 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { USE_API } from "@/lib/apiClient";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
-import { inmueblesPadron } from "@/data/inmuebles";
+import { inmueblesApi } from "@/services/api/inmueblesApi";
 import {
   getHistorialInmueble,
   type RegistroHistorial,
   type ProcesoSeguimiento,
   type CierreProceso,
 } from "@/data/historialSeguimiento";
+import { isHistorialEmpty, mapHistorialSeguimiento, type HistorialSeguimientoViewModel } from "@/adapters/historialSeguimiento";
 import type { EstadoProceso, EtapaSeguimiento } from "@/data/seguimiento";
 
 export default function HistorialSeguimiento() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const inmueble = useMemo(() => inmueblesPadron.find((i) => i.id === id), [id]);
-  const [historialApi, setHistorialApi] = useState<any | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [historialVm, setHistorialVm] = useState<HistorialSeguimientoViewModel | null>(null);
+  const [loading, setLoading] = useState(USE_API);
   const [error, setError] = useState<string | null>(null);
-  const historial = useMemo(() => {
-    if (USE_API && historialApi) {
-      const procesos = Array.isArray(historialApi.casos) ? historialApi.casos.map((c: any) => ({
-        id: c.id ?? c.casoId ?? `caso-${Math.random()}`,
-        estado: (c.estado || "abierto").toLowerCase(),
-        registros: (Array.isArray(c.eventos) ? c.eventos : []).map((e: any) => ({
-          id: e.id ?? `${c.id}-evt`,
-          fecha: e.fecha ?? e.fechaEvento ?? "-",
-          etapa: e.etapaNombre ?? e.etapa ?? "Sin etapa",
-          estado: e.estado ?? c.estado ?? "Activo",
-          responsable: e.actorNombre ?? e.actorId ?? "Sistema",
-          tipoAccion: e.tipoAccion ?? e.tipo ?? "Evento",
-          descripcion: e.descripcion ?? e.detalle ?? "",
-          metadata: e.metadata ?? e.planPago ?? e.cambioParametro ?? null,
-        })),
-        cierre: c.cierre ?? null,
-        compromisos: c.compromisos ?? [],
-      })) : [];
-      return { procesos, observacionesLibres: Array.isArray(historialApi.observaciones) ? historialApi.observaciones : [] };
-    }
-    return id ? getHistorialInmueble(id) : null;
-  }, [id, historialApi]);
 
   useEffect(() => {
-    if (!USE_API || !id) return;
+    if (!id) return;
+    if (!USE_API) {
+      const mock = getHistorialInmueble(id);
+      const inmuebleMock = {
+        id,
+        cuenta: `Cuenta ${id}`,
+        titular: "Titular demo",
+        direccion: "Dirección demo",
+        grupo: "-",
+        distrito: "-",
+        activo: true,
+        seguimientoHabilitado: true,
+      };
+      setHistorialVm(
+        mapHistorialSeguimiento(
+          {
+            inmueble: inmuebleMock,
+            casos: mock.procesos.map((p) => ({ id: p.id, estado: p.estado, eventos: p.registros, cierre: null, compromisos: [] })),
+            observaciones: mock.observacionesLibres,
+          },
+          id,
+        ),
+      );
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
-    seguimientoApi.historialInmueble(id).then(setHistorialApi).catch((e) => setError(e.message)).finally(() => setLoading(false));
+    setError(null);
+    Promise.all([seguimientoApi.historialInmueble(id), inmueblesApi.getById(id)])
+      .then(([historialRes, inmuebleRes]) => {
+        const merged = { ...historialRes, inmueble: (historialRes as any)?.inmueble ?? inmuebleRes };
+        setHistorialVm(mapHistorialSeguimiento(merged, id));
+      })
+      .catch((e: unknown) => {
+        setHistorialVm(null);
+        setError(e instanceof Error ? e.message : "No se pudo cargar el historial.");
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   const [vista, setVista] = useState<"timeline" | "tabla">("timeline");
 
-  if (!inmueble || !historial) {
+  const inmueble = historialVm?.inmueble;
+  const historial = historialVm ? { procesos: historialVm.procesos as any[], observacionesLibres: historialVm.observacionesLibres } : null;
+  const empty = historialVm ? isHistorialEmpty(historialVm) : false;
+
+  if (!id || (!loading && !error && !historial)) {
     return (
       <>
         <AppHeader
@@ -96,15 +115,16 @@ export default function HistorialSeguimiento() {
     );
   }
 
-  const procesoActual = historial.procesos.find((p) => p.estado === "abierto") ?? historial.procesos[historial.procesos.length - 1] ?? null;
+  const procesos = historial?.procesos ?? [];
+  const procesoActual = procesos.find((p) => p.estado === "abierto") ?? procesos[procesos.length - 1] ?? null;
   const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "-", fecha: "-", estado: "-", responsable: "-" };
 
-  const totalRegistros = historial.procesos.reduce((s, p) => s + p.registros.length, 0);
-  const totalProcesos = historial.procesos.length;
-  const procesosCerrados = historial.procesos.filter((p) => p.estado === "cerrado").length;
+  const totalRegistros = procesos.reduce((s, p) => s + p.registros.length, 0);
+  const totalProcesos = procesos.length;
+  const procesosCerrados = procesos.filter((p) => p.estado === "cerrado").length;
 
   // ordenamos procesos: actual (abierto) primero, luego cerrados desc
-  const procesosOrdenados = [...historial.procesos].reverse();
+  const procesosOrdenados = [...procesos].reverse();
 
   return (
     <>
@@ -113,7 +133,7 @@ export default function HistorialSeguimiento() {
         description={`${inmueble.cuenta} · ${inmueble.titular}`}
         breadcrumb={[
           { label: "Inmuebles", to: "/inmuebles" },
-          { label: inmueble.cuenta, to: `/inmuebles/${inmueble.id}` },
+          { label: inmueble.cuenta, to: `/inmuebles/${inmueble.inmuebleId}` },
           { label: "Historial de seguimiento" },
         ]}
         actions={
@@ -121,7 +141,7 @@ export default function HistorialSeguimiento() {
             variant="outline"
             size="sm"
             className="h-9 gap-2"
-            onClick={() => navigate(`/inmuebles/${inmueble.id}`)}
+            onClick={() => navigate(`/inmuebles/${inmueble.inmuebleId}`)}
           >
             <ArrowLeft className="h-4 w-4" />
             Volver al inmueble
@@ -131,7 +151,7 @@ export default function HistorialSeguimiento() {
 
       <main className="flex-1 space-y-6 px-6 py-6">
         {loading && <div className="text-xs text-muted-foreground">Cargando historial…</div>}
-        {error && <div className="text-xs text-status-debt">Error al cargar historial: {error}. Mostrando fallback.</div>}
+        {error && <div className="text-xs text-status-debt">Error al cargar historial: {error}.</div>}
         {/* Cabecera con datos del inmueble */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <div className="border-b border-border bg-surface-muted/40 px-5 py-3">
@@ -148,7 +168,7 @@ export default function HistorialSeguimiento() {
         </section>
 
 
-        {historial.procesos.length === 0 && (
+        {!loading && !error && empty && (
           <section className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             No hay historial registrado para este inmueble.
           </section>

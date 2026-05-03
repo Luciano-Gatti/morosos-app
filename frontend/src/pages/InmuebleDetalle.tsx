@@ -32,8 +32,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { inmueblesPadron, distritosInmueble } from "@/data/inmuebles";
-import { gruposIniciales, seguimientoHabilitadoEn } from "@/data/grupos";
+import { gruposIniciales } from "@/data/grupos";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
+import { mapInmuebleDetalle, type InmuebleDetalleViewModel } from "@/adapters/inmuebleDetalle";
 import { ApiError, USE_API } from "@/lib/apiClient";
 
 interface ConfigState {
@@ -52,43 +53,46 @@ export default function InmuebleDetalle() {
   const { toast } = useToast();
 
   const inmuebleMock = useMemo(() => inmueblesPadron.find((i) => i.id === id), [id]);
-  const [inmuebleApiData, setInmuebleApiData] = useState<any | null>(null);
+  const [inmuebleVm, setInmuebleVm] = useState<InmuebleDetalleViewModel | null>(null);
   const inmueble = USE_API
-    ? (inmuebleApiData
+    ? inmuebleVm
+    : (inmuebleMock
       ? {
-          id: String(inmuebleApiData.id ?? id ?? ""),
-          cuenta: String(inmuebleApiData.cuenta ?? "-"),
-          titular: String(inmuebleApiData.titular ?? "-"),
-          direccion: String(inmuebleApiData.direccion ?? "-"),
-          grupo: String(inmuebleApiData.grupoNombre ?? inmuebleApiData.grupo ?? "-"),
-          distrito: String(inmuebleApiData.distritoNombre ?? inmuebleApiData.distrito ?? "-"),
-          activo: Boolean(inmuebleApiData.activo ?? true),
+          id: inmuebleMock.id,
+          cuenta: inmuebleMock.cuenta,
+          titular: inmuebleMock.titular,
+          direccion: inmuebleMock.direccion,
+          grupoNombre: inmuebleMock.grupo,
+          distritoNombre: inmuebleMock.distrito,
+          activo: inmuebleMock.activo,
+          telefono: "",
+          email: "",
+          observaciones: "",
+          seguimientoHabilitado: true,
         }
-      : null)
-    : inmuebleMock;
+      : null);
 
   // Grupos del catálogo filtrados según el distrito seleccionado.
-  const distritoInicial = inmueble?.distrito ?? distritosInmueble[0];
+  const distritoInicial = (inmueble as any)?.distritoNombre ?? distritosInmueble[0];
   const gruposDelDistritoInicial = gruposIniciales
     .filter((g) => g.distritos.some((d) => d.distrito === distritoInicial))
     .map((g) => g.nombre);
   const grupoInicial =
-    inmueble?.grupo && gruposDelDistritoInicial.includes(inmueble.grupo)
-      ? inmueble.grupo
+    (inmueble as any)?.grupoNombre && gruposDelDistritoInicial.includes((inmueble as any).grupoNombre)
+      ? (inmueble as any).grupoNombre
       : gruposDelDistritoInicial[0] ?? "";
 
   const initial: ConfigState = useMemo(
     () => ({
-      grupo: grupoInicial,
-      distrito: distritoInicial,
-      telefono: "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
-      email: `contacto${id ?? "0"}@aosc.gob.ar`,
-      activo: inmueble?.activo ?? true,
-      seguimientoHabilitado: (inmueble?.activo ?? true) && Number(id ?? 0) % 4 !== 0,
-      observaciones: "",
+      grupo: USE_API ? (inmuebleVm?.grupoNombre ?? "") : (inmueble?.grupoNombre ?? inmueble?.grupo ?? ""),
+      distrito: USE_API ? (inmuebleVm?.distritoNombre ?? "") : (inmueble?.distritoNombre ?? inmueble?.distrito ?? distritosInmueble[0]),
+      telefono: USE_API ? (inmuebleVm?.telefono ?? "") : "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
+      email: USE_API ? (inmuebleVm?.email ?? "") : `contacto${id ?? "0"}@aosc.gob.ar`,
+      activo: USE_API ? (inmuebleVm?.activo ?? true) : (inmueble?.activo ?? true),
+      seguimientoHabilitado: USE_API ? (inmuebleVm?.seguimientoHabilitado ?? false) : ((inmueble?.activo ?? true) && Number(id ?? 0) % 4 !== 0),
+      observaciones: USE_API ? (inmuebleVm?.observaciones ?? "") : "",
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inmueble, id],
+    [USE_API, inmuebleVm, inmueble, id],
   );
 
   const [editing, setEditing] = useState(false);
@@ -105,19 +109,20 @@ export default function InmuebleDetalle() {
   // Grupos disponibles según el distrito actualmente seleccionado.
   const gruposDelDistrito = useMemo(
     () =>
-      gruposIniciales
-        .filter((g) =>
-          g.distritos.some((d) => d.distrito === config.distrito),
-        )
-        .map((g) => g.nombre),
-    [config.distrito],
+      USE_API
+        ? (config.grupo ? [config.grupo] : [])
+        : gruposIniciales
+            .filter((g) => g.distritos.some((d) => d.distrito === config.distrito))
+            .map((g) => g.nombre),
+    [config.distrito, config.grupo],
   );
 
   // ¿El par grupo+distrito tiene seguimiento habilitado en la configuración?
   const seguimientoPorParHabilitado = useMemo(() => {
+    if (USE_API) return true;
     const grupo = gruposIniciales.find((g) => g.nombre === config.grupo);
     if (!grupo) return false;
-    return seguimientoHabilitadoEn(grupo, config.distrito);
+    return grupo.distritos.some((d) => d.distrito === config.distrito && d.seguimientoHabilitado);
   }, [config.grupo, config.distrito]);
 
   // Elegibilidad efectiva del seguimiento del inmueble.
@@ -129,9 +134,9 @@ export default function InmuebleDetalle() {
     setError(null);
     try {
       const data = await inmueblesApi.getById(targetId);
-      setInmuebleApiData(data);
+      setInmuebleVm(mapInmuebleDetalle(data));
     } catch (e: unknown) {
-      setInmuebleApiData(null);
+      setInmuebleVm(null);
       setError(e instanceof ApiError ? e.message : "No se pudo cargar el inmueble.");
     } finally {
       setLoading(false);
@@ -377,14 +382,11 @@ export default function InmuebleDetalle() {
                   value={config.distrito}
                   onValueChange={(v) => {
                     // Al cambiar de distrito, validamos que el grupo siga siendo válido.
+                    if (USE_API) { setConfig({ ...config, distrito: v }); return; }
                     const gruposEnDistrito = gruposIniciales
-                      .filter((g) =>
-                        g.distritos.some((d) => d.distrito === v),
-                      )
+                      .filter((g) => g.distritos.some((d) => d.distrito === v))
                       .map((g) => g.nombre);
-                    const nuevoGrupo = gruposEnDistrito.includes(config.grupo)
-                      ? config.grupo
-                      : gruposEnDistrito[0] ?? "";
+                    const nuevoGrupo = gruposEnDistrito.includes(config.grupo) ? config.grupo : gruposEnDistrito[0] ?? "";
                     setConfig({ ...config, distrito: v, grupo: nuevoGrupo });
                   }}
                   disabled={!editing}
@@ -460,13 +462,15 @@ export default function InmuebleDetalle() {
               <ToggleRow
                 label="Seguimiento de morosidad"
                 hint={
-                  !seguimientoPorParHabilitado
-                    ? "El par grupo + distrito no tiene seguimiento habilitado."
-                    : "Habilita el flujo automático de avisos, intimaciones y cortes."
+                  USE_API
+                    ? "El backend define la elegibilidad de seguimiento para este inmueble."
+                    : !seguimientoPorParHabilitado
+                      ? "El par grupo + distrito no tiene seguimiento habilitado."
+                      : "Habilita el flujo automático de avisos, intimaciones y cortes."
                 }
                 checked={config.seguimientoHabilitado}
                 disabled={
-                  !editing || !config.activo || !seguimientoPorParHabilitado || togglingSeguimiento
+                  !editing || !config.activo || (!USE_API && !seguimientoPorParHabilitado) || togglingSeguimiento
                 }
                 onCheckedChange={handleToggleSeguimiento}
               />

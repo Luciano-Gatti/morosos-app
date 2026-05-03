@@ -6,34 +6,40 @@ import { UltimosMovimientos } from "@/components/dashboard/UltimosMovimientos";
 import { distritosStats, resumenMorosidad, accionesMes, ultimosMovimientos } from "@/data/mock";
 import { USE_API } from "@/lib/apiClient";
 import { dashboardApi } from "@/services/api/dashboardApi";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { isDashboardResumenEmpty, mapDashboardResumen, type DashboardResumenViewModel } from "@/adapters/dashboard";
 
 export default function Dashboard() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(USE_API);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState({ resumenMorosidad, accionesMes, distritosStats, ultimosMovimientos });
+  const [data, setData] = useState<DashboardResumenViewModel | null>(
+    USE_API
+      ? null
+      : mapDashboardResumen({
+          kpis: resumenMorosidad as any,
+          accionesMes: accionesMes as any,
+          distritos: distritosStats as any,
+          movimientos: ultimosMovimientos as any,
+        }),
+  );
 
   useEffect(() => {
     if (!USE_API) return;
     setLoading(true);
-    dashboardApi.getResumen()
+    setError(null);
+    dashboardApi
+      .getResumen()
       .then((res) => {
-        setData((prev) => ({
-          ...prev,
-          resumenMorosidad: res.kpis ? {
-            totalInmuebles: res.kpis.totalInmuebles ?? prev.resumenMorosidad.totalInmuebles,
-            alDia: res.kpis.alDia ?? prev.resumenMorosidad.alDia,
-            deudores: res.kpis.deudores ?? prev.resumenMorosidad.deudores,
-            morosos: res.kpis.morosos ?? prev.resumenMorosidad.morosos,
-          } : prev.resumenMorosidad,
-          accionesMes: Array.isArray(res.accionesMes) ? res.accionesMes.map((a) => ({ clave: String(a.clave), label: String(a.clave), cantidad: Number(a.cantidad ?? 0) })) : prev.accionesMes,
-          distritosStats: Array.isArray(res.distritos) ? res.distritos as any : prev.distritosStats,
-          ultimosMovimientos: Array.isArray(res.movimientos) ? res.movimientos as any : prev.ultimosMovimientos,
-        }));
+        setData(mapDashboardResumen(res));
       })
-      .catch((e) => setError(e.message))
+      .catch((e: unknown) => {
+        setData(null);
+        setError(e instanceof Error ? e.message : "No se pudo cargar el dashboard.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const isEmpty = useMemo(() => (data ? isDashboardResumenEmpty(data) : false), [data]);
 
   return (
     <>
@@ -45,36 +51,39 @@ export default function Dashboard() {
 
       <main className="flex-1 px-6 py-6">
         {loading && <div className="mb-3 text-xs text-muted-foreground">Cargando datos del backend…</div>}
-        {error && <div className="mb-3 text-xs text-status-debt">Error API: {error}. Mostrando datos mock.</div>}
-        {/* Bloque superior: Morosidad + Actividad del mes */}
-        <section aria-label="Resumen ejecutivo" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <MorosidadResumen data={data.resumenMorosidad} />
-          <AccionesMesGrid data={data.accionesMes as any} />
-        </section>
+        {!loading && error && <div className="mb-3 text-xs text-status-debt">Error API: {error}.</div>}
+        {!loading && !error && data && isEmpty && (
+          <div className="mb-3 text-xs text-muted-foreground">No hay datos disponibles para mostrar.</div>
+        )}
 
-        {/* Análisis por distrito */}
-        <section className="mt-6">
-          <div className="mb-3 flex items-end justify-between">
-            <div>
-              <h2 className="font-serif text-[18px] font-semibold text-foreground">
-                Análisis por distrito
-              </h2>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">
-                Indicadores diferenciados por jurisdicción del ente.
-              </p>
-            </div>
-            <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-              Abril 2026
-            </span>
-          </div>
+        {!loading && !error && data && !isEmpty && (
+          <>
+            <section aria-label="Resumen ejecutivo" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <MorosidadResumen data={data.resumenMorosidad as any} />
+              <AccionesMesGrid data={data.accionesMes as any} />
+            </section>
 
-          <DistritosGrid distritos={data.distritosStats as any} />
-        </section>
+            <section className="mt-6">
+              <div className="mb-3 flex items-end justify-between">
+                <div>
+                  <h2 className="font-serif text-[18px] font-semibold text-foreground">Análisis por distrito</h2>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    Indicadores diferenciados por jurisdicción del ente.
+                  </p>
+                </div>
+                <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  Abril 2026
+                </span>
+              </div>
 
-        {/* Últimos movimientos */}
-        <section className="mt-6">
-          <UltimosMovimientos data={data.ultimosMovimientos as any} />
-        </section>
+              <DistritosGrid distritos={data.distritosStats as any} />
+            </section>
+
+            <section className="mt-6">
+              <UltimosMovimientos data={data.ultimosMovimientos as any} />
+            </section>
+          </>
+        )}
 
         <footer className="mt-8 flex items-center justify-between border-t border-border pt-4 text-[11px] text-muted-foreground">
           <span>AOSC · Ente Regulador — Sistema interno de seguimiento</span>

@@ -95,6 +95,10 @@ export default function ConfiguracionGrupos() {
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
   const [query, setQuery] = useState("");
+  const [distritosRaw, setDistritosRaw] = useState<any[]>([]);
+  const [distritoDialogOpen, setDistritoDialogOpen] = useState(false);
+  const [editingDistrito, setEditingDistrito] = useState<any | null>(null);
+  const [distritoForm, setDistritoForm] = useState({ nombre: "" });
 
   // Alta / edición de datos básicos del grupo
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -159,7 +163,9 @@ export default function ConfiguracionGrupos() {
       ]);
       const gruposNorm = normalize(toArray(gs), toArray(ds), toArray(cfg));
       setGrupos(gruposNorm);
-      setDistritosCatalogo(toArray(ds).map((d: any) => String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)).filter(Boolean));
+      const dsArr = toArray(ds);
+      setDistritosRaw(dsArr);
+      setDistritosCatalogo(dsArr.map((d: any) => String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)).filter(Boolean));
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo cargar configuración');
     } finally {
@@ -289,10 +295,13 @@ const filtered = useMemo(() => {
     try {
       setMutating(true);
       if (USE_API) {
+        const hasUnsupported = (distritosDraft as any[]).some((d) => !d.configId);
+        if (hasUnsupported) {
+          toast({ title: 'Operación no soportada', description: 'El backend actual no expone alta/baja de relación grupo+distrito desde esta vista.', variant: 'destructive' });
+          return;
+        }
         for (const d of distritosDraft as any[]) {
-          if (d.configId) {
-            await configuracionApi.actualizarGrupoDistritoConfig(d.configId, { seguimientoHabilitado: d.seguimientoHabilitado });
-          }
+          await configuracionApi.actualizarGrupoDistritoConfig(d.configId, { seguimientoHabilitado: d.seguimientoHabilitado });
         }
         await loadData();
       } else {
@@ -307,6 +316,23 @@ const filtered = useMemo(() => {
     }
   };
 
+
+  const handleToggleGrupoActivo = async (g: Grupo) => {
+    try {
+      setMutating(true);
+      if (USE_API) {
+        await configuracionApi.toggleGrupoActivo(g.id, !g.activo);
+        await loadData();
+      } else {
+        setGrupos((prev) => prev.map((x) => x.id === g.id ? { ...x, activo: !x.activo, actualizado: hoy() } : x));
+      }
+      toast({ title: !g.activo ? "Grupo activado" : "Grupo inactivado", description: `Se actualizó el estado de "${g.nombre}".` });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo actualizar el estado del grupo.", variant: "destructive" });
+    } finally {
+      setMutating(false);
+    }
+  };
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const totalInm = totalInmueblesGrupo(deleteTarget);
@@ -338,6 +364,66 @@ const filtered = useMemo(() => {
     }
   };
 
+
+  const openCreateDistrito = () => {
+    setEditingDistrito(null);
+    setDistritoForm({ nombre: "" });
+    setDistritoDialogOpen(true);
+  };
+
+  const openEditDistrito = (d: any) => {
+    setEditingDistrito(d);
+    setDistritoForm({ nombre: String(d.nombre ?? d.distrito ?? "") });
+    setDistritoDialogOpen(true);
+  };
+
+  const handleSaveDistrito = async () => {
+    const nombre = distritoForm.nombre.trim();
+    if (!nombre) {
+      toast({ title: "Nombre requerido", description: "El nombre del distrito no puede estar vacío.", variant: "destructive" });
+      return;
+    }
+    try {
+      setMutating(true);
+      if (USE_API) {
+        if (editingDistrito) await configuracionApi.actualizarDistrito(String(editingDistrito.id), { nombre });
+        else await configuracionApi.crearDistrito({ nombre });
+        await loadData();
+      } else {
+        const next = editingDistrito
+          ? distritosRaw.map((d) => String(d.id) === String(editingDistrito.id) ? { ...d, nombre } : d)
+          : [{ id: `d-${Date.now()}`, nombre, activo: true }, ...distritosRaw];
+        setDistritosRaw(next);
+        setDistritosCatalogo(next.map((d: any) => String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)).filter(Boolean));
+      }
+      toast({ title: editingDistrito ? "Distrito actualizado" : "Distrito creado", description: `Se guardó "${nombre}".` });
+      setDistritoDialogOpen(false);
+      setEditingDistrito(null);
+      setDistritoForm({ nombre: "" });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar el distrito.", variant: "destructive" });
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleToggleDistritoActivo = async (d: any) => {
+    try {
+      setMutating(true);
+      if (USE_API) {
+        await configuracionApi.toggleDistritoActivo(String(d.id), !Boolean(d.activo));
+        await loadData();
+      } else {
+        const next = distritosRaw.map((x) => String(x.id) === String(d.id) ? { ...x, activo: !Boolean(x.activo) } : x);
+        setDistritosRaw(next);
+      }
+      toast({ title: !Boolean(d.activo) ? "Distrito activado" : "Distrito inactivado" });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo actualizar el estado del distrito.", variant: "destructive" });
+    } finally {
+      setMutating(false);
+    }
+  };
   return (
     <>
       <AppHeader
@@ -381,6 +467,10 @@ const filtered = useMemo(() => {
                   </span>
                 </span>
               </div>
+              <Button variant="outline" onClick={openCreateDistrito} size="sm" className="h-8 gap-1.5 text-[12.5px]">
+                <MapPin className="h-3.5 w-3.5" />
+                Distritos
+              </Button>
               <Button
                 onClick={openCreate}
                 size="sm"
@@ -429,7 +519,7 @@ const filtered = useMemo(() => {
                   </TableRow>
                 ) : (
                   filtered.map((g) => {
-                    const totalInm = totalInmueblesGrupo(g);
+                    const totalInm = USE_API ? g.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) : totalInmueblesGrupo(g);
                     return (
                       <TableRow key={g.id} className="border-border">
                         <TableCell className="py-2.5 pl-4">
@@ -486,6 +576,14 @@ const filtered = useMemo(() => {
                               >
                                 <MapPin className="mr-2 h-3.5 w-3.5" />
                                 Configurar distritos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleToggleGrupoActivo(g)}
+                                disabled={mutating}
+                                className="text-[13px]"
+                              >
+                                {g.activo ? <MinusCircle className="mr-2 h-3.5 w-3.5" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+                                {g.activo ? "Inactivar grupo" : "Activar grupo"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -748,7 +846,38 @@ const filtered = useMemo(() => {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmación de eliminación */}
+
+
+      <Dialog open={distritoDialogOpen} onOpenChange={setDistritoDialogOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle className="text-[15px]">Gestión de distritos</DialogTitle>
+            <DialogDescription className="text-[12.5px]">Crear, editar y activar/inactivar distritos.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={distritoForm.nombre} onChange={(e) => setDistritoForm({ nombre: e.target.value })} placeholder="Nombre del distrito" className="h-9 text-[13px]" />
+              <Button onClick={handleSaveDistrito} disabled={mutating} className="h-9 text-[13px]">{editingDistrito ? 'Guardar' : 'Crear'}</Button>
+            </div>
+            <div className="rounded-md border border-border max-h-64 overflow-auto">
+              {distritosRaw.map((d: any) => (
+                <div key={String(d.id)} className="flex items-center justify-between border-b border-border px-3 py-2 text-[13px]">
+                  <div>
+                    <div className="font-medium text-foreground">{String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)}</div>
+                    <div className="text-[11px] text-muted-foreground">{Boolean(d.activo ?? true) ? 'Activo' : 'Inactivo'}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => openEditDistrito(d)} disabled={mutating}>Editar</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => handleToggleDistritoActivo(d)} disabled={mutating}>{Boolean(d.activo ?? true) ? 'Inactivar' : 'Activar'}</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+            {/* Confirmación de eliminación */}
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
