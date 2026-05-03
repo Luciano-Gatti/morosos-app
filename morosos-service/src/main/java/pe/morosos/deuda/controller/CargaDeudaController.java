@@ -40,11 +40,13 @@ public class CargaDeudaController {
     @GetMapping
     public Page<CargaDeudaResponse> findCargas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodo,
+            @RequestParam(required = false, name = "fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) CargaDeudaEstado estado,
+            @RequestParam(required = false) String search,
             @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
-        return service.findCargas(periodo, estado, pageable);
+        return service.findCargas(periodo, fromDate, estado, search, pageable);
     }
 
     @GetMapping("/{id}")
@@ -54,13 +56,17 @@ public class CargaDeudaController {
 
     @GetMapping("/{id}/detalles")
     public Page<CargaDeudaDetalleResponse> findDetalles(@PathVariable UUID id,
+                                                        @RequestParam(required = false) String search,
+                                                        @RequestParam(required = false) Integer cuotasMin,
+                                                        @RequestParam(required = false) java.math.BigDecimal montoMin,
                                                         @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
-        return service.findDetalles(id, pageable);
+        return service.findDetalles(id, search, cuotasMin, montoMin, pageable);
     }
 
     @GetMapping("/{id}/errores")
     public Page<CargaDeudaErrorResponse> findErrores(@PathVariable UUID id,
+                                                     @RequestParam(required = false) String search,
                                                      @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
-        return service.findErrores(id, pageable);
+        return service.findErrores(id, search, pageable);
     }
 }

@@ -5,11 +5,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import pe.morosos.deuda.entity.CargaDeudaDetalle;
 import java.util.List;
 import java.math.BigDecimal;
 
-public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDetalle, UUID> {
+public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDetalle, UUID>, JpaSpecificationExecutor<CargaDeudaDetalle> {
     Page<CargaDeudaDetalle> findByCargaDeudaId(UUID cargaDeudaId, Pageable pageable);
 
     @Query("""
