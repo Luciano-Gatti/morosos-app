@@ -1168,7 +1168,6 @@ function ConfirmarEtapaDialog({
   accion,
   etapasOperativas,
   seleccionados,
-  motivosCierre,
   onCancel,
   onConfirm,
   mutating = false,
@@ -1176,7 +1175,6 @@ function ConfirmarEtapaDialog({
   accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
   seleccionados: InmuebleMoroso[];
-  motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
