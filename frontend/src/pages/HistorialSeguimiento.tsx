@@ -28,12 +28,10 @@ import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import {
   getHistorialInmueble,
-  type RegistroHistorial,
-  type ProcesoSeguimiento,
-  type CierreProceso,
 } from "@/data/historialSeguimiento";
 import { isHistorialEmpty, mapHistorialSeguimiento, type HistorialSeguimientoViewModel } from "@/adapters/historialSeguimiento";
-import type { EstadoProceso, EtapaSeguimiento } from "@/data/seguimiento";
+import type { CierreProceso, ProcesoSeguimiento, RegistroHistorial } from "@/types/historialSeguimiento";
+import type { EstadoProceso, EtapaSeguimiento } from "@/types/seguimiento";
 
 export default function HistorialSeguimiento() {
   const { id } = useParams<{ id: string }>();

@@ -45,8 +45,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { type CargaDeuda, type CargaEstado } from "@/data/cargasDeuda";
-import type { InmuebleCarga, ErrorImportacion } from "@/data/detalleCarga";
+import { type CargaDeuda, type CargaEstado } from "@/types/deuda";
+import type { InmuebleCarga, ErrorImportacion } from "@/types/deuda";
 import { deudaApi } from "@/services/api/deudaApi";
 
 type SortKey = "cuenta" | "titular" | "direccion" | "cuotas" | "monto";

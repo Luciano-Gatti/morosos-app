@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DistritoCard } from "./DistritoCard";
-import type { DistritoStat } from "@/data/mock";
+import type { DistritoStat } from "@/types/mock";
 
 const VISIBLE_LIMIT = 6;
 

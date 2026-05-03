@@ -217,6 +217,7 @@ export default function GestionEtapas() {
   const [etapasApi, setEtapasApi] = useState<string[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
   const etapasOperativas = (USE_API ? etapasApi : etapasSeguimiento) as EtapaSeguimiento[];
 
   useEffect(() => {
@@ -224,6 +225,7 @@ export default function GestionEtapas() {
       if (!USE_API) return;
       try {
         setCatalogError(null);
+        setCatalogWarnings([]);
         const [gs, ds, es, ps, ms] = await Promise.all([
           configuracionApi.grupos(),
           configuracionApi.distritos(),
@@ -236,13 +238,13 @@ export default function GestionEtapas() {
         const etapasFromApi = (es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x));
         setEtapasApi(etapasFromApi);
         if (etapasFromApi.length === 0) {
-          setCatalogError("No hay etapas configuradas en API para operar seguimiento.");
+          setCatalogWarnings((prev) => [...prev, "No hay etapas configuradas en API para operar seguimiento."]);
         }
         const params = (ps?.content ?? ps ?? []) as any[];
         const umbral = params.find((x: any) => String(x.codigo ?? "").toUpperCase().includes("CUOTAS"));
         const valor = Number(umbral?.valor ?? umbral?.value);
         if (Number.isFinite(valor) && valor > 0) setUmbralCuotas(valor);
-        else setCatalogError("No se encontró el umbral moroso en API; se usa valor por defecto para UI.");
+        else setCatalogWarnings((prev) => [...prev, "No se encontró el umbral moroso en API; se usa valor por defecto solo para UI."]);
         const motivos = (ms?.content ?? ms ?? []) as any[];
         const motivosActivos = motivos
           .filter((x: any) => x?.activo !== false)
@@ -252,6 +254,9 @@ export default function GestionEtapas() {
           }))
           .filter((x) => x.codigo.length > 0 && x.nombre.length > 0);
         setMotivosCierreApi(motivosActivos);
+        if (motivosActivos.length === 0) {
+          setCatalogWarnings((prev) => [...prev, "No hay motivos de cierre activos en API; la acción de cierre quedará bloqueada."]);
+        }
       } catch (e) {
         setCatalogError("No se pudieron cargar catálogos de seguimiento.");
         toast({ title: "Error de catálogos", description: e instanceof ApiError ? e.message : "No se pudieron cargar catálogos.", variant: "destructive" });
@@ -451,6 +456,11 @@ export default function GestionEtapas() {
 
       <main className="flex-1 px-6 py-6">
         {catalogError && <div className="mb-2 text-xs text-destructive">{catalogError}</div>}
+        {!catalogError && catalogWarnings.length > 0 && (
+          <div className="mb-2 text-xs text-amber-700">
+            {catalogWarnings.map((w, idx) => <div key={`${idx}-${w}`}>{w}</div>)}
+          </div>
+        )}
         {/* Aviso de universo: solo entran inmuebles que cumplen el umbral configurado */}
         <div className="mb-3 flex flex-wrap items-start gap-3 rounded-md border border-primary/20 bg-primary-soft/40 px-3 py-2.5 text-[12.5px] text-foreground">
           <Settings2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -506,7 +516,7 @@ export default function GestionEtapas() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-8 w-[180px] text-[12.5px]">
+              <SelectTrigger className="h-8 w-[180px] text-[12.5px]" disabled={USE_API && etapasApi.length === 0}>
                 <SelectValue placeholder="Etapa actual" />
               </SelectTrigger>
               <SelectContent>
@@ -539,7 +549,7 @@ export default function GestionEtapas() {
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
             <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]">
+              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && gruposApi.length === 0}>
                 <SelectValue placeholder="Grupo" />
               </SelectTrigger>
               <SelectContent>
@@ -551,7 +561,7 @@ export default function GestionEtapas() {
             </Select>
 
             <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]">
+              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && distritosApi.length === 0}>
                 <SelectValue placeholder="Distrito" />
               </SelectTrigger>
               <SelectContent>

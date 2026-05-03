@@ -61,11 +61,11 @@ import {
   serieDiaria,
   TIPOS_NOTIFICACION,
   TIPOS_REGULARIZACION,
-  type AccionRegistro,
-  type AccionTipo,
 } from "@/data/reportes";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
-import { ultimosMovimientos, type MovimientoTipo } from "@/data/mock";
+import { ultimosMovimientos } from "@/data/mock";
+import type { AccionRegistro, AccionTipo } from "@/types/reportes";
+import type { MovimientoTipo } from "@/types/mock";
 import { reportesApi } from "@/services/api/reportesApi";
 import { mapReporteAccionesFechas, mapReporteAccionesRegularizacion, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
 import { USE_API } from "@/lib/apiClient";

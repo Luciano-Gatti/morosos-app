@@ -6,7 +6,7 @@ import type {
   MorosidadPorcentajeTotal,
   MorososPorDistritoRow,
   MorososPorGrupoRow,
-} from "@/data/reportes";
+} from "@/types/reportes";
 
 const toNum = (v: unknown, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const toStr = (v: unknown, d = "") => (typeof v === "string" ? v : d);

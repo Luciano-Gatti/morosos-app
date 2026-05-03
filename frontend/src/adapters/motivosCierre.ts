@@ -1,4 +1,4 @@
-import type { MotivoCierre } from "@/data/motivosCierre";
+import type { MotivoCierre } from "@/types/configuracion";
 
 export function mapMotivoCierre(row: any): MotivoCierre {
   return {

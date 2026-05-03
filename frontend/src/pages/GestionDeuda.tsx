@@ -45,7 +45,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type CargaDeuda, type CargaEstado } from "@/data/cargasDeuda";
+import { type CargaDeuda, type CargaEstado } from "@/types/deuda";
 import { deudaApi } from "@/services/api/deudaApi";
 import { useToast } from "@/hooks/use-toast";
 

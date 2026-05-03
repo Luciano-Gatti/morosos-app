@@ -1,6 +1,7 @@
 import { Bell, FileWarning, Gavel, PowerOff, MapPin, Users, AlertCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { accionesLabels, type AccionClave, type DistritoStat } from "@/data/mock";
+import { accionesLabels } from "@/data/mock";
+import type { AccionClave, DistritoStat } from "@/types/mock";
 
 const iconMap: Record<AccionClave, LucideIcon> = {
   avisos_deuda: Bell,

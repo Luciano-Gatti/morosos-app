@@ -69,7 +69,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { etapasIniciales, type EtapaConfig } from "@/data/etapas";
+import { etapasIniciales } from "@/data/etapas";
+import type { EtapaConfig } from "@/types/configuracion";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapEtapa } from "@/adapters/etapas";
 import { ApiError } from "@/lib/apiClient";
@@ -105,7 +106,7 @@ export default function ConfiguracionEtapas() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const fetchEtapas = async () => {
+  const refreshEtapas = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -128,7 +129,7 @@ export default function ConfiguracionEtapas() {
   };
 
   useEffect(() => {
-    fetchEtapas();
+    refreshEtapas();
   }, []);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -184,36 +185,12 @@ export default function ConfiguracionEtapas() {
     try {
     if (editing) {
       await configuracionApi.actualizarEtapa(editing.id, { nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
-      setEtapas((prev) => {
-        const updated = prev.map((e) =>
-          e.id === editing.id
-            ? { ...e, nombre, descripcion: form.descripcion.trim() || undefined }
-            : e,
-        );
-        const currentIndex = updated.findIndex((e) => e.id === editing.id);
-        const targetIndex = ordenSeguro - 1;
-        if (currentIndex !== targetIndex) {
-          return arrayMove(updated, currentIndex, targetIndex);
-        }
-        return updated;
-      });
       toast({
         title: "Etapa actualizada",
         description: `Se guardaron los cambios en "${nombre}".`,
       });
     } else {
       await configuracionApi.crearEtapa({ nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
-      const nueva: EtapaConfig = {
-        id: `e-${Date.now()}`,
-        nombre,
-        descripcion: form.descripcion.trim() || undefined,
-        procesosAsociados: 0,
-      };
-      setEtapas((prev) => {
-        const next = [...prev];
-        next.splice(ordenSeguro - 1, 0, nueva);
-        return next;
-      });
       toast({
         title: "Etapa creada",
         description: `Se creó la etapa "${nombre}" en la posición ${ordenSeguro}.`,
@@ -222,7 +199,7 @@ export default function ConfiguracionEtapas() {
 
     setDialogOpen(false);
     setEditing(null);
-    await fetchEtapas();
+    await refreshEtapas();
     } catch (e) {
       toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar la etapa.", variant: "destructive" });
     }
@@ -243,13 +220,12 @@ export default function ConfiguracionEtapas() {
     }
     try {
       await configuracionApi.eliminarEtapa(deleteTarget.id);
-      setEtapas((prev) => prev.filter((e) => e.id !== deleteTarget.id));
       toast({
         title: "Etapa eliminada",
         description: `Se eliminó "${deleteTarget.nombre}".`,
       });
       setDeleteTarget(null);
-      await fetchEtapas();
+      await refreshEtapas();
     } catch (e) {
       toast({
         title: "No se puede eliminar la etapa",
@@ -266,7 +242,7 @@ export default function ConfiguracionEtapas() {
       await configuracionApi.reordenarEtapas({
         etapas: etapas.map((e, index) => ({ id: e.id, orden: index + 1 })),
       });
-      await fetchEtapas();
+      await refreshEtapas();
       toast({
         title: "Orden actualizado",
         description: "La nueva secuencia de etapas fue guardada.",

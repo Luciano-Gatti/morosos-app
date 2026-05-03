@@ -70,11 +70,12 @@ export default function Inmuebles() {
   const [rows, setRows] = useState<InmuebleRowVm[]>(USE_API ? [] : inmueblesPadron.map((r: any) => mapInmuebleRow(r)));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reloadTick, setReloadTick] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [totalElements, setTotalElements] = useState(USE_API ? 0 : rows.length);
   const [totalPages, setTotalPages] = useState(USE_API ? 1 : Math.max(1, Math.ceil(rows.length / PAGE_SIZE)));
   const [catalogGrupos, setCatalogGrupos] = useState<Array<{ id: string; nombre: string }>>([]);
   const [catalogDistritos, setCatalogDistritos] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (USE_API) return rows;
@@ -110,6 +111,7 @@ export default function Inmuebles() {
 
   useEffect(() => {
     if (!USE_API) return;
+    setCatalogError(null);
     Promise.all([configuracionApi.grupos({ size: 500 }), configuracionApi.distritos({ size: 500 })])
       .then(([gs, ds]) => {
         const gArr = Array.isArray((gs as any)?.content) ? (gs as any).content : Array.isArray(gs) ? (gs as any[]) : [];
@@ -117,9 +119,10 @@ export default function Inmuebles() {
         setCatalogGrupos(gArr.map((g: any) => ({ id: String(g.id ?? g.nombre), nombre: String(g.nombre ?? g.grupo ?? g.id) })));
         setCatalogDistritos(dArr.map((d: any) => ({ id: String(d.id ?? d.nombre), nombre: String(d.nombre ?? d.distrito ?? d.id) })));
       })
-      .catch(() => {
+      .catch((e) => {
         setCatalogGrupos([]);
         setCatalogDistritos([]);
+        setCatalogError(e?.message ?? "No se pudieron cargar los catálogos de grupos/distritos.");
       });
   }, []);
 
@@ -153,7 +156,7 @@ export default function Inmuebles() {
         setError(e?.message ?? "No se pudo cargar el padrón de inmuebles.");
       })
       .finally(() => setLoading(false));
-  }, [page, query, field, grupo, distrito, estado, sortKey, sortDir, reloadTick, catalogGrupos, catalogDistritos]);
+  }, [page, query, field, grupo, distrito, estado, sortKey, sortDir, refreshKey, catalogGrupos, catalogDistritos]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -182,18 +185,23 @@ export default function Inmuebles() {
   return (
     <>
       <AppHeader title="Inmuebles" description="Padrón general de inmuebles registrados en el sistema." breadcrumb={[{ label: "Inmuebles" }]} actions={<Button size="sm" className="h-9 gap-2" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" />Importar inmuebles</Button>} />
-      <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => setReloadTick((n) => n + 1)} />
+      <ImportarInmueblesDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => setRefreshKey((n) => n + 1)} />
       <main className="flex-1 px-6 py-6">
         {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando inmuebles…</div>}
         {error && <div className="mb-2 text-xs text-status-debt">Error API: {error}.</div>}
+        {USE_API && catalogError && (
+          <div className="mb-2 text-xs text-destructive">
+            Catálogos no disponibles: {catalogError} Los filtros por grupo y distrito fueron deshabilitados.
+          </div>
+        )}
         <div className="rounded-md border border-border bg-surface shadow-sm">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
             <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><Filter className="h-3.5 w-3.5" />Filtros</div>
             <Select value={field} onValueChange={(v) => { setField(v as typeof field); setPage(1); }}><SelectTrigger className="h-8 w-[160px] text-[12.5px]"><SelectValue /></SelectTrigger><SelectContent>{filterFields.map((f) => <SelectItem key={f.value} value={f.value} className="text-[13px]">{f.label}</SelectItem>)}</SelectContent></Select>
             <div className="relative min-w-[220px] flex-1 sm:max-w-xs"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar..." className="h-8 pl-8 text-[12.5px]" /></div>
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
-            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]"><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogGrupos.map((g) => g.nombre) : gruposInmueble).map((g) => <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>)}</SelectContent></Select>
-            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]"><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogDistritos.map((d) => d.nombre) : distritosInmueble).map((d) => <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>)}</SelectContent></Select>
+            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogGrupos.map((g) => g.nombre) : gruposInmueble).map((g) => <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>)}</SelectContent></Select>
+            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogDistritos.map((d) => d.nombre) : distritosInmueble).map((d) => <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>)}</SelectContent></Select>
             <Select value={estado} onValueChange={(v) => { setEstado(v); setPage(1); }}><SelectTrigger className="h-8 w-[130px] text-[12.5px]"><SelectValue placeholder="Estado" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem><SelectItem value="activo" className="text-[13px]">Activos</SelectItem><SelectItem value="inactivo" className="text-[13px]">Inactivos</SelectItem></SelectContent></Select>
             {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto h-8 px-2 text-[12px] text-muted-foreground hover:text-foreground">Limpiar filtros</Button>}
           </div>

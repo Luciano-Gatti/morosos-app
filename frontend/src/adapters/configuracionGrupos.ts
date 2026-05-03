@@ -1,4 +1,4 @@
-import type { Grupo, GrupoDistrito } from "@/data/grupos";
+import type { Grupo, GrupoDistrito } from "@/types/grupos";
 
 export function mapGrupoDistritoConfig(row: any): GrupoDistrito & { id?: string; grupoId?: string; distritoId?: string } {
   return {
