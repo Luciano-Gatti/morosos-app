@@ -1399,8 +1399,8 @@ function CerrarProcesoDialog({
     { codigo: "JUDICIALIZACION", nombre: "Judicialización" },
     { codigo: "OTRO", nombre: "Otro" },
   ];
-  const motivosDisponibles = motivosCierre ?? motivosDemo;
-  const isApiWithoutMotivos = USE_API && motivosCierre !== null && motivosDisponibles.length === 0;
+  const motivosDisponibles = USE_API ? (motivosCierre ?? []) : motivosDemo;
+  const isApiWithoutMotivos = USE_API && motivosDisponibles.length === 0;
   const [parametro, setParametro] = useState("");
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
@@ -2048,11 +2048,14 @@ function MoverEtapaDialog({
   const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) === idxDestino).length;
   const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) < idxDestino).length;
   const sinSeguimiento = seleccionados.filter((m) => !m.casoId).length;
+  const casosConSeguimiento = seleccionados.filter((m) => !!m.casoId).length;
   const sinSeguimientoIniciables = destinoEsPrimeraEtapa ? sinSeguimiento : 0;
   const sinSeguimientoOmitidos = destinoEsPrimeraEtapa ? 0 : sinSeguimiento;
   const mismaEtapaRepetir = accionMismaEtapa === "repetir" ? enMismaEtapa : 0;
   const mismaEtapaOmitir = accionMismaEtapa === "omitir" ? enMismaEtapa : 0;
   const aplicables = enEtapaAnterior + mismaEtapaRepetir + sinSeguimientoIniciables;
+  const canConfirmApi = !!etapaDestino && casosConSeguimiento > 0 && !mutating;
+  const canConfirm = USE_API ? canConfirmApi : aplicables > 0 && !mutating;
 
   const handleConfirm = () => {
     onConfirm({
@@ -2239,6 +2242,14 @@ function MoverEtapaDialog({
               </span>
             </div>
           )}
+          {USE_API && casosConSeguimiento === 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                No hay casos de seguimiento iniciados para enviar a una etapa determinada.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Footer institucional con resumen */}
@@ -2254,7 +2265,7 @@ function MoverEtapaDialog({
             <Button variant="outline" onClick={onCancel} className="h-9">
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={aplicables === 0 || mutating} className="h-9">
+            <Button onClick={handleConfirm} disabled={!canConfirm} className="h-9">
               Confirmar movimiento
             </Button>
           </div>
