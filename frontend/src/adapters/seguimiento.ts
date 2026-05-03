@@ -11,7 +11,15 @@ export type SeguimientoRow = {
   montoAdeudado: number;
   etapa: string | null;
   estado: "No iniciado" | "Activo" | "Pausado" | "Cerrado";
-  accionesDisponibles: string[];
+  accionesDisponibles?: {
+    puedeIniciar?: boolean;
+    puedeAvanzar?: boolean;
+    puedeRepetir?: boolean;
+    puedePausar?: boolean;
+    puedeReabrir?: boolean;
+    puedeCerrar?: boolean;
+    puedeRegistrarCompromiso?: boolean;
+  } | null;
 };
 
 export function mapEstadoCasoLabel(value: string): SeguimientoRow["estado"] {
@@ -36,7 +44,9 @@ export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
     montoAdeudado: Number(row.montoAdeudado ?? row.montoVencido ?? 0),
     etapa: row.etapaActual ?? row.etapa ?? null,
     estado: mapEstadoCasoLabel(row.estadoCaso ?? row.estado),
-    accionesDisponibles: Array.isArray(row.accionesDisponibles) ? row.accionesDisponibles : [],
+    accionesDisponibles:
+      row && typeof row.accionesDisponibles === "object" && !Array.isArray(row.accionesDisponibles)
+        ? row.accionesDisponibles
+        : null,
   };
 }
-
