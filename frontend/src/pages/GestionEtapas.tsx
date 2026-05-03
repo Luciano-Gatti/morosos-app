@@ -327,11 +327,6 @@ export default function GestionEtapas() {
     const selectedRows = rows.filter((m) => selected.has(m.id));
     const hasAny = selectedRows.length > 0;
     const hasBackendActions = selectedRows.some((m) => !!m.accionesDisponibles);
-    const canReabrirRow = (m: SeguimientoRow) => {
-      const flag = m.accionesDisponibles?.puedeReabrir;
-      if (typeof flag === "boolean") return flag;
-      return m.estado === "Pausado";
-    };
     const canAll = (key: keyof NonNullable<AccionesDisponiblesRow>) =>
       selectedRows.every((m) => (m.accionesDisponibles?.[key] ?? false) === true);
 
@@ -342,7 +337,7 @@ export default function GestionEtapas() {
       canRepetir: USE_API ? (hasBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null),
       canCerrar: USE_API ? (hasBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null),
       canCompromiso: USE_API ? (hasBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true,
-      canReabrir: selectedRows.every(canReabrirRow),
+      canReabrir: USE_API ? (hasBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado"),
       hasBackendActions,
     };
   }, [rows, selected]);
@@ -377,6 +372,11 @@ export default function GestionEtapas() {
     try {
       setMutating(true);
       let result: any = null;
+      let bulkAplicaFallback = false;
+      let bulkAplicados = 0;
+      let bulkOmitidos = 0;
+      let bulkErrores = 0;
+      const bulkErroresDetalle: string[] = [];
       if (data.kind === "iniciar") {
         const inmuebleIds = selectedRows.filter((r) => !r.casoId).map((r) => r.inmuebleId || r.id);
         result = await seguimientoApi.iniciar({ inmuebleIds, observacion: data.payload.observacion });
@@ -394,22 +394,59 @@ export default function GestionEtapas() {
         result = await seguimientoApi.reabrir({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "cerrar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        bulkAplicaFallback = true;
         for (const casoSeguimientoId of casoIds) {
-          result = await seguimientoApi.cerrar({ casoSeguimientoId, ...data.payload });
+          try {
+            const itemResult = await seguimientoApi.cerrar({ casoSeguimientoId, ...data.payload });
+            result = itemResult;
+            bulkAplicados += Number(itemResult?.aplicados ?? itemResult?.applied ?? 1);
+            bulkOmitidos += Number(itemResult?.omitidos ?? itemResult?.skipped ?? 0);
+            bulkErrores += Number(itemResult?.errores ?? itemResult?.errors ?? 0);
+          } catch (e) {
+            bulkErrores += 1;
+            if (e instanceof ApiError && e.message) bulkErroresDetalle.push(`${casoSeguimientoId}: ${e.message}`);
+          }
         }
       } else if (data.kind === "compromiso") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        bulkAplicaFallback = true;
         for (const casoSeguimientoId of casoIds) {
-          result = await seguimientoApi.registrarCompromiso({ casoSeguimientoId, ...data.payload });
+          try {
+            const itemResult = await seguimientoApi.registrarCompromiso({ casoSeguimientoId, ...data.payload });
+            result = itemResult;
+            bulkAplicados += Number(itemResult?.aplicados ?? itemResult?.applied ?? 1);
+            bulkOmitidos += Number(itemResult?.omitidos ?? itemResult?.skipped ?? 0);
+            bulkErrores += Number(itemResult?.errores ?? itemResult?.errors ?? 0);
+          } catch (e) {
+            bulkErrores += 1;
+            if (e instanceof ApiError && e.message) bulkErroresDetalle.push(`${casoSeguimientoId}: ${e.message}`);
+          }
         }
       }
-      const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
-      const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
-      const errores = Number(result?.errores ?? result?.errors ?? 0);
+      const aplicados = bulkAplicaFallback
+        ? bulkAplicados
+        : Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
+      const omitidos = bulkAplicaFallback
+        ? bulkOmitidos
+        : Number(result?.omitidos ?? result?.skipped ?? 0);
+      const errores = bulkAplicaFallback
+        ? bulkErrores
+        : Number(result?.errores ?? result?.errors ?? 0);
       toast({ title: "Acción ejecutada", description: `Aplicados: ${aplicados} · Omitidos: ${omitidos} · Errores: ${errores}` });
       await fetchBandeja();
-      setAccion(null);
-      clearSelection();
+      if (errores === 0) {
+        setAccion(null);
+        clearSelection();
+      } else {
+        const detalle = bulkErroresDetalle.length > 0
+          ? `Primer error: ${bulkErroresDetalle[0]}`
+          : "Algunos casos no pudieron procesarse.";
+        toast({
+          title: "Ejecución parcial",
+          description: `${detalle} Revisá el backend e intentá nuevamente.`,
+          variant: "destructive",
+        });
+      }
     } catch (e) {
       toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo ejecutar la acción.", variant: "destructive" });
     } finally {
@@ -1060,6 +1097,7 @@ function AccionDialog({
     return (
       <CerrarProcesoDialog
         seleccionados={seleccionados}
+        motivosCierre={motivosCierre}
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
@@ -1307,11 +1345,13 @@ type MotivoCierre = "REGULARIZACION" | "PLAN_DE_PAGO" | "CAMBIO_PARAMETRO" | "JU
 
 function CerrarProcesoDialog({
   seleccionados,
+  motivosCierre,
   onCancel,
   onConfirm,
   mutating = false,
 }: {
   seleccionados: InmuebleMoroso[];
+  motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
@@ -1332,6 +1372,7 @@ function CerrarProcesoDialog({
     { codigo: "OTRO", nombre: "Otro" },
   ];
   const motivosDisponibles = motivosCierre ?? motivosDemo;
+  const isApiWithoutMotivos = USE_API && motivosCierre !== null && motivosDisponibles.length === 0;
   const [parametro, setParametro] = useState("");
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
@@ -1353,6 +1394,7 @@ function CerrarProcesoDialog({
   const cuotasValidas = Number.isFinite(cuotasNum) && cuotasNum > 0 && cuotasNum <= 120;
 
   const puedeConfirmar = (() => {
+    if (isApiWithoutMotivos) return false;
     if (!motivo) return false;
     if (motivo === "REGULARIZACION") return !!fechaReg;
     if (motivo === "PLAN_DE_PAGO") return !!fechaPlan && !!fechaPrimera && cuotasValidas;
@@ -1425,8 +1467,13 @@ function CerrarProcesoDialog({
             <Label className="text-[12px] font-medium">
               Motivo de cierre <span className="text-destructive">*</span>
             </Label>
+            {isApiWithoutMotivos && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+                No hay motivos de cierre activos disponibles desde API. No es posible cerrar procesos en este momento.
+              </div>
+            )}
             <Select value={motivo} onValueChange={(v) => setMotivo(v as MotivoCierre)}>
-              <SelectTrigger className="h-9 text-[13px]">
+              <SelectTrigger className="h-9 text-[13px]" disabled={isApiWithoutMotivos}>
                 <SelectValue placeholder="Seleccionar motivo..." />
               </SelectTrigger>
               <SelectContent>
