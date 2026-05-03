@@ -20,6 +20,7 @@ import {
   ListChecks,
   CalendarRange,
   History,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/BrandMark";
@@ -37,6 +38,7 @@ const items: NavItem[] = [
   { to: "/inmuebles", label: "Inmuebles", icon: Building2 },
   { to: "/deuda", label: "Gestión de deuda", icon: ReceiptText },
   { to: "/etapas", label: "Gestión de etapas", icon: ListTree },
+  { to: "/auditoria/movimientos", label: "Auditoría / Movimientos", icon: ScrollText },
   {
     to: "/reportes",
     label: "Reportes",

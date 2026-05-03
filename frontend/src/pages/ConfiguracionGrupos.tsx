@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Search,
@@ -59,6 +59,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { configuracionApi } from "@/services/api/configuracionApi";
+import { ApiError, USE_API } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import {
   gruposIniciales,
@@ -88,6 +90,10 @@ function hoy() {
 export default function ConfiguracionGrupos() {
   const { toast } = useToast();
   const [grupos, setGrupos] = useState<Grupo[]>(gruposIniciales);
+  const [distritosCatalogo, setDistritosCatalogo] = useState<string[]>(distritosInmueble);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
   const [query, setQuery] = useState("");
 
   // Alta / edición de datos básicos del grupo
@@ -103,7 +109,68 @@ export default function ConfiguracionGrupos() {
   // Eliminar
   const [deleteTarget, setDeleteTarget] = useState<Grupo | null>(null);
 
-  const filtered = useMemo(() => {
+  
+
+  const toArray = (data: any) => (Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : []);
+  const normalize = (rawGrupos: any[], rawDistritos: any[], rawCfg: any[]): Grupo[] => {
+    const gruposById = new Map(rawGrupos.map((g: any) => [String(g.id), g]));
+    const distritosById = new Map(rawDistritos.map((d: any) => [String(d.id), d]));
+    const cfgByGrupo = new Map<string, any[]>();
+    rawCfg.forEach((c: any) => {
+      const gid = String(c.grupoId ?? c.grupo?.id ?? c.grupo_id ?? '');
+      if (!gid) return;
+      const arr = cfgByGrupo.get(gid) ?? [];
+      arr.push(c);
+      cfgByGrupo.set(gid, arr);
+    });
+    return rawGrupos.map((g: any) => {
+      const gid = String(g.id ?? '');
+      const distritos = (cfgByGrupo.get(gid) ?? []).map((c: any) => {
+        const did = String(c.distritoId ?? c.distrito?.id ?? c.distrito_id ?? '');
+        const d = distritosById.get(did) ?? c.distrito ?? {};
+        return {
+          distrito: String(d.nombre ?? d.distrito ?? c.distritoNombre ?? c.distrito_codigo ?? did || '-'),
+          seguimientoHabilitado: Boolean(c.seguimientoHabilitado ?? c.seguimiento_habilitado ?? false),
+          inmuebles: Number(c.inmuebles ?? 0),
+          configId: String(c.id ?? ''),
+          distritoId: did,
+        } as any;
+      });
+      return {
+        id: gid,
+        nombre: String(g.nombre ?? g.grupo ?? ''),
+        descripcion: g.descripcion ?? undefined,
+        distritos,
+        actualizado: new Date(g.updatedAt ?? g.actualizado ?? Date.now()).toLocaleDateString('es-AR'),
+        activo: Boolean(g.activo ?? true),
+      } as Grupo;
+    });
+  };
+
+  const loadData = async () => {
+    if (!USE_API) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const [gs, ds, cfg] = await Promise.all([
+        configuracionApi.grupos({ size: 500 }),
+        configuracionApi.distritos({ size: 500 }),
+        configuracionApi.grupoDistritoConfig({ size: 2000 }),
+      ]);
+      const gruposNorm = normalize(toArray(gs), toArray(ds), toArray(cfg));
+      setGrupos(gruposNorm);
+      setDistritosCatalogo(toArray(ds).map((d: any) => String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)).filter(Boolean));
+    } catch (e: any) {
+      setError(e?.message ?? 'No se pudo cargar configuración');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return grupos;
     return grupos.filter(
@@ -129,7 +196,7 @@ export default function ConfiguracionGrupos() {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nombre = form.nombre.trim();
     if (!nombre) {
       toast({
@@ -140,36 +207,26 @@ export default function ConfiguracionGrupos() {
       return;
     }
 
-    if (editing) {
-      setGrupos((prev) =>
-        prev.map((g) =>
-          g.id === editing.id
-            ? {
-                ...g,
-                nombre,
-                descripcion: form.descripcion.trim() || undefined,
-                actualizado: hoy(),
-              }
-            : g,
-        ),
-      );
-      toast({
-        title: "Grupo actualizado",
-        description: `Se guardaron los cambios en "${nombre}".`,
-      });
-    } else {
-      const nuevo: Grupo = {
-        id: `g-${Date.now()}`,
-        nombre,
-        descripcion: form.descripcion.trim() || undefined,
-        distritos: [],
-        actualizado: hoy(),
-      };
-      setGrupos((prev) => [nuevo, ...prev]);
-      toast({
-        title: "Grupo creado",
-        description: `"${nombre}" fue creado. Asociá distritos para habilitar el seguimiento.`,
-      });
+    try {
+      setMutating(true);
+      if (USE_API) {
+        if (editing) await configuracionApi.actualizarGrupo(editing.id, { nombre, descripcion: form.descripcion.trim() || null });
+        else await configuracionApi.crearGrupo({ nombre, descripcion: form.descripcion.trim() || null });
+        await loadData();
+      } else {
+        if (editing) {
+          setGrupos((prev) => prev.map((g) => g.id === editing.id ? { ...g, nombre, descripcion: form.descripcion.trim() || undefined, actualizado: hoy() } : g));
+        } else {
+          const nuevo: Grupo = { id: `g-${Date.now()}`, nombre, descripcion: form.descripcion.trim() || undefined, distritos: [], actualizado: hoy() };
+          setGrupos((prev) => [nuevo, ...prev]);
+        }
+      }
+      toast({ title: editing ? 'Grupo actualizado' : 'Grupo creado', description: editing ? `Se guardaron los cambios en "${nombre}".` : `"${nombre}" fue creado.` });
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof ApiError ? e.message : 'No se pudo guardar el grupo.', variant: 'destructive' });
+      return;
+    } finally {
+      setMutating(false);
     }
 
     setDialogOpen(false);
@@ -192,7 +249,7 @@ export default function ConfiguracionGrupos() {
   const distritosDisponibles = useMemo(() => {
     if (!distritosTarget) return [];
     const yaAsociados = new Set(distritosDraft.map((d) => d.distrito));
-    return distritosInmueble.filter((d) => !yaAsociados.has(d));
+    return distritosCatalogo.filter((d) => !yaAsociados.has(d));
   }, [distritosTarget, distritosDraft]);
 
   const handleAgregarDistrito = () => {
@@ -227,26 +284,33 @@ export default function ConfiguracionGrupos() {
     );
   };
 
-  const handleSaveDistritos = () => {
+  const handleSaveDistritos = async () => {
     if (!distritosTarget) return;
-    setGrupos((prev) =>
-      prev.map((g) =>
-        g.id === distritosTarget.id
-          ? { ...g, distritos: distritosDraft, actualizado: hoy() }
-          : g,
-      ),
-    );
-    toast({
-      title: "Distritos actualizados",
-      description: `Se actualizó la configuración de "${distritosTarget.nombre}".`,
-    });
-    closeDistritos();
+    try {
+      setMutating(true);
+      if (USE_API) {
+        for (const d of distritosDraft as any[]) {
+          if (d.configId) {
+            await configuracionApi.actualizarGrupoDistritoConfig(d.configId, { seguimientoHabilitado: d.seguimientoHabilitado });
+          }
+        }
+        await loadData();
+      } else {
+        setGrupos((prev) => prev.map((g) => g.id === distritosTarget.id ? { ...g, distritos: distritosDraft, actualizado: hoy() } : g));
+      }
+      toast({ title: 'Distritos actualizados', description: `Se actualizó la configuración de "${distritosTarget.nombre}".` });
+      closeDistritos();
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof ApiError ? e.message : 'No se pudo actualizar la configuración.', variant: 'destructive' });
+    } finally {
+      setMutating(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
     const totalInm = totalInmueblesGrupo(deleteTarget);
-    if (totalInm > 0) {
+    if (!USE_API && totalInm > 0) {
       toast({
         title: "No se puede eliminar el grupo",
         description: `"${deleteTarget.nombre}" tiene ${numberFmt.format(
@@ -257,12 +321,21 @@ export default function ConfiguracionGrupos() {
       setDeleteTarget(null);
       return;
     }
-    setGrupos((prev) => prev.filter((g) => g.id !== deleteTarget.id));
-    toast({
-      title: "Grupo eliminado",
-      description: `Se eliminó "${deleteTarget.nombre}".`,
-    });
-    setDeleteTarget(null);
+    try {
+      setMutating(true);
+      if (USE_API) {
+        await configuracionApi.eliminarGrupo(deleteTarget.id);
+        await loadData();
+      } else {
+        setGrupos((prev) => prev.filter((g) => g.id !== deleteTarget.id));
+      }
+      toast({ title: 'Grupo eliminado', description: `Se eliminó "${deleteTarget.nombre}".` });
+      setDeleteTarget(null);
+    } catch (e) {
+      toast({ title: 'No se puede eliminar', description: e instanceof ApiError ? e.message : 'El backend rechazó la eliminación.', variant: 'destructive' });
+    } finally {
+      setMutating(false);
+    }
   };
 
   return (
@@ -277,6 +350,8 @@ export default function ConfiguracionGrupos() {
       />
 
       <main className="flex-1 px-6 py-6">
+        {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando configuración…</div>}
+        {error && <div className="mb-2 text-xs text-destructive">{error}</div>}
         <div className="rounded-md border border-border bg-surface shadow-sm">
           {/* Toolbar */}
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
@@ -525,7 +600,7 @@ export default function ConfiguracionGrupos() {
             >
               Cancelar
             </Button>
-            <Button onClick={handleSave} className="h-9 text-[13px]">
+            <Button onClick={handleSave} className="h-9 text-[13px]" disabled={mutating}>
               {editing ? "Guardar cambios" : "Crear grupo"}
             </Button>
           </DialogFooter>
@@ -665,6 +740,7 @@ export default function ConfiguracionGrupos() {
             <Button
               onClick={handleSaveDistritos}
               className="h-9 text-[13px]"
+              disabled={mutating}
             >
               Guardar cambios
             </Button>
@@ -724,6 +800,7 @@ export default function ConfiguracionGrupos() {
             {deleteTarget && totalInmueblesGrupo(deleteTarget) === 0 && (
               <AlertDialogAction
                 onClick={handleDelete}
+                disabled={mutating}
                 className="h-9 bg-destructive text-[13px] text-destructive-foreground hover:bg-destructive/90"
               >
                 Eliminar

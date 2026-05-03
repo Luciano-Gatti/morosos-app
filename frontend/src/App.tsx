@@ -16,6 +16,7 @@ import ConfiguracionGrupos from "./pages/ConfiguracionGrupos";
 import ConfiguracionSeguimiento from "./pages/ConfiguracionSeguimiento";
 import ConfiguracionEtapas from "./pages/ConfiguracionEtapas";
 import ConfiguracionMotivosCierre from "./pages/ConfiguracionMotivosCierre";
+import AuditoriaMovimientos from "./pages/AuditoriaMovimientos";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/etapas" element={<GestionEtapas />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/reportes/:reporteId" element={<Reportes />} />
+            <Route path="/auditoria/movimientos" element={<AuditoriaMovimientos />} />
             <Route
               path="/configuracion"
               element={
