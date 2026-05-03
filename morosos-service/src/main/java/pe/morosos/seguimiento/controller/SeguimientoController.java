@@ -20,12 +20,14 @@ import pe.morosos.seguimiento.dto.BulkActionResultResponse;
 import pe.morosos.seguimiento.dto.CerrarProcesoRequest;
 import pe.morosos.seguimiento.dto.CompromisoPagoRequest;
 import pe.morosos.seguimiento.dto.CompromisoPagoResponse;
+import pe.morosos.seguimiento.dto.CerrarProcesosBulkRequest;
 import pe.morosos.seguimiento.dto.EnviarEtapaRequest;
 import pe.morosos.seguimiento.dto.HistorialCasoResponse;
 import pe.morosos.seguimiento.dto.HistorialSeguimientoResponse;
 import pe.morosos.seguimiento.dto.IniciarSeguimientoRequest;
 import pe.morosos.seguimiento.dto.PausarCasoRequest;
 import pe.morosos.seguimiento.dto.ReabrirCasoRequest;
+import pe.morosos.seguimiento.dto.RegistrarCompromisosBulkRequest;
 import pe.morosos.seguimiento.dto.RepetirEtapaRequest;
 import pe.morosos.seguimiento.dto.SeguimientoBandejaRowResponse;
 import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
@@ -112,6 +114,30 @@ public class SeguimientoController {
         ));
     }
 
+    @PostMapping("/cerrar/bulk")
+    public BulkActionResultResponse cerrarBulk(@Valid @RequestBody CerrarProcesosBulkRequest request) {
+        ProcesoCierreService.PlanPagoData planPagoData = request.planPago() == null
+                ? null
+                : new ProcesoCierreService.PlanPagoData(
+                request.planPago().cantidadCuotas(),
+                request.planPago().fechaVencimientoPrimeraCuota()
+        );
+        ProcesoCierreService.CambioParametroData cambioParametroData = request.cambioParametro() == null
+                ? null
+                : new ProcesoCierreService.CambioParametroData(
+                request.cambioParametro().parametro(),
+                request.cambioParametro().valorAnterior(),
+                request.cambioParametro().valorNuevo()
+        );
+        return seguimientoService.cerrarBulk(
+                request.casoSeguimientoIds(),
+                request.motivoCodigo(),
+                request.observacion(),
+                planPagoData,
+                cambioParametroData
+        );
+    }
+
     @PostMapping("/compromisos")
     public CompromisoPagoResponse registrarCompromiso(@Valid @RequestBody CompromisoPagoRequest request) {
         return compromisoPagoMapper.toResponse(seguimientoService.registrarCompromiso(
@@ -121,6 +147,17 @@ public class SeguimientoController {
                 request.montoComprometido(),
                 request.observacion()
         ));
+    }
+
+    @PostMapping("/compromisos/bulk")
+    public BulkActionResultResponse registrarCompromisosBulk(@Valid @RequestBody RegistrarCompromisosBulkRequest request) {
+        return seguimientoService.registrarCompromisosBulk(
+                request.casoSeguimientoIds(),
+                request.fechaDesde(),
+                request.fechaHasta(),
+                request.montoComprometido(),
+                request.observacion()
+        );
     }
 
     @GetMapping("/inmuebles/{inmuebleId}/historial")

@@ -376,11 +376,6 @@ export default function GestionEtapas() {
     try {
       setMutating(true);
       let result: any = null;
-      let bulkAplicaFallback = false;
-      let bulkAplicados = 0;
-      let bulkOmitidos = 0;
-      let bulkErrores = 0;
-      const bulkErroresDetalle: string[] = [];
       if (data.kind === "iniciar") {
         const inmuebleIds = selectedRows.filter((r) => !r.casoId).map((r) => r.inmuebleId || r.id);
         result = await seguimientoApi.iniciar({ inmuebleIds, observacion: data.payload.observacion });
@@ -407,52 +402,31 @@ export default function GestionEtapas() {
         result = await seguimientoApi.reabrir({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "cerrar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        bulkAplicaFallback = true;
-        for (const casoSeguimientoId of casoIds) {
-          try {
-            const itemResult = await seguimientoApi.cerrar({ casoSeguimientoId, ...data.payload });
-            result = itemResult;
-            bulkAplicados += Number(itemResult?.aplicados ?? itemResult?.applied ?? 1);
-            bulkOmitidos += Number(itemResult?.omitidos ?? itemResult?.skipped ?? 0);
-            bulkErrores += Number(itemResult?.errores ?? itemResult?.errors ?? 0);
-          } catch (e) {
-            bulkErrores += 1;
-            if (e instanceof ApiError && e.message) bulkErroresDetalle.push(`${casoSeguimientoId}: ${e.message}`);
-          }
-        }
+        result = await seguimientoApi.cerrarBulk({
+          casoSeguimientoIds: casoIds,
+          ...data.payload,
+        });
       } else if (data.kind === "compromiso") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        bulkAplicaFallback = true;
-        for (const casoSeguimientoId of casoIds) {
-          try {
-            const itemResult = await seguimientoApi.registrarCompromiso({ casoSeguimientoId, ...data.payload });
-            result = itemResult;
-            bulkAplicados += Number(itemResult?.aplicados ?? itemResult?.applied ?? 1);
-            bulkOmitidos += Number(itemResult?.omitidos ?? itemResult?.skipped ?? 0);
-            bulkErrores += Number(itemResult?.errores ?? itemResult?.errors ?? 0);
-          } catch (e) {
-            bulkErrores += 1;
-            if (e instanceof ApiError && e.message) bulkErroresDetalle.push(`${casoSeguimientoId}: ${e.message}`);
-          }
-        }
+        result = await seguimientoApi.registrarCompromisosBulk({
+          casoSeguimientoIds: casoIds,
+          ...data.payload,
+        });
       }
-      const aplicados = bulkAplicaFallback
-        ? bulkAplicados
-        : Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
-      const omitidos = bulkAplicaFallback
-        ? bulkOmitidos
-        : Number(result?.omitidos ?? result?.skipped ?? 0);
-      const errores = bulkAplicaFallback
-        ? bulkErrores
-        : Number(result?.errores ?? result?.errors ?? 0);
+      const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
+      const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
+      const errores = Number(result?.errores ?? result?.errors ?? 0);
       toast({ title: "Acción ejecutada", description: `Aplicados: ${aplicados} · Omitidos: ${omitidos} · Errores: ${errores}` });
       await fetchBandeja();
       if (errores === 0) {
         setAccion(null);
         clearSelection();
       } else {
-        const detalle = bulkErroresDetalle.length > 0
-          ? `Primer error: ${bulkErroresDetalle[0]}`
+        const primerError = Array.isArray(result?.resultados)
+          ? result.resultados.find((r: any) => String(r?.estado ?? "").toUpperCase() === "ERROR")
+          : null;
+        const detalle = primerError?.mensaje
+          ? `Primer error: ${primerError.mensaje}`
           : "Algunos casos no pudieron procesarse.";
         toast({
           title: "Ejecución parcial",
@@ -1227,6 +1201,17 @@ function ConfirmarEtapaDialog({
     ? seleccionados.filter((m) => m.etapa !== null && etapaSiguienteEnLista(m.etapa, etapasOperativas) === null).length
     : total - repetidos;
   const aplicables = isSiguiente ? avanzados + iniciados : repetidos;
+  const casosConSeguimiento = seleccionados.filter((m) => !!m.casoId).length;
+  const sinSeguimiento = total - casosConSeguimiento;
+  const canConfirmApi = isSiguiente
+    ? total > 0 && !mutating && (casosConSeguimiento > 0 || sinSeguimiento > 0)
+    : casosConSeguimiento > 0 && !mutating;
+  const canConfirm = USE_API ? canConfirmApi : aplicables > 0 && !mutating;
+  const mensajeApi = !USE_API
+    ? null
+    : (!isSiguiente && casosConSeguimiento === 0)
+      ? "No hay procesos iniciados para repetir etapa."
+      : null;
   const Icon = isSiguiente ? ArrowRightCircle : RotateCcw;
 
   const handleConfirm = () => {
@@ -1349,6 +1334,12 @@ function ConfirmarEtapaDialog({
               <span>{omitidos} inmueble{omitidos === 1 ? " será omitido" : "s serán omitidos"} por no cumplir las condiciones de esta acción.</span>
             </div>
           )}
+          {mensajeApi && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{mensajeApi}</span>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-row items-center justify-between gap-3 border-t border-border bg-surface-muted/40 px-6 py-3 sm:justify-between">
@@ -1357,7 +1348,7 @@ function ConfirmarEtapaDialog({
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={onCancel} className="h-9">Cancelar</Button>
-            <Button onClick={handleConfirm} disabled={aplicables === 0 || mutating} className="h-9">
+            <Button onClick={handleConfirm} disabled={!canConfirm} className="h-9">
               Confirmar acción
             </Button>
           </div>
