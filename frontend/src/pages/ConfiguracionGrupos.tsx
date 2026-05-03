@@ -262,15 +262,6 @@ const filtered = useMemo(() => {
   }, [distritosTarget, distritosDraft]);
 
   const handleAgregarDistrito = () => {
-    if (USE_API) {
-      toast({
-        title: "Operación no disponible",
-        description:
-          "La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!distritoNuevo) return;
     setDistritosDraft((prev) => [
       ...prev,
@@ -280,15 +271,6 @@ const filtered = useMemo(() => {
   };
 
   const handleQuitarDistrito = (distrito: string) => {
-    if (USE_API) {
-      toast({
-        title: "Operación no disponible",
-        description:
-          "La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.",
-        variant: "destructive",
-      });
-      return;
-    }
     const item = distritosDraft.find((d) => d.distrito === distrito);
     if (item && item.inmuebles > 0) {
       toast({
@@ -316,13 +298,40 @@ const filtered = useMemo(() => {
     try {
       setMutating(true);
       if (USE_API) {
-        const hasUnsupported = (distritosDraft as any[]).some((d) => !d.configId);
-        if (hasUnsupported) {
-          toast({ title: 'Operación no soportada', description: 'El backend actual no expone alta/baja de relación grupo+distrito desde esta vista.', variant: 'destructive' });
-          return;
+        const original = new Map((distritosTarget.distritos as any[]).map((d) => [String(d.distrito), d]));
+        const current = new Map((distritosDraft as any[]).map((d) => [String(d.distrito), d]));
+        const distritosByName = new Map(
+          distritosRaw.map((d: any) => [String(d.nombre ?? d.distrito ?? d.codigo ?? d.id), String(d.id)]),
+        );
+
+        for (const [name, d] of current) {
+          const prev = original.get(name);
+          if (!prev) {
+            const distritoId = distritosByName.get(name);
+            if (!distritoId) {
+              throw new ApiError(`No se encontró el distrito "${name}" para asociar.`, 400);
+            }
+            await configuracionApi.crearGrupoDistritoConfig({
+              grupoId: distritosTarget.id,
+              distritoId,
+              seguimientoHabilitado: Boolean(d.seguimientoHabilitado),
+            });
+            continue;
+          }
+          if (prev.configId && Boolean(prev.seguimientoHabilitado) !== Boolean(d.seguimientoHabilitado)) {
+            await configuracionApi.actualizarGrupoDistritoConfig(String(prev.configId), {
+              grupoId: distritosTarget.id,
+              distritoId: String(prev.distritoId ?? distritosByName.get(name)),
+              seguimientoHabilitado: Boolean(d.seguimientoHabilitado),
+            });
+          }
         }
-        for (const d of distritosDraft as any[]) {
-          await configuracionApi.actualizarGrupoDistritoConfig(d.configId, { seguimientoHabilitado: d.seguimientoHabilitado });
+        for (const [name, prev] of original) {
+          if (current.has(name)) continue;
+          if (!prev.configId) {
+            throw new ApiError(`No se pudo quitar "${name}" porque no tiene identificador de relación.`, 400);
+          }
+          await configuracionApi.eliminarGrupoDistritoConfig(String(prev.configId));
         }
         await loadData();
       } else {
@@ -841,7 +850,7 @@ const filtered = useMemo(() => {
                   size="sm"
                   className="h-9 gap-1.5 text-[12.5px]"
                   onClick={handleAgregarDistrito}
-                  disabled={!distritoNuevo || USE_API}
+                  disabled={!distritoNuevo}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Asociar
@@ -866,11 +875,6 @@ const filtered = useMemo(() => {
               Guardar cambios
             </Button>
           </DialogFooter>
-          {USE_API && (
-            <p className="text-[12px] text-muted-foreground">
-              La creación o eliminación de relaciones grupo-distrito no está disponible desde esta pantalla.
-            </p>
-          )}
         </DialogContent>
       </Dialog>
 

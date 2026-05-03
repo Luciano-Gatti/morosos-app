@@ -14,14 +14,16 @@ public class GrupoDistritoConfigMapper {
         GrupoDistritoConfig config = new GrupoDistritoConfig();
         config.setGrupo(grupo);
         config.setDistrito(distrito);
-        config.setSeguimientoHabilitado(request.seguimientoHabilitado());
+        config.setSeguimientoHabilitado(Boolean.TRUE.equals(request.seguimientoHabilitado()));
         return config;
     }
 
     public void update(GrupoDistritoConfig entity, GrupoDistritoConfigRequest request, Grupo grupo, Distrito distrito) {
         entity.setGrupo(grupo);
         entity.setDistrito(distrito);
-        entity.setSeguimientoHabilitado(request.seguimientoHabilitado());
+        if (request.seguimientoHabilitado() != null) {
+            entity.setSeguimientoHabilitado(request.seguimientoHabilitado());
+        }
     }
 
     public GrupoDistritoConfigResponse toResponse(GrupoDistritoConfig entity) {

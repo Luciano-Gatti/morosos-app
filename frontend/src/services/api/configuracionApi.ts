@@ -15,7 +15,9 @@ export const configuracionApi = {
   actualizarParametroSeguimiento: (codigo: string, body: unknown) => apiClient.put(`/api/v1/parametros-seguimiento/${codigo}`, body),
 
   grupoDistritoConfig: (params?: Record<string, any>) => apiClient.get(`/api/v1/grupo-distrito-config${buildQueryParams(params)}`),
+  crearGrupoDistritoConfig: (body: unknown) => apiClient.post(`/api/v1/grupo-distrito-config`, body),
   actualizarGrupoDistritoConfig: (id: string, body: unknown) => apiClient.put(`/api/v1/grupo-distrito-config/${id}`, body),
+  eliminarGrupoDistritoConfig: (id: string) => apiClient.delete?.(`/api/v1/grupo-distrito-config/${id}`) ?? apiClient.post(`/api/v1/grupo-distrito-config/${id}`, { _method: "DELETE" }),
 
   etapas: (params?: Record<string, any>) => apiClient.get(`/api/v1/etapas${buildQueryParams(params)}`),
   crearEtapa: (body: unknown) => apiClient.post(`/api/v1/etapas`, body),

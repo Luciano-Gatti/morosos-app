@@ -8,4 +8,5 @@ import pe.morosos.inmueble.entity.Inmueble;
 public interface InmuebleRepository extends JpaRepository<Inmueble, UUID>, JpaSpecificationExecutor<Inmueble> {
     boolean existsByCuentaIgnoreCaseAndIdNot(String cuenta, UUID id);
     java.util.Optional<Inmueble> findByCuentaIgnoreCase(String cuenta);
+    long countByGrupoIdAndDistritoId(UUID grupoId, UUID distritoId);
 }
