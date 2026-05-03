@@ -6,6 +6,6 @@ import java.util.UUID;
 public record GrupoDistritoConfigRequest(
         @NotNull UUID grupoId,
         @NotNull UUID distritoId,
-        @NotNull Boolean seguimientoHabilitado
+        Boolean seguimientoHabilitado
 ) {
 }
