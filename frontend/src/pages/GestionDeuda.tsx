@@ -125,6 +125,7 @@ export default function GestionDeuda() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPeriodo, setImportPeriodo] = useState("");
   const [importing, setImporting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isPeriodoValido = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
   const resetImportForm = () => {
@@ -158,7 +159,7 @@ export default function GestionDeuda() {
       }
     };
     fetchCargas();
-  }, [page, estado, periodo, sortDir, sortKey, query]);
+  }, [page, estado, periodo, sortDir, sortKey, query, refreshKey]);
 
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
@@ -205,6 +206,7 @@ export default function GestionDeuda() {
       resetImportForm();
       setImportOpen(false);
       setPage(1);
+      setRefreshKey((prev) => prev + 1);
     } catch (e) {
       toast({
         title: "Error de importación",
