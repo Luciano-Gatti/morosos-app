@@ -97,6 +97,13 @@ type ReporteId =
 type ReporteSource = "api" | "mock";
 type ReporteDataState<T> = { data: T; loading: boolean; error: string | null; empty: boolean; source: ReporteSource };
 
+const emptyMorososViewModel = () => ({
+  grupos: [],
+  distritos: [],
+  total: { totalInmuebles: 0, deudores: 0, morosos: 0, alDia: 0, porcentajeMorosidad: 0 },
+});
+const emptyRowsViewModel = <T,>() => ({ rows: [] as T[] });
+
 function getReporteMorososViewModel() {
   const grupos = getMorososPorGrupo();
   const distritos = getMorososPorDistrito();
@@ -340,8 +347,11 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
           ...s,
           loading: false,
           error: e?.message ?? "No se pudo cargar el reporte.",
-          source: "mock",
+          source: "api",
+          data: emptyMorososViewModel(),
+          empty: true,
         }));
+        toast({ title: "Error al cargar reporte", description: "No fue posible obtener morosos por grupo y distrito.", variant: "destructive" });
       });
     return () => {
       cancelled = true;
@@ -369,7 +379,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setAccionesFechasState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        setAccionesFechasState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<AccionRegistro>(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener acciones entre fechas.", variant: "destructive" });
       });
     return () => {
@@ -395,7 +405,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<any>(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener estado de inmuebles.", variant: "destructive" });
       });
     return () => {
@@ -421,7 +431,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setHistorialState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        setHistorialState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<any>(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener historial de movimientos.", variant: "destructive" });
       });
     return () => {
@@ -450,7 +460,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setAccionesRegularizacionState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte." }));
+        setAccionesRegularizacionState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<AccionRegistro>(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener regularizaciones.", variant: "destructive" });
       });
     return () => {
@@ -489,6 +499,13 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     return [`Período: ${desdeS} — ${hastaS}`];
   }, [reporte.conFechas, desde, hasta]);
 
+
+  const canExport = useMemo(() => {
+    if (reporteState.loading) return false;
+    if (!USE_API) return true;
+    return reporteState.source === "api" && !reporteState.error && !reporteState.empty;
+  }, [reporteState]);
+
   const Header = (
     <div className="border-b border-border px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -507,7 +524,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
             size="sm"
             variant="outline"
             className="h-8 gap-1.5 text-[12.5px]"
-            disabled={exportando}
+            disabled={exportando || !canExport}
             onClick={() => handleExport("xlsx")}
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -516,7 +533,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
           <Button
             size="sm"
             className="h-8 gap-1.5 text-[12.5px]"
-            disabled={exportando}
+            disabled={exportando || !canExport}
             onClick={() => handleExport("pdf")}
           >
             <FileDown className="h-3.5 w-3.5" />
@@ -580,6 +597,14 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   );
 
   const handleExport = async (kind: "pdf" | "xlsx") => {
+    if (USE_API && !canExport) {
+      toast({
+        title: "Exportación no disponible",
+        description: "No hay datos reales disponibles para exportar.",
+        variant: "destructive",
+      });
+      return;
+    }
     setExportando(true);
     try {
       await runExport(kind, reporte, { desde, hasta }, filtrosLabel, reporteState);
