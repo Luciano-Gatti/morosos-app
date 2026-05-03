@@ -1,6 +1,6 @@
 import { Bell, FileWarning, Gavel, PowerOff, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { accionesMes } from "@/data/mock";
+import { accionesMes } from "@/demo/dashboardDemo";
 
 const meta: Record<
   string,

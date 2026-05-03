@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { inmueblesPadron, distritosInmueble } from "@/data/inmuebles";
-import { gruposIniciales } from "@/data/grupos";
+import { inmueblesPadron, distritosInmueble } from "@/demo/inmueblesDemo";
+import { gruposIniciales } from "@/demo/gruposDemo";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import { mapInmuebleDetalle, type InmuebleDetalleViewModel } from "@/adapters/inmuebleDetalle";
 import { ApiError, USE_API } from "@/lib/apiClient";

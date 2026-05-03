@@ -28,7 +28,7 @@ import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import {
   getHistorialInmueble,
-} from "@/data/historialSeguimiento";
+} from "@/demo/historialSeguimientoDemo";
 import { isHistorialEmpty, mapHistorialSeguimiento, type HistorialSeguimientoViewModel } from "@/adapters/historialSeguimiento";
 import type { CierreProceso, ProcesoSeguimiento, RegistroHistorial } from "@/types/historialSeguimiento";
 import type { EstadoProceso, EtapaSeguimiento } from "@/types/seguimiento";

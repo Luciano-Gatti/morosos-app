@@ -69,7 +69,7 @@ import { cn } from "@/lib/utils";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { ApiError } from "@/lib/apiClient";
 import { mapMotivoCierre } from "@/adapters/motivosCierre";
-import { motivosCierreIniciales } from "@/data/motivosCierre";
+import { motivosCierreIniciales } from "@/demo/configuracionDemo";
 import type { MotivoCierre } from "@/types/configuracion";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
@@ -107,7 +107,7 @@ export default function ConfiguracionMotivosCierre() {
       setMotivos(rows);
     } catch (e) {
       setError("No se pudieron cargar los motivos de cierre.");
-      if (motivosCierreIniciales.length > 0) setMotivos(motivosCierreIniciales);
+      if (!import.meta.env.VITE_USE_API || import.meta.env.VITE_USE_API !== "true") setMotivos(motivosCierreIniciales);
     } finally {
       setLoading(false);
     }

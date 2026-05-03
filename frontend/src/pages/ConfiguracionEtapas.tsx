@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { etapasIniciales } from "@/data/etapas";
+import { etapasIniciales } from "@/demo/configuracionDemo";
 import type { EtapaConfig } from "@/types/configuracion";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapEtapa } from "@/adapters/etapas";
@@ -119,7 +119,7 @@ export default function ConfiguracionEtapas() {
     } catch (e) {
       setError("No se pudieron cargar las etapas.");
       // Fallback temporal local: se usa solo si falla backend.
-      if (etapasIniciales.length > 0) {
+      if (!import.meta.env.VITE_USE_API || import.meta.env.VITE_USE_API !== "true") {
         setEtapas(etapasIniciales);
         setEtapasGuardadas(etapasIniciales);
       }

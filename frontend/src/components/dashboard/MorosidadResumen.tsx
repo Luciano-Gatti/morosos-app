@@ -1,4 +1,4 @@
-import { resumenMorosidad } from "@/data/mock";
+import { resumenMorosidad } from "@/demo/dashboardDemo";
 
 export function MorosidadResumen({ data = resumenMorosidad }: { data?: typeof resumenMorosidad }) {
   const { totalInmuebles, alDia, deudores, morosos } = data;

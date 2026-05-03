@@ -69,9 +69,9 @@ import {
   estadosProceso,
   gruposSeguimiento,
   distritosSeguimiento,
-} from "@/data/seguimiento";
+} from "@/demo/seguimientoDemo";
 import type { InmuebleMoroso, EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
-import { parametrosSeguimiento } from "@/data/parametrosSeguimiento";
+import { parametrosSeguimiento } from "@/demo/seguimientoDemo";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
