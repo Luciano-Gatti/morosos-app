@@ -20,6 +20,7 @@ import pe.morosos.seguimiento.dto.BulkActionResultResponse;
 import pe.morosos.seguimiento.dto.CerrarProcesoRequest;
 import pe.morosos.seguimiento.dto.CompromisoPagoRequest;
 import pe.morosos.seguimiento.dto.CompromisoPagoResponse;
+import pe.morosos.seguimiento.dto.EnviarEtapaRequest;
 import pe.morosos.seguimiento.dto.HistorialCasoResponse;
 import pe.morosos.seguimiento.dto.HistorialSeguimientoResponse;
 import pe.morosos.seguimiento.dto.IniciarSeguimientoRequest;
@@ -64,6 +65,11 @@ public class SeguimientoController {
     @PostMapping("/avanzar")
     public BulkActionResultResponse avanzar(@Valid @RequestBody AvanzarEtapaRequest request) {
         return seguimientoService.avanzar(request.casoIds(), request.observacion());
+    }
+
+    @PostMapping("/enviar-etapa")
+    public BulkActionResultResponse enviarEtapa(@Valid @RequestBody EnviarEtapaRequest request) {
+        return seguimientoService.enviarEtapa(request);
     }
 
     @PostMapping("/repetir")

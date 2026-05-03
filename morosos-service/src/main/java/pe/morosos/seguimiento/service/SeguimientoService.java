@@ -21,6 +21,7 @@ import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.motivocierre.entity.MotivoCierre;
 import pe.morosos.seguimiento.MotorReglasSeguimiento;
 import pe.morosos.seguimiento.dto.BulkActionResultResponse;
+import pe.morosos.seguimiento.dto.EnviarEtapaRequest;
 import pe.morosos.seguimiento.entity.*;
 import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
 
@@ -184,6 +185,69 @@ public class SeguimientoService {
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "AVANZAR_ETAPA", null, null, null, null, null);
                 result.aplicado(id, "Etapa avanzada");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
+        }
+        return result;
+    }
+
+    @Transactional
+    public BulkActionResultResponse enviarEtapa(EnviarEtapaRequest request) {
+        BulkActionResultResponse result = new BulkActionResultResponse(request.casoIds().size());
+        EtapaConfig etapaDestino = etapaRepository.findById(request.etapaDestinoId())
+                .orElseThrow(() -> new BusinessRuleException("La etapa destino no existe."));
+        if (!etapaDestino.isActivo()) {
+            throw new BusinessRuleException("La etapa destino está inactiva.");
+        }
+        EtapaConfig primeraEtapa = etapaRepository.findFirstByActivoTrueOrderByOrdenAsc()
+                .orElseThrow(() -> new BusinessRuleException("No existe etapa activa para operar seguimiento"));
+
+        for (UUID id : request.casoIds()) {
+            try {
+                CasoSeguimiento caso = casoRepository.findById(id)
+                        .orElseThrow(() -> new BusinessRuleException("Caso de seguimiento no encontrado."));
+                if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
+                    result.omitido(id, "No se permiten acciones sobre procesos cerrados.");
+                    continue;
+                }
+
+                EtapaConfig etapaActual = caso.getEtapaActual();
+                if (etapaActual == null) {
+                    if (primeraEtapa.getId().equals(etapaDestino.getId())) {
+                        caso.setEtapaActual(etapaDestino);
+                        caso.setFechaUltimoMovimiento(Instant.now());
+                        caso.setUpdatedAt(Instant.now());
+                        casoRepository.save(caso);
+                        casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, null, etapaDestino, request.observacion(), null);
+                        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
+                        result.aplicado(id, "Enviado a etapa destino.");
+                    } else {
+                        result.omitido(id, "No se puede iniciar directamente en una etapa avanzada.");
+                    }
+                    continue;
+                }
+
+                if (etapaActual.getOrden() < etapaDestino.getOrden()) {
+                    caso.setEtapaActual(etapaDestino);
+                    caso.setFechaUltimoMovimiento(Instant.now());
+                    caso.setUpdatedAt(Instant.now());
+                    casoRepository.save(caso);
+                    casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
+                    auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
+                    result.aplicado(id, "Enviado a etapa destino.");
+                } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
+                    result.omitido(id, "No se puede retroceder.");
+                } else if (request.repetirMismaEtapa()) {
+                    caso.setFechaUltimoMovimiento(Instant.now());
+                    caso.setUpdatedAt(Instant.now());
+                    casoRepository.save(caso);
+                    casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion(), null);
+                    auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
+                    result.aplicado(id, "Etapa repetida.");
+                } else {
+                    result.omitido(id, "El caso ya se encuentra en la etapa destino.");
+                }
+            } catch (Exception ex) {
+                result.error(id, ex.getMessage());
+            }
         }
         return result;
     }
