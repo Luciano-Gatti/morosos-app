@@ -1,6 +1,6 @@
 import { Bell, FileWarning, Gavel, PowerOff, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { accionesMes } from "@/demo/dashboardDemo";
+import type { AccionClave } from "@/types/mock";
 
 const meta: Record<
   string,
@@ -32,7 +32,12 @@ const meta: Record<
   },
 };
 
-export function AccionesMesGrid({ data = accionesMes }: { data?: typeof accionesMes }) {
+type AccionMesItem = {
+  clave: AccionClave;
+  cantidad: number;
+};
+
+export function AccionesMesGrid({ data }: { data: AccionMesItem[] }) {
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card shadow-institutional">
       <header className="flex items-center justify-between border-b border-border px-4 py-2.5">

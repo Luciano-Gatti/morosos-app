@@ -63,15 +63,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import {
-  inmueblesMorosos,
-  etapasSeguimiento,
-  estadosProceso,
-  gruposSeguimiento,
-  distritosSeguimiento,
-} from "@/demo/seguimientoDemo";
+import * as seguimientoDemo from "@/demo/seguimientoDemo";
 import type { InmuebleMoroso, EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
-import { parametrosSeguimiento } from "@/demo/seguimientoDemo";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
@@ -184,16 +177,36 @@ type AccionDialogConfirmPayload =
 
 export default function GestionEtapas() {
   const { toast } = useToast();
+  const demoData = useMemo(() => {
+    if (USE_API) {
+      return {
+        inmueblesMorosos: [] as InmuebleMoroso[],
+        etapasSeguimiento: [] as EtapaSeguimiento[],
+        estadosProceso: [] as EstadoProceso[],
+        gruposSeguimiento: [] as string[],
+        distritosSeguimiento: [] as string[],
+        parametrosSeguimiento: { cuotasParaMoroso: UMBRAL_VISUAL_DEFAULT },
+      };
+    }
+    return {
+      inmueblesMorosos: seguimientoDemo.inmueblesMorosos,
+      etapasSeguimiento: seguimientoDemo.etapasSeguimiento as EtapaSeguimiento[],
+      estadosProceso: seguimientoDemo.estadosProceso as EstadoProceso[],
+      gruposSeguimiento: seguimientoDemo.gruposSeguimiento,
+      distritosSeguimiento: seguimientoDemo.distritosSeguimiento,
+      parametrosSeguimiento: seguimientoDemo.parametrosSeguimiento,
+    };
+  }, []);
   // En modo API este valor es solo visual hasta cargar /parametros-seguimiento.
-  const [umbralCuotas, setUmbralCuotas] = useState<number>(USE_API ? UMBRAL_VISUAL_DEFAULT : parametrosSeguimiento.cuotasParaMoroso);
+  const [umbralCuotas, setUmbralCuotas] = useState<number>(USE_API ? UMBRAL_VISUAL_DEFAULT : demoData.parametrosSeguimiento.cuotasParaMoroso);
 
   // Universo base: solo los inmuebles que cumplen con el umbral configurado en
   // /configuracion/seguimiento. El resto no debe aparecer en gestión de etapas.
   const universoMorosos = useMemo(
-    () => (USE_API ? rows : inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= umbralCuotas)),
-    [rows, umbralCuotas],
+    () => (USE_API ? rows : demoData.inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= umbralCuotas)),
+    [rows, umbralCuotas, demoData.inmueblesMorosos],
   );
-  const excluidosPorUmbral = USE_API ? 0 : inmueblesMorosos.length - universoMorosos.length;
+  const excluidosPorUmbral = USE_API ? 0 : demoData.inmueblesMorosos.length - universoMorosos.length;
 
   const [query, setQuery] = useState("");
   const [etapaFiltro, setEtapaFiltro] = useState<EtapaFiltro>("all");
@@ -216,7 +229,7 @@ export default function GestionEtapas() {
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
-  const etapasOperativas = (USE_API ? etapasApi : etapasSeguimiento) as EtapaSeguimiento[];
+  const etapasOperativas = (USE_API ? etapasApi : demoData.etapasSeguimiento) as EtapaSeguimiento[];
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -520,7 +533,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todas las etapas</SelectItem>
                 <SelectItem value="sin-etapa" className="text-[13px]">Sin etapa asignada</SelectItem>
-                {(USE_API ? etapasApi : etapasSeguimiento).map((e) => (
+                {(USE_API ? etapasApi : demoData.etapasSeguimiento).map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -538,7 +551,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
-                {estadosProceso.map((e) => (
+                {(USE_API ? (["No iniciado", "Activo", "Pausado", "Cerrado"] as EstadoProceso[]) : demoData.estadosProceso).map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -552,7 +565,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los grupos</SelectItem>
-                {(USE_API ? gruposApi : gruposSeguimiento).map((g) => (
+                {(USE_API ? gruposApi : demoData.gruposSeguimiento).map((g) => (
                   <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>
                 ))}
               </SelectContent>
@@ -564,7 +577,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los distritos</SelectItem>
-                {(USE_API ? distritosApi : distritosSeguimiento).map((d) => (
+                {(USE_API ? distritosApi : demoData.distritosSeguimiento).map((d) => (
                   <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>
                 ))}
               </SelectContent>
