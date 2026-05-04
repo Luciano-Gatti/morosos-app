@@ -109,6 +109,7 @@ export default function InmuebleDetalle() {
   const [togglingSeguimiento, setTogglingSeguimiento] = useState(false);
   const [gruposCatalogo, setGruposCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
   const [distritosCatalogo, setDistritosCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [grupoDistritoConfig, setGrupoDistritoConfig] = useState<Array<{ grupoId: string; distritoId: string }>>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const notFound = !inmueble;
@@ -118,13 +119,21 @@ export default function InmuebleDetalle() {
   // Grupos disponibles según el distrito actualmente seleccionado.
   const gruposDelDistrito = useMemo(() => {
     if (USE_API) {
-      if (!config.distritoId) return gruposCatalogo;
-      return gruposCatalogo;
+      if (!config.distritoId) return [];
+      const gruposPermitidos = new Set(
+        grupoDistritoConfig
+          .filter((rel) => rel.distritoId === config.distritoId)
+          .map((rel) => rel.grupoId),
+      );
+      return gruposCatalogo.filter((g) => gruposPermitidos.has(g.id));
     }
     return gruposIniciales
       .filter((g) => g.distritos.some((d) => d.distrito === config.distrito))
       .map((g) => ({ id: g.nombre, nombre: g.nombre }));
-  }, [config.distrito, config.distritoId, gruposCatalogo]);
+  }, [config.distrito, config.distritoId, gruposCatalogo, grupoDistritoConfig]);
+
+  const apiSelectsDisabled = USE_API
+    && (!!catalogError || catalogLoading || saving || grupoDistritoConfig.length === 0);
 
   // ¿El par grupo+distrito tiene seguimiento habilitado en la configuración?
   const seguimientoPorParHabilitado = useMemo(() => {
@@ -242,12 +251,18 @@ export default function InmuebleDetalle() {
       try {
         setCatalogLoading(true);
         setCatalogError(null);
-        const [gs, ds] = await Promise.all([
+        const [gs, ds, rel] = await Promise.all([
           configuracionApi.grupos({ size: 500 }),
           configuracionApi.distritos({ size: 500 }),
+          configuracionApi.grupoDistritoConfig({ size: 1000 }),
         ]);
         setGruposCatalogo(toArray(gs).map((g: any) => ({ id: String(g.id ?? ""), nombre: String(g.nombre ?? g.grupo ?? g.codigo ?? "") })).filter((g: any) => g.id && g.nombre));
         setDistritosCatalogo(toArray(ds).map((d: any) => ({ id: String(d.id ?? ""), nombre: String(d.nombre ?? d.distrito ?? d.codigo ?? "") })).filter((d: any) => d.id && d.nombre));
+        setGrupoDistritoConfig(
+          toArray(rel)
+            .map((x: any) => ({ grupoId: String(x.grupoId ?? x.grupo?.id ?? ""), distritoId: String(x.distritoId ?? x.distrito?.id ?? "") }))
+            .filter((x: any) => x.grupoId && x.distritoId),
+        );
       } catch (e: any) {
         setCatalogError(e?.message ?? "No se pudieron cargar los catálogos de grupos y distritos.");
       } finally {
@@ -418,12 +433,25 @@ export default function InmuebleDetalle() {
               )}
               <FieldGroup label="Distrito">
                 <Select
-                  value={config.distrito}
+                  value={USE_API ? config.distritoId : config.distrito}
                   onValueChange={(v) => {
                     // Al cambiar de distrito, validamos que el grupo siga siendo válido.
                     if (USE_API) {
                       const distritoSel = distritosCatalogo.find((d) => d.id === v);
-                      setConfig({ ...config, distritoId: v, distrito: distritoSel?.nombre ?? "", grupoId: "", grupo: "" });
+                      const gruposPermitidos = gruposCatalogo.filter((g) =>
+                        grupoDistritoConfig.some((rel) => rel.distritoId === v && rel.grupoId === g.id),
+                      );
+                      const grupoSigueValido = gruposPermitidos.some((g) => g.id === config.grupoId);
+                      const grupoActualNombre = grupoSigueValido
+                        ? (gruposPermitidos.find((g) => g.id === config.grupoId)?.nombre ?? config.grupo)
+                        : "";
+                      setConfig({
+                        ...config,
+                        distritoId: v,
+                        distrito: distritoSel?.nombre ?? "",
+                        grupoId: grupoSigueValido ? config.grupoId : "",
+                        grupo: grupoActualNombre,
+                      });
                       return;
                     }
                     const gruposEnDistrito = gruposIniciales
@@ -432,7 +460,7 @@ export default function InmuebleDetalle() {
                     const nuevoGrupo = gruposEnDistrito.includes(config.grupo) ? config.grupo : gruposEnDistrito[0] ?? "";
                     setConfig({ ...config, distrito: v, grupo: nuevoGrupo });
                   }}
-                  disabled={!editing || (USE_API && (!!catalogError || catalogLoading))}
+                  disabled={!editing || apiSelectsDisabled}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
                     <SelectValue />
@@ -449,7 +477,7 @@ export default function InmuebleDetalle() {
 
               <FieldGroup label="Grupo">
                 <Select
-                  value={config.grupo}
+                  value={USE_API ? config.grupoId : config.grupo}
                   onValueChange={(v) => {
                     if (USE_API) {
                       const grupoSel = gruposCatalogo.find((g) => g.id === v);
@@ -458,7 +486,7 @@ export default function InmuebleDetalle() {
                     }
                     setConfig({ ...config, grupo: v });
                   }}
-                  disabled={!editing || gruposDelDistrito.length === 0 || (USE_API && (!!catalogError || catalogLoading))}
+                  disabled={!editing || gruposDelDistrito.length === 0 || apiSelectsDisabled}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
                     <SelectValue
@@ -484,6 +512,9 @@ export default function InmuebleDetalle() {
                 </p>
                 {USE_API && catalogError && (
                   <p className="text-[11.5px] text-destructive">No se pudieron cargar grupos/distritos desde backend.</p>
+                )}
+                {USE_API && grupoDistritoConfig.length === 0 && !catalogLoading && !catalogError && (
+                  <p className="text-[11.5px] text-destructive">No hay relaciones grupo-distrito disponibles para editar.</p>
                 )}
               </FieldGroup>
 
