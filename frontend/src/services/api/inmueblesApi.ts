@@ -2,7 +2,25 @@ import { normalizePageResponse, normalizeSpringPage } from "@/adapters/paginatio
 import { apiClient, buildQueryParams } from "@/lib/apiClient";
 import type { FrontendPage, PageResponse, SpringPage } from "@/types/pagination";
 
-export interface InmuebleDto { id: string; cuenta: string; titular: string; direccion: string; grupo: string; distrito: string; activo: boolean; }
+export interface InmuebleDto {
+  id: string;
+  cuenta: string;
+  titular: string;
+  direccion: string;
+  grupo: string;
+  distrito: string;
+  activo: boolean;
+  telefono?: string;
+  email?: string;
+  observaciones?: string;
+  seguimientoHabilitado?: boolean;
+  grupoId?: string;
+  grupoCodigo?: string;
+  grupoNombre?: string;
+  distritoId?: string;
+  distritoCodigo?: string;
+  distritoNombre?: string;
+}
 export interface ImportacionInmuebleDto {
   id: string;
   totalRegistros?: number;

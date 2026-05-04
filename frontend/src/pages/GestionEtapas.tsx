@@ -228,6 +228,7 @@ export default function GestionEtapas() {
   const [etapasApi, setEtapasApi] = useState<string[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
   const etapasOperativas = (USE_API ? etapasApi : demoData.etapasSeguimiento) as EtapaSeguimiento[];
 
@@ -235,6 +236,7 @@ export default function GestionEtapas() {
     const loadCatalogs = async () => {
       if (!USE_API) return;
       try {
+        setCatalogLoading(true);
         setCatalogError(null);
         setCatalogWarnings([]);
         const [gs, ds, es, ps, ms] = await Promise.all([
@@ -271,6 +273,8 @@ export default function GestionEtapas() {
       } catch (e) {
         setCatalogError("No se pudieron cargar catálogos de seguimiento.");
         toast({ title: "Error de catálogos", description: e instanceof ApiError ? e.message : "No se pudieron cargar catálogos.", variant: "destructive" });
+      } finally {
+        setCatalogLoading(false);
       }
     };
     loadCatalogs();
@@ -392,22 +396,57 @@ export default function GestionEtapas() {
   const selectedActions = useMemo(() => {
     const selectedRows = rows.filter((m) => selected.has(m.id));
     const hasAny = selectedRows.length > 0;
+    const missingBackendActions = USE_API && selectedRows.some((m) => !m.accionesDisponibles);
     const hasBackendActions = selectedRows.some((m) => !!m.accionesDisponibles);
     const canAll = (key: keyof NonNullable<AccionesDisponiblesRow>) =>
       selectedRows.every((m) => (m.accionesDisponibles?.[key] ?? false) === true);
 
+    const blockedNoSelection = "No hay casos seleccionados.";
+    const blockedMissingBackend = "El backend no informó acciones disponibles para algunos casos.";
+    const reasonByApi = (can: boolean) =>
+      !hasAny ? blockedNoSelection : missingBackendActions ? blockedMissingBackend : can ? null : "No hay casos válidos para esta acción.";
+
+    const canIniciar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeIniciar") : false) : selectedRows.every((m) => m.etapa === null);
+    const canAvanzar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeAvanzar") : false) : selectedRows.some((m) => m.etapa !== null);
+    const canRepetir = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null);
+    const canPausar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null);
+    const canCerrar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null);
+    const canCompromiso = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true;
+    const canReabrir = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
+
     return {
       hasAny,
-      canIniciar: USE_API ? (hasBackendActions ? canAll("puedeIniciar") : false) : selectedRows.every((m) => m.etapa === null),
-      canAvanzar: USE_API ? (hasBackendActions ? canAll("puedeAvanzar") : false) : selectedRows.some((m) => m.etapa !== null),
-      canRepetir: USE_API ? (hasBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null),
-      canPausar: USE_API ? (hasBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null),
-      canCerrar: USE_API ? (hasBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null),
-      canCompromiso: USE_API ? (hasBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true,
-      canReabrir: USE_API ? (hasBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado"),
+      canIniciar,
+      canAvanzar,
+      canRepetir,
+      canPausar,
+      canCerrar,
+      canCompromiso,
+      canReabrir,
       hasBackendActions,
+      missingBackendActions,
+      reasons: {
+        iniciar: USE_API ? reasonByApi(canIniciar) : (!hasAny ? blockedNoSelection : canIniciar ? null : "No hay casos válidos para esta acción."),
+        avanzar: USE_API ? reasonByApi(canAvanzar) : (!hasAny ? blockedNoSelection : canAvanzar ? null : "No hay casos válidos para esta acción."),
+        enviarEtapa: !hasAny
+          ? blockedNoSelection
+          : USE_API && etapasApi.length === 0
+            ? "No hay etapas activas configuradas."
+            : null,
+        repetir: USE_API
+          ? (!hasAny ? blockedNoSelection : missingBackendActions ? blockedMissingBackend : canRepetir ? null : "No hay procesos iniciados para repetir etapa.")
+          : (!hasAny ? blockedNoSelection : canRepetir ? null : "No hay procesos iniciados para repetir etapa."),
+        pausar: USE_API ? reasonByApi(canPausar) : (!hasAny ? blockedNoSelection : canPausar ? null : "No hay casos válidos para esta acción."),
+        cerrar: !hasAny
+          ? blockedNoSelection
+          : USE_API && motivosCierreApi.length === 0
+            ? "No hay motivos de cierre activos configurados."
+            : (USE_API ? reasonByApi(canCerrar) : (canCerrar ? null : "No hay casos válidos para esta acción.")),
+        reabrir: USE_API ? reasonByApi(canReabrir) : (!hasAny ? blockedNoSelection : canReabrir ? null : "No hay casos válidos para esta acción."),
+        compromiso: USE_API ? reasonByApi(canCompromiso) : (!hasAny ? blockedNoSelection : null),
+      },
     };
-  }, [rows, selected]);
+  }, [rows, selected, etapasApi, motivosCierreApi]);
 
   const hasFilters =
     query !== "" ||
@@ -513,6 +552,7 @@ export default function GestionEtapas() {
       />
 
       <main className="flex-1 px-6 py-6">
+        {catalogLoading && <div className="mb-2 text-xs text-muted-foreground">Cargando catálogos de seguimiento...</div>}
         {catalogError && <div className="mb-2 text-xs text-destructive">{catalogError}</div>}
         {!catalogError && catalogWarnings.length > 0 && (
           <div className="mb-2 text-xs text-amber-700">
@@ -574,7 +614,7 @@ export default function GestionEtapas() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-8 w-[180px] text-[12.5px]" disabled={USE_API && etapasApi.length === 0}>
+              <SelectTrigger className="h-8 w-[180px] text-[12.5px]" disabled={USE_API && (catalogError !== null || etapasApi.length === 0)}>
                 <SelectValue placeholder="Etapa actual" />
               </SelectTrigger>
               <SelectContent>
@@ -607,7 +647,7 @@ export default function GestionEtapas() {
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
             <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && gruposApi.length === 0}>
+              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && (catalogError !== null || gruposApi.length === 0)}>
                 <SelectValue placeholder="Grupo" />
               </SelectTrigger>
               <SelectContent>
@@ -619,7 +659,7 @@ export default function GestionEtapas() {
             </Select>
 
             <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && distritosApi.length === 0}>
+              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && (catalogError !== null || distritosApi.length === 0)}>
                 <SelectValue placeholder="Distrito" />
               </SelectTrigger>
               <SelectContent>
@@ -907,15 +947,13 @@ function SelectionBar({
     canCompromiso: boolean;
     canReabrir: boolean;
     hasBackendActions: boolean;
+    missingBackendActions: boolean;
+    reasons: Record<string, string | null>;
   };
   onClear: () => void;
   onAction: (a: AccionMasiva) => void;
 }) {
-  const disabledMsg = USE_API
-    ? (!selectedActions.hasBackendActions
-      ? "Acción no disponible: la API no informó accionesDisponibles para la selección."
-      : "Acción no disponible para uno o más inmuebles seleccionados.")
-    : undefined;
+  const actionReason = (key: string) => selectedActions.reasons[key] ?? undefined;
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-primary/20 bg-primary-soft/60 px-3 py-2 text-[12.5px]">
       <div className="flex items-center gap-2 pr-1">
@@ -940,8 +978,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "enviar-etapa", etapa: etapasOperativas[0] ?? "Aviso de deuda" })}
-        disabled={USE_API && etapasOperativas.length === 0}
-        title={USE_API && etapasOperativas.length === 0 ? "No hay etapas disponibles desde API." : undefined}
+        disabled={Boolean(actionReason("enviarEtapa"))}
+        title={actionReason("enviarEtapa")}
       >
         <ChevronsRight className="h-3.5 w-3.5" />
         Enviar a etapa
@@ -952,8 +990,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "enviar-siguiente" })}
-        disabled={selectedActions.hasAny && !selectedActions.canAvanzar}
-        title={selectedActions.hasAny && !selectedActions.canAvanzar ? disabledMsg : undefined}
+        disabled={!selectedActions.canAvanzar}
+        title={actionReason("avanzar")}
       >
         <ArrowRightCircle className="h-3.5 w-3.5" />
         Etapa siguiente
@@ -964,10 +1002,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "repetir-etapa" })}
-        disabled={USE_API ? (selectedActions.hasAny && !selectedActions.canRepetir) : !hasConEtapa}
-        title={USE_API
-          ? (selectedActions.hasAny && !selectedActions.canRepetir ? disabledMsg : undefined)
-          : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
+        disabled={USE_API ? !selectedActions.canRepetir : !hasConEtapa}
+        title={USE_API ? actionReason("repetir") : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
       >
         <RotateCcw className="h-3.5 w-3.5" />
         Repetir etapa
@@ -978,10 +1014,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "pausar" })}
-        disabled={USE_API ? (selectedActions.hasAny && !selectedActions.canPausar) : !hasConEtapa}
-        title={USE_API
-          ? (selectedActions.hasAny && !selectedActions.canPausar ? disabledMsg : undefined)
-          : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
+        disabled={USE_API ? !selectedActions.canPausar : !hasConEtapa}
+        title={USE_API ? actionReason("pausar") : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
       >
         <PauseCircle className="h-3.5 w-3.5" />
         Pausar proceso
@@ -993,8 +1027,8 @@ function SelectionBar({
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
           onClick={() => onAction({ kind: "iniciar" })}
-          disabled={selectedActions.hasAny && !selectedActions.canIniciar}
-          title={selectedActions.hasAny && !selectedActions.canIniciar ? disabledMsg : undefined}
+          disabled={!selectedActions.canIniciar}
+          title={actionReason("iniciar")}
         >
           <PlayCircle className="h-3.5 w-3.5" />
           Iniciar proceso
@@ -1007,8 +1041,8 @@ function SelectionBar({
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
           onClick={() => onAction({ kind: "cerrar" })}
-          disabled={selectedActions.hasAny && !selectedActions.canCerrar}
-          title={selectedActions.hasAny && !selectedActions.canCerrar ? disabledMsg : undefined}
+          disabled={!selectedActions.canCerrar || actionReason("cerrar") !== undefined}
+          title={actionReason("cerrar")}
         >
           <StopCircle className="h-3.5 w-3.5" />
           Cerrar proceso
@@ -1020,8 +1054,8 @@ function SelectionBar({
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
           onClick={() => onAction({ kind: "reabrir" })}
-          disabled={selectedActions.hasAny && !selectedActions.canReabrir}
-          title={selectedActions.hasAny && !selectedActions.canReabrir ? disabledMsg : undefined}
+          disabled={!selectedActions.canReabrir}
+          title={actionReason("reabrir")}
         >
           <PlayCircle className="h-3.5 w-3.5" />
           Reabrir proceso
@@ -1035,8 +1069,8 @@ function SelectionBar({
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "compromiso" })}
-        disabled={selectedActions.hasAny && !selectedActions.canCompromiso}
-        title={selectedActions.hasAny && !selectedActions.canCompromiso ? disabledMsg : undefined}
+        disabled={!selectedActions.canCompromiso}
+        title={actionReason("compromiso")}
       >
         <HandCoins className="h-3.5 w-3.5" />
         Compromiso de pago
