@@ -34,12 +34,15 @@ import { useToast } from "@/hooks/use-toast";
 import { inmueblesPadron, distritosInmueble } from "@/demo/inmueblesDemo";
 import { gruposIniciales } from "@/demo/gruposDemo";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
+import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapInmuebleDetalle, type InmuebleDetalleViewModel } from "@/adapters/inmuebleDetalle";
 import { ApiError, USE_API } from "@/lib/apiClient";
 
 interface ConfigState {
   grupo: string;
   distrito: string;
+  grupoId: string;
+  distritoId: string;
   telefono: string;
   email: string;
   activo: boolean;
@@ -86,6 +89,8 @@ export default function InmuebleDetalle() {
     () => ({
       grupo: USE_API ? (inmuebleVm?.grupoNombre ?? "") : (inmueble?.grupoNombre ?? inmueble?.grupo ?? ""),
       distrito: USE_API ? (inmuebleVm?.distritoNombre ?? "") : (inmueble?.distritoNombre ?? inmueble?.distrito ?? distritosInmueble[0]),
+      grupoId: USE_API ? (inmuebleVm?.grupoId ?? "") : "",
+      distritoId: USE_API ? (inmuebleVm?.distritoId ?? "") : "",
       telefono: USE_API ? (inmuebleVm?.telefono ?? "") : "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
       email: USE_API ? (inmuebleVm?.email ?? "") : `contacto${id ?? "0"}@aosc.gob.ar`,
       activo: USE_API ? (inmuebleVm?.activo ?? true) : (inmueble?.activo ?? true),
@@ -102,20 +107,24 @@ export default function InmuebleDetalle() {
   const [saving, setSaving] = useState(false);
   const [togglingActivo, setTogglingActivo] = useState(false);
   const [togglingSeguimiento, setTogglingSeguimiento] = useState(false);
+  const [gruposCatalogo, setGruposCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [distritosCatalogo, setDistritosCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const notFound = !inmueble;
 
   const dirty = JSON.stringify(config) !== JSON.stringify(initial);
 
   // Grupos disponibles según el distrito actualmente seleccionado.
-  const gruposDelDistrito = useMemo(
-    () =>
-      USE_API
-        ? (config.grupo ? [config.grupo] : [])
-        : gruposIniciales
-            .filter((g) => g.distritos.some((d) => d.distrito === config.distrito))
-            .map((g) => g.nombre),
-    [config.distrito, config.grupo],
-  );
+  const gruposDelDistrito = useMemo(() => {
+    if (USE_API) {
+      if (!config.distritoId) return gruposCatalogo;
+      return gruposCatalogo;
+    }
+    return gruposIniciales
+      .filter((g) => g.distritos.some((d) => d.distrito === config.distrito))
+      .map((g) => ({ id: g.nombre, nombre: g.nombre }));
+  }, [config.distrito, config.distritoId, gruposCatalogo]);
 
   // ¿El par grupo+distrito tiene seguimiento habilitado en la configuración?
   const seguimientoPorParHabilitado = useMemo(() => {
@@ -155,7 +164,9 @@ export default function InmuebleDetalle() {
         telefono: config.telefono,
         email: config.email,
         observaciones: config.observaciones || undefined,
-      } as any);
+        grupoId: config.grupoId || undefined,
+        distritoId: config.distritoId || undefined,
+      });
       await fetchInmueble(id);
       setEditing(false);
       toast({ title: "Cambios guardados", description: "El inmueble fue actualizado correctamente." });
@@ -222,6 +233,29 @@ export default function InmuebleDetalle() {
       setTogglingSeguimiento(false);
     }
   };
+
+
+  useEffect(() => {
+    if (!USE_API) return;
+    const toArray = (data: any) => (Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : []);
+    const loadCatalogos = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogError(null);
+        const [gs, ds] = await Promise.all([
+          configuracionApi.grupos({ size: 500 }),
+          configuracionApi.distritos({ size: 500 }),
+        ]);
+        setGruposCatalogo(toArray(gs).map((g: any) => ({ id: String(g.id ?? ""), nombre: String(g.nombre ?? g.grupo ?? g.codigo ?? "") })).filter((g: any) => g.id && g.nombre));
+        setDistritosCatalogo(toArray(ds).map((d: any) => ({ id: String(d.id ?? ""), nombre: String(d.nombre ?? d.distrito ?? d.codigo ?? "") })).filter((d: any) => d.id && d.nombre));
+      } catch (e: any) {
+        setCatalogError(e?.message ?? "No se pudieron cargar los catálogos de grupos y distritos.");
+      } finally {
+        setCatalogLoading(false);
+      }
+    };
+    loadCatalogos();
+  }, []);
 
   useEffect(() => {
     if (!USE_API || !id) return;
@@ -377,27 +411,36 @@ export default function InmuebleDetalle() {
               subtitle="Parámetros editables del inmueble"
             />
             <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2">
+              {USE_API && catalogError && (
+                <div className="md:col-span-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[12px] text-destructive">
+                  No se pudieron cargar los catálogos de grupo y distrito desde backend.
+                </div>
+              )}
               <FieldGroup label="Distrito">
                 <Select
                   value={config.distrito}
                   onValueChange={(v) => {
                     // Al cambiar de distrito, validamos que el grupo siga siendo válido.
-                    if (USE_API) { setConfig({ ...config, distrito: v }); return; }
+                    if (USE_API) {
+                      const distritoSel = distritosCatalogo.find((d) => d.id === v);
+                      setConfig({ ...config, distritoId: v, distrito: distritoSel?.nombre ?? "", grupoId: "", grupo: "" });
+                      return;
+                    }
                     const gruposEnDistrito = gruposIniciales
                       .filter((g) => g.distritos.some((d) => d.distrito === v))
                       .map((g) => g.nombre);
                     const nuevoGrupo = gruposEnDistrito.includes(config.grupo) ? config.grupo : gruposEnDistrito[0] ?? "";
                     setConfig({ ...config, distrito: v, grupo: nuevoGrupo });
                   }}
-                  disabled={!editing}
+                  disabled={!editing || (USE_API && (!!catalogError || catalogLoading))}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {distritosInmueble.map((d) => (
-                      <SelectItem key={d} value={d} className="text-[13px]">
-                        {d}
+                    {(USE_API ? distritosCatalogo : distritosInmueble.map((d) => ({ id: d, nombre: d }))).map((d) => (
+                      <SelectItem key={d.id} value={d.id} className="text-[13px]">
+                        {d.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -407,8 +450,15 @@ export default function InmuebleDetalle() {
               <FieldGroup label="Grupo">
                 <Select
                   value={config.grupo}
-                  onValueChange={(v) => setConfig({ ...config, grupo: v })}
-                  disabled={!editing || gruposDelDistrito.length === 0}
+                  onValueChange={(v) => {
+                    if (USE_API) {
+                      const grupoSel = gruposCatalogo.find((g) => g.id === v);
+                      setConfig({ ...config, grupoId: v, grupo: grupoSel?.nombre ?? "" });
+                      return;
+                    }
+                    setConfig({ ...config, grupo: v });
+                  }}
+                  disabled={!editing || gruposDelDistrito.length === 0 || (USE_API && (!!catalogError || catalogLoading))}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
                     <SelectValue
@@ -421,15 +471,20 @@ export default function InmuebleDetalle() {
                   </SelectTrigger>
                   <SelectContent>
                     {gruposDelDistrito.map((g) => (
-                      <SelectItem key={g} value={g} className="text-[13px]">
-                        {g}
+                      <SelectItem key={USE_API ? g.id : g.nombre} value={USE_API ? g.id : g.nombre} className="text-[13px]">
+                        {g.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-[11.5px] text-muted-foreground">
-                  Solo se muestran los grupos asociados al distrito seleccionado.
+                  {USE_API
+                    ? "Catálogo de grupos provisto por backend."
+                    : "Solo se muestran los grupos asociados al distrito seleccionado."}
                 </p>
+                {USE_API && catalogError && (
+                  <p className="text-[11.5px] text-destructive">No se pudieron cargar grupos/distritos desde backend.</p>
+                )}
               </FieldGroup>
 
               <FieldGroup label="Teléfono de contacto">
