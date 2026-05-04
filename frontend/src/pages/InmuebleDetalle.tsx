@@ -85,10 +85,26 @@ export default function InmuebleDetalle() {
       ? (inmueble as any).grupoNombre
       : gruposDelDistritoInicial[0] ?? "";
 
+  const grupoNombreResueltoApi = useMemo(() => {
+    if (!USE_API) return "";
+    const nombrePayload = (inmuebleVm?.grupoNombre ?? "").trim();
+    if (nombrePayload && nombrePayload !== "-") return nombrePayload;
+    if (!inmuebleVm?.grupoId) return "-";
+    return gruposCatalogo.find((g) => g.id === inmuebleVm.grupoId)?.nombre ?? "-";
+  }, [USE_API, inmuebleVm?.grupoId, inmuebleVm?.grupoNombre, gruposCatalogo]);
+
+  const distritoNombreResueltoApi = useMemo(() => {
+    if (!USE_API) return "";
+    const nombrePayload = (inmuebleVm?.distritoNombre ?? "").trim();
+    if (nombrePayload && nombrePayload !== "-") return nombrePayload;
+    if (!inmuebleVm?.distritoId) return "-";
+    return distritosCatalogo.find((d) => d.id === inmuebleVm.distritoId)?.nombre ?? "-";
+  }, [USE_API, inmuebleVm?.distritoId, inmuebleVm?.distritoNombre, distritosCatalogo]);
+
   const initial: ConfigState = useMemo(
     () => ({
-      grupo: USE_API ? (inmuebleVm?.grupoNombre ?? "") : (inmueble?.grupoNombre ?? inmueble?.grupo ?? ""),
-      distrito: USE_API ? (inmuebleVm?.distritoNombre ?? "") : (inmueble?.distritoNombre ?? inmueble?.distrito ?? distritosInmueble[0]),
+      grupo: USE_API ? grupoNombreResueltoApi : (inmueble?.grupoNombre ?? inmueble?.grupo ?? ""),
+      distrito: USE_API ? distritoNombreResueltoApi : (inmueble?.distritoNombre ?? inmueble?.distrito ?? distritosInmueble[0]),
       grupoId: USE_API ? (inmuebleVm?.grupoId ?? "") : "",
       distritoId: USE_API ? (inmuebleVm?.distritoId ?? "") : "",
       telefono: USE_API ? (inmuebleVm?.telefono ?? "") : "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
@@ -97,7 +113,7 @@ export default function InmuebleDetalle() {
       seguimientoHabilitado: USE_API ? (inmuebleVm?.seguimientoHabilitado ?? false) : ((inmueble?.activo ?? true) && Number(id ?? 0) % 4 !== 0),
       observaciones: USE_API ? (inmuebleVm?.observaciones ?? "") : "",
     }),
-    [USE_API, inmuebleVm, inmueble, id],
+    [USE_API, grupoNombreResueltoApi, distritoNombreResueltoApi, inmuebleVm, inmueble, id],
   );
 
   const [editing, setEditing] = useState(false);
