@@ -407,7 +407,9 @@ export default function GestionEtapas() {
       !hasAny ? blockedNoSelection : missingBackendActions ? blockedMissingBackend : can ? null : "No hay casos válidos para esta acción.";
 
     const canIniciar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeIniciar") : false) : selectedRows.every((m) => m.etapa === null);
-    const canAvanzar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeAvanzar") : false) : selectedRows.some((m) => m.etapa !== null);
+    const canAvanzar = USE_API
+      ? (hasBackendActions && !missingBackendActions && etapasApi.length > 0 ? canAll("puedeAvanzar") : false)
+      : selectedRows.some((m) => m.etapa !== null);
     const canRepetir = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRepetir") : false) : selectedRows.some((m) => m.etapa !== null);
     const canPausar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null);
     const canCerrar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null);
@@ -427,7 +429,11 @@ export default function GestionEtapas() {
       missingBackendActions,
       reasons: {
         iniciar: USE_API ? reasonByApi(canIniciar) : (!hasAny ? blockedNoSelection : canIniciar ? null : "No hay casos válidos para esta acción."),
-        avanzar: USE_API ? reasonByApi(canAvanzar) : (!hasAny ? blockedNoSelection : canAvanzar ? null : "No hay casos válidos para esta acción."),
+        avanzar: !hasAny
+          ? blockedNoSelection
+          : USE_API && etapasApi.length === 0
+            ? "No hay etapas activas configuradas."
+            : (USE_API ? reasonByApi(canAvanzar) : (canAvanzar ? null : "No hay casos válidos para esta acción.")),
         enviarEtapa: !hasAny
           ? blockedNoSelection
           : USE_API && etapasApi.length === 0
@@ -520,10 +526,9 @@ export default function GestionEtapas() {
       const errores = Number(result?.errores ?? result?.errors ?? 0);
       toast({ title: "Acción ejecutada", description: `Aplicados: ${aplicados} · Omitidos: ${omitidos} · Errores: ${errores}` });
       await fetchBandeja();
-      if (errores === 0) {
-        setAccion(null);
-        clearSelection();
-      } else {
+      setAccion(null);
+      clearSelection();
+      if (errores > 0) {
         const primerError = Array.isArray(result?.resultados)
           ? result.resultados.find((r: any) => String(r?.estado ?? "").toUpperCase() === "ERROR")
           : null;
