@@ -277,6 +277,53 @@ export default function GestionEtapas() {
   }, []);
 
   const fetchBandeja = async () => {
+    if (!USE_API) {
+      setLoading(false);
+      setError(null);
+      const baseRows: SeguimientoRow[] = demoData.inmueblesMorosos
+        .filter((m) => m.cuotasAdeudadas >= umbralCuotas)
+        .map((m) => ({
+          id: m.id,
+          casoId: m.id,
+          inmuebleId: m.id,
+          cuenta: m.cuenta,
+          titular: m.titular,
+          direccion: m.direccion,
+          grupo: m.grupo,
+          distrito: m.distrito,
+          cuotasAdeudadas: m.cuotasAdeudadas,
+          montoAdeudado: m.montoAdeudado,
+          etapa: m.etapa,
+          estado: m.estado,
+          accionesDisponibles: null,
+        }));
+
+      const queryText = query.trim().toLowerCase();
+      const cuotasMinParsed = Number(cuotasMin);
+      const cuotasMinValue = Number.isFinite(cuotasMinParsed) ? cuotasMinParsed : null;
+      const filteredRows = baseRows.filter((row) => {
+        const matchesQuery =
+          queryText.length === 0 ||
+          row.cuenta.toLowerCase().includes(queryText) ||
+          row.titular.toLowerCase().includes(queryText) ||
+          row.direccion.toLowerCase().includes(queryText);
+        const matchesEtapa =
+          etapaFiltro === "all" ? true : etapaFiltro === "sin-etapa" ? row.etapa === null : row.etapa === etapaFiltro;
+        const matchesEstado = estadoFiltro === "all" ? true : row.estado === estadoFiltro;
+        const matchesGrupo = grupo === "all" ? true : row.grupo === grupo;
+        const matchesDistrito = distrito === "all" ? true : row.distrito === distrito;
+        const matchesCuotas = cuotasMinValue === null ? true : row.cuotasAdeudadas >= cuotasMinValue;
+        return matchesQuery && matchesEtapa && matchesEstado && matchesGrupo && matchesDistrito && matchesCuotas;
+      });
+
+      const start = Math.max(0, (page - 1) * PAGE_SIZE);
+      const pageContent = filteredRows.slice(start, start + PAGE_SIZE);
+      const calculatedTotalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+      setRows(pageContent);
+      setTotalElements(filteredRows.length);
+      setTotalPages(calculatedTotalPages);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
