@@ -11,13 +11,8 @@ import pe.morosos.inmueble.entity.Inmueble;
 public class InmuebleMapper {
 
     public void update(Inmueble entity, InmuebleUpdateRequest request, Grupo grupo, Distrito distrito) {
-        entity.setCuenta(request.cuenta().trim());
-        entity.setTitular(request.titular().trim());
-        entity.setDireccion(request.direccion().trim());
         entity.setGrupo(grupo);
         entity.setDistrito(distrito);
-        entity.setActivo(request.activo());
-        entity.setSeguimientoHabilitado(request.seguimientoHabilitado());
         entity.setTelefono(trimToNull(request.telefono()));
         entity.setEmail(trimToNull(request.email()));
         entity.setObservacion(trimToNull(request.observacion()));
