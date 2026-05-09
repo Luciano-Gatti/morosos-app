@@ -76,6 +76,7 @@ export default function Inmuebles() {
   const [catalogGrupos, setCatalogGrupos] = useState<Array<{ id: string; nombre: string }>>([]);
   const [catalogDistritos, setCatalogDistritos] = useState<Array<{ id: string; nombre: string }>>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogWarning, setCatalogWarning] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (USE_API) return rows;
@@ -112,16 +113,31 @@ export default function Inmuebles() {
   useEffect(() => {
     if (!USE_API) return;
     setCatalogError(null);
+    setCatalogWarning(null);
     Promise.all([configuracionApi.grupos({ size: 500 }), configuracionApi.distritos({ size: 500 })])
       .then(([gs, ds]) => {
         const gArr = Array.isArray((gs as any)?.content) ? (gs as any).content : Array.isArray(gs) ? (gs as any[]) : [];
         const dArr = Array.isArray((ds as any)?.content) ? (ds as any).content : Array.isArray(ds) ? (ds as any[]) : [];
-        setCatalogGrupos(gArr.map((g: any) => ({ id: String(g.id ?? g.nombre), nombre: String(g.nombre ?? g.grupo ?? g.id) })));
-        setCatalogDistritos(dArr.map((d: any) => ({ id: String(d.id ?? d.nombre), nombre: String(d.nombre ?? d.distrito ?? d.id) })));
+        const gruposValidos = gArr
+          .filter((g: any) => g?.id !== undefined && g?.id !== null && String(g.id).trim() !== "")
+          .map((g: any) => ({ id: String(g.id), nombre: String(g.nombre ?? g.descripcion ?? "Sin nombre") }));
+        const distritosValidos = dArr
+          .filter((d: any) => d?.id !== undefined && d?.id !== null && String(d.id).trim() !== "")
+          .map((d: any) => ({ id: String(d.id), nombre: String(d.nombre ?? d.descripcion ?? "Sin nombre") }));
+
+        setCatalogGrupos(gruposValidos);
+        setCatalogDistritos(distritosValidos);
+
+        const gruposInvalidos = gArr.length - gruposValidos.length;
+        const distritosInvalidos = dArr.length - distritosValidos.length;
+        if (gruposInvalidos > 0 || distritosInvalidos > 0) {
+          setCatalogWarning("Algunos grupos/distritos no tienen ID válido y no se pueden usar como filtro.");
+        }
       })
       .catch((e) => {
         setCatalogGrupos([]);
         setCatalogDistritos([]);
+        setCatalogWarning(null);
         setCatalogError(e?.message ?? "No se pudieron cargar los catálogos de grupos/distritos.");
       });
   }, []);
@@ -192,16 +208,17 @@ export default function Inmuebles() {
             Catálogos no disponibles: {catalogError} Los filtros por grupo y distrito fueron deshabilitados.
           </div>
         )}
+        {USE_API && catalogWarning && <div className="mb-2 text-xs text-destructive">{catalogWarning}</div>}
         <div className="rounded-md border border-border bg-surface shadow-sm">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
             <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><Filter className="h-3.5 w-3.5" />Filtros</div>
             <Select value={field} onValueChange={(v) => { setField(v as typeof field); setPage(1); }}><SelectTrigger className="h-8 w-[160px] text-[12.5px]"><SelectValue /></SelectTrigger><SelectContent>{filterFields.map((f) => <SelectItem key={f.value} value={f.value} className="text-[13px]">{f.label}</SelectItem>)}</SelectContent></Select>
             <div className="relative min-w-[220px] flex-1 sm:max-w-xs"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar..." className="h-8 pl-8 text-[12.5px]" /></div>
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
-            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
+            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && (!!catalogError || catalogGrupos.length === 0)}><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
               ? catalogGrupos.map((g) => <SelectItem key={g.id} value={g.id} className="text-[13px]">{g.nombre}</SelectItem>)
               : gruposInmueble.map((g) => <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>)}</SelectContent></Select>
-            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
+            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && (!!catalogError || catalogDistritos.length === 0)}><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
               ? catalogDistritos.map((d) => <SelectItem key={d.id} value={d.id} className="text-[13px]">{d.nombre}</SelectItem>)
               : distritosInmueble.map((d) => <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>)}</SelectContent></Select>
             <Select value={estado} onValueChange={(v) => { setEstado(v); setPage(1); }}><SelectTrigger className="h-8 w-[130px] text-[12.5px]"><SelectValue placeholder="Estado" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem><SelectItem value="activo" className="text-[13px]">Activos</SelectItem><SelectItem value="inactivo" className="text-[13px]">Inactivos</SelectItem></SelectContent></Select>
