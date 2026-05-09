@@ -438,7 +438,13 @@ export default function GestionEtapas() {
           ? blockedNoSelection
           : USE_API && etapasApi.length === 0
             ? "No hay etapas activas configuradas."
-            : null,
+            : (USE_API
+                ? (missingBackendActions
+                    ? blockedMissingBackend
+                    : canAvanzar
+                      ? null
+                      : "Algunos casos seleccionados no pueden avanzar según el backend.")
+                : null),
         repetir: USE_API
           ? (!hasAny ? blockedNoSelection : missingBackendActions ? blockedMissingBackend : canRepetir ? null : "No hay procesos iniciados para repetir etapa.")
           : (!hasAny ? blockedNoSelection : canRepetir ? null : "No hay procesos iniciados para repetir etapa."),
@@ -852,6 +858,7 @@ export default function GestionEtapas() {
         seleccionados={seleccionados}
         etapasOperativas={etapasOperativas}
         motivosCierre={USE_API ? motivosCierreApi : null}
+        selectedActions={selectedActions}
         onCancel={() => setAccion(null)}
         onConfirm={confirmarAccion}
         mutating={mutating}
@@ -1147,6 +1154,7 @@ function AccionDialog({
   seleccionados,
   etapasOperativas,
   motivosCierre,
+  selectedActions,
   onCancel,
   onConfirm,
   mutating = false,
@@ -1155,6 +1163,10 @@ function AccionDialog({
   seleccionados: InmuebleMoroso[];
   etapasOperativas: EtapaSeguimiento[];
   motivosCierre: MotivoCierreOption[] | null;
+  selectedActions?: {
+    canAvanzar: boolean;
+    reasons: Record<string, string | null>;
+  };
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
@@ -1168,6 +1180,7 @@ function AccionDialog({
           accion={accion}
           etapasOperativas={etapasOperativas}
           seleccionados={seleccionados}
+          selectedActions={selectedActions}
         motivosCierre={motivosCierre}
         onCancel={onCancel}
         onConfirm={onConfirm}
@@ -2115,6 +2128,7 @@ function MoverEtapaDialog({
   accion,
   etapasOperativas,
   seleccionados,
+  selectedActions,
   onCancel,
   onConfirm,
   mutating = false,
@@ -2122,6 +2136,10 @@ function MoverEtapaDialog({
   accion: Extract<AccionMasiva, { kind: "enviar-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
   seleccionados: InmuebleMoroso[];
+  selectedActions?: {
+    canAvanzar: boolean;
+    reasons: Record<string, string | null>;
+  };
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
@@ -2150,8 +2168,9 @@ function MoverEtapaDialog({
   const mismaEtapaRepetir = accionMismaEtapa === "repetir" ? enMismaEtapa : 0;
   const mismaEtapaOmitir = accionMismaEtapa === "omitir" ? enMismaEtapa : 0;
   const aplicables = enEtapaAnterior + mismaEtapaRepetir + sinSeguimientoIniciables;
-  const canConfirmApi = !!etapaDestino && casosConSeguimiento > 0 && !mutating;
+  const canConfirmApi = !!etapaDestino && casosConSeguimiento > 0 && (selectedActions?.canAvanzar ?? false) && !mutating;
   const canConfirm = USE_API ? canConfirmApi : aplicables > 0 && !mutating;
+  const blockedReasonApi = selectedActions?.reasons?.enviarEtapa ?? null;
 
   const handleConfirm = () => {
     onConfirm({
@@ -2346,6 +2365,12 @@ function MoverEtapaDialog({
               </span>
             </div>
           )}
+          {USE_API && blockedReasonApi && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{blockedReasonApi}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer institucional con resumen */}
@@ -2361,7 +2386,7 @@ function MoverEtapaDialog({
             <Button variant="outline" onClick={onCancel} className="h-9">
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={!canConfirm} className="h-9">
+            <Button onClick={handleConfirm} disabled={!canConfirm} className="h-9" title={USE_API ? (blockedReasonApi ?? undefined) : undefined}>
               Confirmar movimiento
             </Button>
           </div>
