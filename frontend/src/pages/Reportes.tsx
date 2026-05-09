@@ -326,35 +326,35 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     loading: false,
     error: null,
     empty: false,
-    source: "mock",
+    source: USE_API ? "api" : "mock",
   });
   const [accionesFechasState, setAccionesFechasState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>>({
     data: getReporteAccionesFechasViewModel(desde, hasta),
     loading: false,
     error: null,
     empty: false,
-    source: "mock",
+    source: USE_API ? "api" : "mock",
   });
   const [accionesRegularizacionState, setAccionesRegularizacionState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>>({
     data: getReporteAccionesRegularizacionViewModel(desde, hasta),
     loading: false,
     error: null,
     empty: false,
-    source: "mock",
+    source: USE_API ? "api" : "mock",
   });
   const [estadoInmueblesState, setEstadoInmueblesState] = useState<ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>>({
     data: getReporteEstadoInmueblesViewModel(),
     loading: false,
     error: null,
     empty: false,
-    source: "mock",
+    source: USE_API ? "api" : "mock",
   });
   const [historialState, setHistorialState] = useState<ReporteDataState<ReturnType<typeof getReporteHistorialMovimientosViewModel>>>({
     data: getReporteHistorialMovimientosViewModel(),
     loading: false,
     error: null,
     empty: false,
-    source: "mock",
+    source: USE_API ? "api" : "mock",
   });
 
   useEffect(() => {
