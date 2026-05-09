@@ -130,8 +130,6 @@ export default function Inmuebles() {
     if (!USE_API) return;
     setLoading(true);
     setError(null);
-    const groupMatch = catalogGrupos.find((g) => g.nombre === grupo);
-    const districtMatch = catalogDistritos.find((d) => d.nombre === distrito);
     const sortFieldMap: Record<SortKey, string> = { cuenta: "cuenta", titular: "titular", direccion: "direccion", grupo: "grupoNombre", distrito: "distritoNombre", activo: "activo" };
     inmueblesApi
       .list({
@@ -139,8 +137,8 @@ export default function Inmuebles() {
         size: PAGE_SIZE,
         q: query || undefined,
         campo: field === "all" ? undefined : field,
-        grupoId: grupo !== "all" ? groupMatch?.id : undefined,
-        distritoId: distrito !== "all" ? districtMatch?.id : undefined,
+        grupoId: grupo !== "all" ? grupo : undefined,
+        distritoId: distrito !== "all" ? distrito : undefined,
         activo: estado === "all" ? undefined : estado === "activo",
         sort: `${sortFieldMap[sortKey]},${sortDir}`,
       })
@@ -200,8 +198,12 @@ export default function Inmuebles() {
             <Select value={field} onValueChange={(v) => { setField(v as typeof field); setPage(1); }}><SelectTrigger className="h-8 w-[160px] text-[12.5px]"><SelectValue /></SelectTrigger><SelectContent>{filterFields.map((f) => <SelectItem key={f.value} value={f.value} className="text-[13px]">{f.label}</SelectItem>)}</SelectContent></Select>
             <div className="relative min-w-[220px] flex-1 sm:max-w-xs"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar..." className="h-8 pl-8 text-[12.5px]" /></div>
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
-            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogGrupos.map((g) => g.nombre) : gruposInmueble).map((g) => <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>)}</SelectContent></Select>
-            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{(USE_API ? catalogDistritos.map((d) => d.nombre) : distritosInmueble).map((d) => <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>)}</SelectContent></Select>
+            <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Grupo" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
+              ? catalogGrupos.map((g) => <SelectItem key={g.id} value={g.id} className="text-[13px]">{g.nombre}</SelectItem>)
+              : gruposInmueble.map((g) => <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>)}</SelectContent></Select>
+            <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}><SelectTrigger className="h-8 w-[150px] text-[12.5px]" disabled={USE_API && !!catalogError}><SelectValue placeholder="Distrito" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem>{USE_API
+              ? catalogDistritos.map((d) => <SelectItem key={d.id} value={d.id} className="text-[13px]">{d.nombre}</SelectItem>)
+              : distritosInmueble.map((d) => <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>)}</SelectContent></Select>
             <Select value={estado} onValueChange={(v) => { setEstado(v); setPage(1); }}><SelectTrigger className="h-8 w-[130px] text-[12.5px]"><SelectValue placeholder="Estado" /></SelectTrigger><SelectContent><SelectItem value="all" className="text-[13px]">Todos</SelectItem><SelectItem value="activo" className="text-[13px]">Activos</SelectItem><SelectItem value="inactivo" className="text-[13px]">Inactivos</SelectItem></SelectContent></Select>
             {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto h-8 px-2 text-[12px] text-muted-foreground hover:text-foreground">Limpiar filtros</Button>}
           </div>
