@@ -198,6 +198,17 @@ const REPORTES: ReporteDef[] = [
 
 type PresetId = "hoy" | "7dias" | "mes" | "anio" | "custom";
 
+
+function hasRealDataForExport(reporte: ReporteDef, reporteState: ReporteDataState<any>): boolean {
+  if (reporte.id === "morosos-grupo-distrito") {
+    const grupos = reporteState?.data?.grupos;
+    const distritos = reporteState?.data?.distritos;
+    return Array.isArray(grupos) && Array.isArray(distritos) && (grupos.length > 0 || distritos.length > 0);
+  }
+  const rows = reporteState?.data?.rows;
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 function presetRange(p: PresetId): { desde: Date | null; hasta: Date | null } {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -525,8 +536,13 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   const canExport = useMemo(() => {
     if (reporteState.loading) return false;
     if (!USE_API) return true;
-    return reporteState.source === "api" && !reporteState.error && !reporteState.empty;
-  }, [reporteState]);
+    return (
+      reporteState.source === "api"
+      && !reporteState.error
+      && !reporteState.empty
+      && hasRealDataForExport(reporte, reporteState)
+    );
+  }, [reporte, reporteState]);
 
   const Header = (
     <div className="border-b border-border px-4 py-3">
@@ -1588,9 +1604,9 @@ async function runExport(
   };
 
   if (reporte.id === "morosos-grupo-distrito") {
-    const grupos = reporteState?.data?.grupos ?? getMorososPorGrupo();
-    const distritos = reporteState?.data?.distritos ?? getMorososPorDistrito();
-    const total = reporteState?.data?.total ?? getMorosidadTotal();
+    const grupos = reporteState?.data?.grupos ?? [];
+    const distritos = reporteState?.data?.distritos ?? [];
+    const total = reporteState?.data?.total ?? { totalInmuebles: 0, deudores: 0, morosos: 0, alDia: 0, porcentajeMorosidad: 0 };
     const head = ["Categoría", "Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"];
     const body: (string | number)[][] = [
       ...grupos.map((g) => ["Grupo", g.grupo, g.distrito, g.totalInmuebles, g.deudores, g.morosos, pctFmt(g.porcentaje)]),
@@ -1626,13 +1642,26 @@ async function runExport(
 
   if (reporte.id === "acciones-regularizacion") {
     const tipos = TIPOS_REGULARIZACION;
-    const filtradas = (reporteState?.data?.rows as AccionRegistro[] | undefined) ?? filtrarAcciones(rango.desde, rango.hasta, tipos);
+    const filtradas = (reporteState?.data?.rows as AccionRegistro[] | undefined) ?? [];
     const conteos = conteoPorTipo(filtradas, tipos);
     const total = filtradas.length;
     const head = ["Tipo de acción", "Cantidad", "% del total"];
     const body = conteos.map((c) => [c.tipo, c.cantidad, total === 0 ? "—" : pctFmt((c.cantidad / total) * 100)]);
     const chartId = "rep-acciones-regularizacion-chart";
-    const planes = getPlanesDePago(rango.desde, rango.hasta);
+    const planes = filtradas.filter((a) => a.tipo === "Plan de pago").map((a) => ({
+      fechaAlta: a.fecha,
+      cuenta: a.cuenta,
+      titular: a.titular,
+      grupo: a.grupo,
+      distrito: a.distrito,
+      cuotas: 0,
+      montoCuota: 0,
+      montoTotal: 0,
+      proximoVencimiento: a.fecha,
+      vencimientoFinal: a.fecha,
+      estado: "Sin detalle",
+      responsable: a.usuario,
+    }));
     const regularizaciones = filtradas.filter((a) => a.tipo === "Regularización");
     const compromisos = filtradas.filter((a) => a.tipo === "Compromiso de pago");
     const detalleAccionHead = ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"];
@@ -1745,7 +1774,7 @@ async function runExport(
   }
 
   if (reporte.id === "estado-inmuebles") {
-    const rows = reporteState?.data?.rows ?? getEstadoInmuebles();
+    const rows = reporteState?.data?.rows ?? [];
     const morosos = rows.filter((r) => r.estado === "Moroso").length;
     const deudores = rows.filter((r) => r.estado === "Deudor").length;
     const alDia = rows.filter((r) => r.estado === "Al día").length;
@@ -1795,7 +1824,7 @@ async function runExport(
   }
 
   if (reporte.id === "acciones-fechas") {
-    const filtradas = reporteState?.data?.rows ?? filtrarAcciones(rango.desde, rango.hasta);
+    const filtradas = reporteState?.data?.rows ?? [];
     const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
     const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
     const total = filtradas.length;
