@@ -167,6 +167,10 @@ type MotivoCierreOption = {
   codigo: string;
   nombre: string;
 };
+type CatalogOption = {
+  id: string;
+  nombre: string;
+};
 
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
@@ -223,8 +227,8 @@ export default function GestionEtapas() {
   const [rows, setRows] = useState<SeguimientoRow[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [gruposApi, setGruposApi] = useState<string[]>([]);
-  const [distritosApi, setDistritosApi] = useState<string[]>([]);
+  const [gruposApi, setGruposApi] = useState<CatalogOption[]>([]);
+  const [distritosApi, setDistritosApi] = useState<CatalogOption[]>([]);
   const [etapasApi, setEtapasApi] = useState<string[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -246,8 +250,22 @@ export default function GestionEtapas() {
           configuracionApi.parametrosSeguimiento(),
           configuracionApi.motivosCierre(),
         ]);
-        setGruposApi((gs?.content ?? gs ?? []).map((x: any) => x.nombre ?? x.grupo ?? String(x)));
-        setDistritosApi((ds?.content ?? ds ?? []).map((x: any) => x.nombre ?? x.distrito ?? String(x)));
+        setGruposApi(
+          (gs?.content ?? gs ?? [])
+            .map((x: any) => ({
+              id: String(x?.id ?? x?.grupoId ?? ""),
+              nombre: String(x?.nombre ?? x?.grupo ?? ""),
+            }))
+            .filter((x: CatalogOption) => x.id.length > 0 && x.nombre.length > 0),
+        );
+        setDistritosApi(
+          (ds?.content ?? ds ?? [])
+            .map((x: any) => ({
+              id: String(x?.id ?? x?.distritoId ?? ""),
+              nombre: String(x?.nombre ?? x?.distrito ?? ""),
+            }))
+            .filter((x: CatalogOption) => x.id.length > 0 && x.nombre.length > 0),
+        );
         const etapasFromApi = (es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x));
         setEtapasApi(etapasFromApi);
         if (etapasFromApi.length === 0) {
@@ -664,7 +682,9 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los grupos</SelectItem>
                 {(USE_API ? gruposApi : demoData.gruposSeguimiento).map((g) => (
-                  <SelectItem key={g} value={g} className="text-[13px]">{g}</SelectItem>
+                  USE_API
+                    ? <SelectItem key={(g as CatalogOption).id} value={(g as CatalogOption).id} className="text-[13px]">{(g as CatalogOption).nombre}</SelectItem>
+                    : <SelectItem key={g as string} value={g as string} className="text-[13px]">{g as string}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -676,7 +696,9 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los distritos</SelectItem>
                 {(USE_API ? distritosApi : demoData.distritosSeguimiento).map((d) => (
-                  <SelectItem key={d} value={d} className="text-[13px]">{d}</SelectItem>
+                  USE_API
+                    ? <SelectItem key={(d as CatalogOption).id} value={(d as CatalogOption).id} className="text-[13px]">{(d as CatalogOption).nombre}</SelectItem>
+                    : <SelectItem key={d as string} value={d as string} className="text-[13px]">{d as string}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
