@@ -2145,7 +2145,8 @@ function MoverEtapaDialog({
   mutating?: boolean;
 }) {
   const total = seleccionados.length;
-  const [etapaDestino, setEtapaDestino] = useState<EtapaSeguimiento>(accion.etapa ?? etapasOperativas[0]);
+  const { toast } = useToast();
+  const [etapaDestino, setEtapaDestino] = useState<EtapaSeguimiento | null>(() => accion.etapa ?? etapasOperativas[0] ?? null);
   const [fecha, setFecha] = useState<Date | undefined>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -2155,6 +2156,8 @@ function MoverEtapaDialog({
   const [calOpen, setCalOpen] = useState(false);
   const [accionMismaEtapa, setAccionMismaEtapa] = useState<"repetir" | "omitir">("omitir");
 
+  const etapaDestinoId = etapaDestino ? String(etapaDestino).trim() : "";
+  const etapaDestinoValida = etapaDestinoId.length > 0;
   const idxDestino = etapaIndex(etapaDestino);
   const idxPrimeraEtapa = etapasOperativas.length > 0 ? 0 : -1;
   const destinoEsPrimeraEtapa = idxDestino === idxPrimeraEtapa;
@@ -2168,16 +2171,26 @@ function MoverEtapaDialog({
   const mismaEtapaRepetir = accionMismaEtapa === "repetir" ? enMismaEtapa : 0;
   const mismaEtapaOmitir = accionMismaEtapa === "omitir" ? enMismaEtapa : 0;
   const aplicables = enEtapaAnterior + mismaEtapaRepetir + sinSeguimientoIniciables;
-  const canConfirmApi = !!etapaDestino && casosConSeguimiento > 0 && (selectedActions?.canAvanzar ?? false) && !mutating;
+  const canConfirmApi = etapaDestinoValida && etapasOperativas.length > 0 && casosConSeguimiento > 0 && (selectedActions?.canAvanzar ?? false) && !mutating;
   const canConfirm = USE_API ? canConfirmApi : aplicables > 0 && !mutating;
-  const blockedReasonApi = selectedActions?.reasons?.enviarEtapa ?? null;
+  const blockedReasonApi = !etapaDestinoValida
+    ? "Seleccione una etapa destino."
+    : selectedActions?.reasons?.enviarEtapa ?? null;
 
   const handleConfirm = () => {
+    if (!etapaDestinoValida) {
+      toast({
+        title: "Dato requerido",
+        description: "Seleccione una etapa destino.",
+        variant: "destructive",
+      });
+      return;
+    }
     onConfirm({
       kind: "enviar-etapa",
       payload: {
         observacion: observacion.trim() || undefined,
-        etapaDestinoId: etapaDestino,
+        etapaDestinoId: etapaDestinoId,
         fechaProgramada: fecha ? format(fecha, "yyyy-MM-dd") : undefined,
         repetirMismaEtapa: accionMismaEtapa === "repetir",
       },
@@ -2234,7 +2247,7 @@ function MoverEtapaDialog({
                 Etapa destino <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={etapaDestino}
+                value={etapaDestino ?? undefined}
                 onValueChange={(v) => setEtapaDestino(v as EtapaSeguimiento)}
               >
                 <SelectTrigger className="h-9 text-[13px]">
@@ -2251,6 +2264,9 @@ function MoverEtapaDialog({
               <p className="text-[11.5px] text-muted-foreground">
                 Solo se mueven hacia adelante en el proceso configurado.
               </p>
+              {!etapaDestinoValida && (
+                <p className="text-[11.5px] text-destructive">Seleccione una etapa destino.</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
