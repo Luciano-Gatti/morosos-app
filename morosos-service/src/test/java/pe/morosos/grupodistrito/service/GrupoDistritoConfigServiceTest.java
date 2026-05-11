@@ -88,6 +88,16 @@ class GrupoDistritoConfigServiceTest {
         when(repository.existsByGrupoIdAndDistritoIdAndIdNot(gid, did, id)).thenReturn(false);
         when(grupoRepository.findById(gid)).thenReturn(Optional.of(g));
         when(distritoRepository.findById(did)).thenReturn(Optional.of(d));
+        doAnswer(inv -> {
+            GrupoDistritoConfig target = inv.getArgument(0);
+            GrupoDistritoConfigRequest req = inv.getArgument(1);
+            Grupo grupoArg = inv.getArgument(2);
+            Distrito distritoArg = inv.getArgument(3);
+            target.setGrupo(grupoArg);
+            target.setDistrito(distritoArg);
+            target.setSeguimientoHabilitado(Boolean.TRUE.equals(req.seguimientoHabilitado()));
+            return null;
+        }).when(mapper).update(any(), any(), any(), any());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         service.update(id, new GrupoDistritoConfigRequest(gid, did, true));
         assertTrue(cfg.isSeguimientoHabilitado());
