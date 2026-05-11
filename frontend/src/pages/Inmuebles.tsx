@@ -170,7 +170,7 @@ export default function Inmuebles() {
         setError(e?.message ?? "No se pudo cargar el padrón de inmuebles.");
       })
       .finally(() => setLoading(false));
-  }, [page, query, field, grupo, distrito, estado, sortKey, sortDir, refreshKey, catalogGrupos, catalogDistritos]);
+  }, [page, query, field, grupo, distrito, estado, sortKey, sortDir, refreshKey]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
