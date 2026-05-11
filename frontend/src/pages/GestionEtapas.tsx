@@ -63,8 +63,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import * as seguimientoDemo from "@/demo/seguimientoDemo";
-import type { InmuebleMoroso, EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
+import type { EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
@@ -181,36 +180,13 @@ type AccionDialogConfirmPayload =
 
 export default function GestionEtapas() {
   const { toast } = useToast();
-  const demoData = useMemo(() => {
-    if (USE_API) {
-      return {
-        inmueblesMorosos: [] as InmuebleMoroso[],
-        etapasSeguimiento: [] as EtapaSeguimiento[],
-        estadosProceso: [] as EstadoProceso[],
-        gruposSeguimiento: [] as string[],
-        distritosSeguimiento: [] as string[],
-        parametrosSeguimiento: { cuotasParaMoroso: UMBRAL_VISUAL_DEFAULT },
-      };
-    }
-    return {
-      inmueblesMorosos: seguimientoDemo.inmueblesMorosos,
-      etapasSeguimiento: seguimientoDemo.etapasSeguimiento as EtapaSeguimiento[],
-      estadosProceso: seguimientoDemo.estadosProceso as EstadoProceso[],
-      gruposSeguimiento: seguimientoDemo.gruposSeguimiento,
-      distritosSeguimiento: seguimientoDemo.distritosSeguimiento,
-      parametrosSeguimiento: seguimientoDemo.parametrosSeguimiento,
-    };
-  }, []);
-  // En modo API este valor es solo visual hasta cargar /parametros-seguimiento.
-  const [umbralCuotas, setUmbralCuotas] = useState<number>(USE_API ? UMBRAL_VISUAL_DEFAULT : demoData.parametrosSeguimiento.cuotasParaMoroso);
+  // Este valor es solo visual hasta cargar /parametros-seguimiento.
+  const [umbralCuotas, setUmbralCuotas] = useState<number>(UMBRAL_VISUAL_DEFAULT);
 
   // Universo base: solo los inmuebles que cumplen con el umbral configurado en
   // /configuracion/seguimiento. El resto no debe aparecer en gestión de etapas.
-  const universoMorosos = useMemo(
-    () => (USE_API ? rows : demoData.inmueblesMorosos.filter((m) => m.cuotasAdeudadas >= umbralCuotas)),
-    [rows, umbralCuotas, demoData.inmueblesMorosos],
-  );
-  const excluidosPorUmbral = USE_API ? 0 : demoData.inmueblesMorosos.length - universoMorosos.length;
+  const universoMorosos = useMemo(() => rows, [rows]);
+  const excluidosPorUmbral = 0;
 
   const [query, setQuery] = useState("");
   const [etapaFiltro, setEtapaFiltro] = useState<EtapaFiltro>("all");
@@ -234,7 +210,7 @@ export default function GestionEtapas() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
-  const etapasOperativas = (USE_API ? etapasApi : demoData.etapasSeguimiento) as EtapaSeguimiento[];
+  const etapasOperativas = etapasApi as EtapaSeguimiento[];
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -301,49 +277,10 @@ export default function GestionEtapas() {
   const fetchBandeja = async () => {
     if (!USE_API) {
       setLoading(false);
-      setError(null);
-      const baseRows: SeguimientoRow[] = demoData.inmueblesMorosos
-        .filter((m) => m.cuotasAdeudadas >= umbralCuotas)
-        .map((m) => ({
-          id: m.id,
-          casoId: m.id,
-          inmuebleId: m.id,
-          cuenta: m.cuenta,
-          titular: m.titular,
-          direccion: m.direccion,
-          grupo: m.grupo,
-          distrito: m.distrito,
-          cuotasAdeudadas: m.cuotasAdeudadas,
-          montoAdeudado: m.montoAdeudado,
-          etapa: m.etapa,
-          estado: m.estado,
-          accionesDisponibles: null,
-        }));
-
-      const queryText = query.trim().toLowerCase();
-      const cuotasMinParsed = Number(cuotasMin);
-      const cuotasMinValue = Number.isFinite(cuotasMinParsed) ? cuotasMinParsed : null;
-      const filteredRows = baseRows.filter((row) => {
-        const matchesQuery =
-          queryText.length === 0 ||
-          row.cuenta.toLowerCase().includes(queryText) ||
-          row.titular.toLowerCase().includes(queryText) ||
-          row.direccion.toLowerCase().includes(queryText);
-        const matchesEtapa =
-          etapaFiltro === "all" ? true : etapaFiltro === "sin-etapa" ? row.etapa === null : row.etapa === etapaFiltro;
-        const matchesEstado = estadoFiltro === "all" ? true : row.estado === estadoFiltro;
-        const matchesGrupo = grupo === "all" ? true : row.grupo === grupo;
-        const matchesDistrito = distrito === "all" ? true : row.distrito === distrito;
-        const matchesCuotas = cuotasMinValue === null ? true : row.cuotasAdeudadas >= cuotasMinValue;
-        return matchesQuery && matchesEtapa && matchesEstado && matchesGrupo && matchesDistrito && matchesCuotas;
-      });
-
-      const start = Math.max(0, (page - 1) * PAGE_SIZE);
-      const pageContent = filteredRows.slice(start, start + PAGE_SIZE);
-      const calculatedTotalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-      setRows(pageContent);
-      setTotalElements(filteredRows.length);
-      setTotalPages(calculatedTotalPages);
+      setError("Funcionalidad pendiente de integración.");
+      setRows([]);
+      setTotalElements(0);
+      setTotalPages(1);
       return;
     }
     try {
@@ -649,7 +586,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todas las etapas</SelectItem>
                 <SelectItem value="sin-etapa" className="text-[13px]">Sin etapa asignada</SelectItem>
-                {(USE_API ? etapasApi : demoData.etapasSeguimiento).map((e) => (
+                {etapasApi.map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -667,7 +604,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
-                {(USE_API ? (["No iniciado", "Activo", "Pausado", "Cerrado"] as EstadoProceso[]) : demoData.estadosProceso).map((e) => (
+                {(["No iniciado", "Activo", "Pausado", "Cerrado"] as EstadoProceso[]).map((e) => (
                   <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
                 ))}
               </SelectContent>
@@ -681,7 +618,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los grupos</SelectItem>
-                {(USE_API ? gruposApi : demoData.gruposSeguimiento).map((g) => (
+                {gruposApi.map((g) => (
                   USE_API
                     ? <SelectItem key={(g as CatalogOption).id} value={(g as CatalogOption).id} className="text-[13px]">{(g as CatalogOption).nombre}</SelectItem>
                     : <SelectItem key={g as string} value={g as string} className="text-[13px]">{g as string}</SelectItem>
@@ -695,7 +632,7 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los distritos</SelectItem>
-                {(USE_API ? distritosApi : demoData.distritosSeguimiento).map((d) => (
+                {distritosApi.map((d) => (
                   USE_API
                     ? <SelectItem key={(d as CatalogOption).id} value={(d as CatalogOption).id} className="text-[13px]">{(d as CatalogOption).nombre}</SelectItem>
                     : <SelectItem key={d as string} value={d as string} className="text-[13px]">{d as string}</SelectItem>

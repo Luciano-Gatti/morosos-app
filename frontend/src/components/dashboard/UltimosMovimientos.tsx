@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { MovimientoTipo } from "@/types/mock";
+import type { MovimientoTipo } from "@/types/dashboard";
 import { useNavigate } from "react-router-dom";
 
 type MovimientoItem = {

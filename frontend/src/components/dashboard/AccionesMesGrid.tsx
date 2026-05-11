@@ -1,6 +1,6 @@
 import { Bell, FileWarning, Gavel, PowerOff, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AccionClave } from "@/types/mock";
+import type { AccionClave } from "@/types/dashboard";
 
 const meta: Record<
   string,
