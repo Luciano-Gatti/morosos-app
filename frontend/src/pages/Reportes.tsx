@@ -50,18 +50,7 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import {
-  conteoPorTipo,
-  filtrarAcciones,
-  getEstadoInmuebles,
-  getMorosidadTotal,
-  getMorososPorDistrito,
-  getMorososPorGrupo,
-  getPlanesDePago,
-  serieDiaria,
-  TIPOS_NOTIFICACION,
-  TIPOS_REGULARIZACION,
-} from "@/demo/reportesDemo";
+import { conteoPorTipo, serieDiaria, TIPOS_NOTIFICACION, TIPOS_REGULARIZACION } from "@/lib/reportesUtils";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
 import type { AccionRegistro, AccionTipo, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";
@@ -92,7 +81,7 @@ type ReporteId =
   | "acciones-fechas"
   | "historial-movimientos";
 
-type ReporteSource = "api" | "mock";
+type ReporteSource = "api";
 type ReporteDataState<T> = { data: T; loading: boolean; error: string | null; empty: boolean; source: ReporteSource };
 
 const emptyMorososViewModel = () => ({
@@ -103,48 +92,19 @@ const emptyMorososViewModel = () => ({
 const emptyRowsViewModel = <T,>() => ({ rows: [] as T[] });
 
 function getReporteMorososViewModel() {
-  const grupos = getMorososPorGrupo();
-  const distritos = getMorososPorDistrito();
-  const total = getMorosidadTotal();
-  return { grupos, distritos, total };
+  return emptyMorososViewModel();
 }
 function getReporteEstadoInmueblesViewModel() {
-  return { rows: getEstadoInmuebles() };
+  return emptyRowsViewModel<any>();
 }
 function getReporteHistorialMovimientosViewModel() {
-  const rows = filtrarAcciones(null, null).slice(0, 150).map((a, idx): MovimientoRegistro => ({
-    id: `demo-mov-${idx}-${a.id}`,
-    fecha: format(a.fecha, "yyyy-MM-dd"),
-    cuenta: a.cuenta,
-    titular: a.titular,
-    accion: a.tipo,
-    etapa: "Seguimiento",
-    tipo:
-      a.tipo === "Intimación"
-        ? "intimacion"
-        : a.tipo === "Corte"
-          ? "corte"
-          : a.tipo === "Regularización"
-            ? "regularizacion"
-            : a.tipo === "Plan de pago"
-              ? "plan_pago"
-              : a.tipo === "Compromiso de pago"
-                ? "compromiso"
-                : a.tipo === "Aviso de corte"
-                  ? "aviso_corte"
-                  : "aviso_deuda",
-    usuario: a.usuario,
-    categoria: "movimiento",
-  }));
-  return { rows };
+  return emptyRowsViewModel<MovimientoRegistro>();
 }
-function getReporteAccionesFechasViewModel(desde: Date | null, hasta: Date | null) {
-  const rows = filtrarAcciones(desde, hasta);
-  return { rows };
+function getReporteAccionesFechasViewModel(_desde: Date | null, _hasta: Date | null) {
+  return emptyRowsViewModel<AccionRegistro>();
 }
-function getReporteAccionesRegularizacionViewModel(desde: Date | null, hasta: Date | null) {
-  const rows = filtrarAcciones(desde, hasta, TIPOS_REGULARIZACION);
-  return { rows };
+function getReporteAccionesRegularizacionViewModel(_desde: Date | null, _hasta: Date | null) {
+  return emptyRowsViewModel<AccionRegistro>();
 }
 
 interface ReporteDef {
@@ -326,39 +286,39 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     loading: false,
     error: null,
     empty: false,
-    source: USE_API ? "api" : "mock",
+    source: "api",
   });
   const [accionesFechasState, setAccionesFechasState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>>({
     data: getReporteAccionesFechasViewModel(desde, hasta),
     loading: false,
     error: null,
     empty: false,
-    source: USE_API ? "api" : "mock",
+    source: "api",
   });
   const [accionesRegularizacionState, setAccionesRegularizacionState] = useState<ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>>({
     data: getReporteAccionesRegularizacionViewModel(desde, hasta),
     loading: false,
     error: null,
     empty: false,
-    source: USE_API ? "api" : "mock",
+    source: "api",
   });
   const [estadoInmueblesState, setEstadoInmueblesState] = useState<ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>>({
     data: getReporteEstadoInmueblesViewModel(),
     loading: false,
     error: null,
     empty: false,
-    source: USE_API ? "api" : "mock",
+    source: "api",
   });
   const [historialState, setHistorialState] = useState<ReporteDataState<ReturnType<typeof getReporteHistorialMovimientosViewModel>>>({
     data: getReporteHistorialMovimientosViewModel(),
     loading: false,
     error: null,
     empty: false,
-    source: USE_API ? "api" : "mock",
+    source: "api",
   });
 
   useEffect(() => {
-    if (reporte.id !== "morosos-grupo-distrito" || !USE_API) return;
+    if (reporte.id !== "morosos-grupo-distrito") return;
     let cancelled = false;
     setMorososState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
@@ -393,12 +353,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
 
   useEffect(() => {
     if (reporte.id !== "acciones-fechas") return;
-    if (!USE_API) {
-      const vm = getReporteAccionesFechasViewModel(desde, hasta);
-      setAccionesFechasState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
-      return;
-    }
-    let cancelled = false;
+        let cancelled = false;
     setAccionesFechasState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
       .accionesFechas({
@@ -422,12 +377,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
 
   useEffect(() => {
     if (reporte.id !== "estado-inmuebles") return;
-    if (!USE_API) {
-      const vm = getReporteEstadoInmueblesViewModel();
-      setEstadoInmueblesState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
-      return;
-    }
-    let cancelled = false;
+        let cancelled = false;
     setEstadoInmueblesState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
       .estadoInmuebles()
@@ -448,12 +398,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
 
   useEffect(() => {
     if (reporte.id !== "historial-movimientos") return;
-    if (!USE_API) {
-      const vm = getReporteHistorialMovimientosViewModel();
-      setHistorialState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
-      return;
-    }
-    let cancelled = false;
+        let cancelled = false;
     setHistorialState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
       .historialMovimientos()
@@ -474,12 +419,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
 
   useEffect(() => {
     if (reporte.id !== "acciones-regularizacion") return;
-    if (!USE_API) {
-      const vm = getReporteAccionesRegularizacionViewModel(desde, hasta);
-      setAccionesRegularizacionState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "mock" });
-      return;
-    }
-    let cancelled = false;
+        let cancelled = false;
     setAccionesRegularizacionState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
       .accionesRegularizacion({
@@ -517,7 +457,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     if (reporte.id === "acciones-regularizacion") {
       return accionesRegularizacionState;
     }
-    return { data: null, loading: false, error: null, empty: false, source: "mock" as ReporteSource };
+    return { data: null, loading: false, error: null, empty: false, source: "api" as ReporteSource };
   }, [reporte.id, morososState, accionesFechasState, accionesRegularizacionState, estadoInmueblesState, historialState]);
 
   const setPresetSafe = (p: PresetId) => {
@@ -535,8 +475,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
 
   const canExport = useMemo(() => {
     if (reporteState.loading) return false;
-    if (!USE_API) return true;
-    return (
+        return (
       reporteState.source === "api"
       && !reporteState.error
       && !reporteState.empty

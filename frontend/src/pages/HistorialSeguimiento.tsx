@@ -26,9 +26,6 @@ import { cn } from "@/lib/utils";
 import { USE_API } from "@/lib/apiClient";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
-import {
-  getHistorialInmueble,
-} from "@/demo/historialSeguimientoDemo";
 import { isHistorialEmpty, mapHistorialSeguimiento, type HistorialSeguimientoViewModel } from "@/adapters/historialSeguimiento";
 import type { CierreProceso, ProcesoSeguimiento, RegistroHistorial } from "@/types/historialSeguimiento";
 import type { EstadoProceso, EtapaSeguimiento } from "@/types/seguimiento";
@@ -37,38 +34,11 @@ export default function HistorialSeguimiento() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [historialVm, setHistorialVm] = useState<HistorialSeguimientoViewModel | null>(null);
-  const [loading, setLoading] = useState(USE_API);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    if (!USE_API) {
-      const mock = getHistorialInmueble(id);
-      const inmuebleMock = {
-        id,
-        cuenta: `Cuenta ${id}`,
-        titular: "Titular demo",
-        direccion: "Dirección demo",
-        grupo: "-",
-        distrito: "-",
-        activo: true,
-        seguimientoHabilitado: true,
-      };
-      setHistorialVm(
-        mapHistorialSeguimiento(
-          {
-            inmueble: inmuebleMock,
-            casos: mock.procesos.map((p) => ({ id: p.id, estado: p.estado, eventos: p.registros, cierre: null, compromisos: [] })),
-            observaciones: mock.observacionesLibres,
-          },
-          id,
-        ),
-      );
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
     setLoading(true);
     setError(null);
     Promise.all([seguimientoApi.historialInmueble(id), inmueblesApi.getById(id)])

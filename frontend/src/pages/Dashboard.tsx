@@ -3,30 +3,17 @@ import { DistritosGrid } from "@/components/dashboard/DistritosGrid";
 import { MorosidadResumen } from "@/components/dashboard/MorosidadResumen";
 import { AccionesMesGrid } from "@/components/dashboard/AccionesMesGrid";
 import { UltimosMovimientos } from "@/components/dashboard/UltimosMovimientos";
-import { getDashboardDemoData } from "@/demo/dashboardDemo";
 import { USE_API } from "@/lib/apiClient";
 import { dashboardApi } from "@/services/api/dashboardApi";
 import { useEffect, useMemo, useState } from "react";
 import { isDashboardResumenEmpty, mapDashboardResumen, type DashboardResumenViewModel } from "@/adapters/dashboard";
 
 export default function Dashboard() {
-  const demoData = USE_API ? null : getDashboardDemoData();
-
-  const [loading, setLoading] = useState(USE_API);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardResumenViewModel | null>(
-    USE_API
-      ? null
-          : mapDashboardResumen({
-              kpis: demoData!.resumenMorosidad as any,
-              accionesMes: demoData!.accionesMes as any,
-              distritos: demoData!.distritosStats as any,
-              movimientos: demoData!.ultimosMovimientos as any,
-            }),
-  );
+  const [data, setData] = useState<DashboardResumenViewModel | null>(null);
 
   useEffect(() => {
-    if (!USE_API) return;
     setLoading(true);
     setError(null);
     dashboardApi
