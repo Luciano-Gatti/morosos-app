@@ -17,7 +17,7 @@ const accentMap: Record<AccionClave, string> = {
   cortes: "bg-status-debt-soft text-status-debt",
 };
 
-const fmt = (n: number) => n.toLocaleString("es-AR");
+const fmt = (value?: number | null) => Number(value ?? 0).toLocaleString("es-AR");
 
 interface Props {
   data: DistritoStat;
@@ -134,7 +134,7 @@ export function DistritoCard({ data }: Props) {
                     className="font-serif font-semibold leading-none tabular text-foreground"
                     style={{ fontSize: "clamp(15px, 1.6cqi + 11px, 18px)" }}
                   >
-                    {fmt(data.acciones[k])}
+                    {fmt(data.acciones?.[k])}
                   </div>
                 </div>
               </li>
