@@ -62,13 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { ApiError, USE_API } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import {
-  gruposIniciales,
-  resumenSeguimiento,
-  totalInmueblesGrupo,
-} from "@/demo/configuracionDemo";
 import type { Grupo, GrupoDistrito } from "@/types/grupos";
-import { distritosInmueble } from "@/demo/configuracionDemo";
 
 const numberFmt = new Intl.NumberFormat("es-AR");
 
@@ -79,19 +73,10 @@ interface FormState {
 
 const emptyForm: FormState = { nombre: "", descripcion: "" };
 
-function hoy() {
-  const t = new Date();
-  return `${String(t.getDate()).padStart(2, "0")}/${String(
-    t.getMonth() + 1,
-  ).padStart(2, "0")}/${t.getFullYear()}`;
-}
-
 export default function ConfiguracionGrupos() {
   const { toast } = useToast();
-  const [grupos, setGrupos] = useState<Grupo[]>(() => (USE_API ? [] : gruposIniciales));
-  const [distritosCatalogo, setDistritosCatalogo] = useState<string[]>(() =>
-    USE_API ? [] : distritosInmueble,
-  );
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [distritosCatalogo, setDistritosCatalogo] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
@@ -153,7 +138,13 @@ export default function ConfiguracionGrupos() {
   };
 
   const loadData = async () => {
-    if (!USE_API) return;
+    if (!USE_API) {
+      setGrupos([]);
+      setDistritosRaw([]);
+      setDistritosCatalogo([]);
+      setError("Funcionalidad pendiente de integración.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -187,10 +178,7 @@ const filtered = useMemo(() => {
     );
   }, [grupos, query]);
 
-  const totalConSeguimiento = grupos.filter((g) => {
-    if (!USE_API) return resumenSeguimiento(g).activos > 0;
-    return g.distritos.some((d) => Boolean(d.seguimientoHabilitado));
-  }).length;
+  const totalConSeguimiento = grupos.filter((g) => g.distritos.some((d) => Boolean(d.seguimientoHabilitado))).length;
 
   const openCreate = () => {
     setEditing(null);
@@ -222,12 +210,7 @@ const filtered = useMemo(() => {
         else await configuracionApi.crearGrupo({ nombre, descripcion: form.descripcion.trim() || null });
         await loadData();
       } else {
-        if (editing) {
-          setGrupos((prev) => prev.map((g) => g.id === editing.id ? { ...g, nombre, descripcion: form.descripcion.trim() || undefined, actualizado: hoy() } : g));
-        } else {
-          const nuevo: Grupo = { id: `g-${Date.now()}`, nombre, descripcion: form.descripcion.trim() || undefined, distritos: [], actualizado: hoy() };
-          setGrupos((prev) => [nuevo, ...prev]);
-        }
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: editing ? 'Grupo actualizado' : 'Grupo creado', description: editing ? `Se guardaron los cambios en "${nombre}".` : `"${nombre}" fue creado.` });
     } catch (e) {
@@ -334,7 +317,7 @@ const filtered = useMemo(() => {
         }
         await loadData();
       } else {
-        setGrupos((prev) => prev.map((g) => g.id === distritosTarget.id ? { ...g, distritos: distritosDraft, actualizado: hoy() } : g));
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: 'Distritos actualizados', description: `Se actualizó la configuración de "${distritosTarget.nombre}".` });
       closeDistritos();
@@ -353,7 +336,7 @@ const filtered = useMemo(() => {
         await configuracionApi.toggleGrupoActivo(g.id, !g.activo);
         await loadData();
       } else {
-        setGrupos((prev) => prev.map((x) => x.id === g.id ? { ...x, activo: !x.activo, actualizado: hoy() } : x));
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: !g.activo ? "Grupo activado" : "Grupo inactivado", description: `Se actualizó el estado de "${g.nombre}".` });
     } catch (e) {
@@ -364,10 +347,17 @@ const filtered = useMemo(() => {
   };
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const totalInm = USE_API
-      ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-      : totalInmueblesGrupo(deleteTarget);
-    if (!USE_API && totalInm > 0) {
+    const totalInm = deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0);
+    if (!USE_API) {
+      toast({
+        title: "Funcionalidad pendiente",
+        description: "La eliminación de grupos requiere integración de API.",
+        variant: "destructive",
+      });
+      setDeleteTarget(null);
+      return;
+    }
+    if (totalInm > 0) {
       toast({
         title: "No se puede eliminar el grupo",
         description: `"${deleteTarget.nombre}" tiene ${numberFmt.format(
@@ -384,7 +374,7 @@ const filtered = useMemo(() => {
         await configuracionApi.eliminarGrupo(deleteTarget.id);
         await loadData();
       } else {
-        setGrupos((prev) => prev.filter((g) => g.id !== deleteTarget.id));
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: 'Grupo eliminado', description: `Se eliminó "${deleteTarget.nombre}".` });
       setDeleteTarget(null);
@@ -421,11 +411,7 @@ const filtered = useMemo(() => {
         else await configuracionApi.crearDistrito({ nombre });
         await loadData();
       } else {
-        const next = editingDistrito
-          ? distritosRaw.map((d) => String(d.id) === String(editingDistrito.id) ? { ...d, nombre } : d)
-          : [{ id: `d-${Date.now()}`, nombre, activo: true }, ...distritosRaw];
-        setDistritosRaw(next);
-        setDistritosCatalogo(next.map((d: any) => String(d.nombre ?? d.distrito ?? d.codigo ?? d.id)).filter(Boolean));
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: editingDistrito ? "Distrito actualizado" : "Distrito creado", description: `Se guardó "${nombre}".` });
       setDistritoDialogOpen(false);
@@ -445,8 +431,7 @@ const filtered = useMemo(() => {
         await configuracionApi.toggleDistritoActivo(String(d.id), !Boolean(d.activo));
         await loadData();
       } else {
-        const next = distritosRaw.map((x) => String(x.id) === String(d.id) ? { ...x, activo: !Boolean(x.activo) } : x);
-        setDistritosRaw(next);
+        throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: !Boolean(d.activo) ? "Distrito activado" : "Distrito inactivado" });
     } catch (e) {
@@ -550,7 +535,7 @@ const filtered = useMemo(() => {
                   </TableRow>
                 ) : (
                   filtered.map((g) => {
-                    const totalInm = USE_API ? g.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) : totalInmueblesGrupo(g);
+                    const totalInm = g.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0);
                     return (
                       <TableRow key={g.id} className="border-border">
                         <TableCell className="py-2.5 pl-4">
@@ -917,18 +902,14 @@ const filtered = useMemo(() => {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[15px]">
               {deleteTarget &&
-              (USE_API
-                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-                : totalInmueblesGrupo(deleteTarget)) > 0
+              deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) > 0
                 ? "No se puede eliminar el grupo"
                 : "Eliminar grupo"}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[12.5px]" asChild>
               <div>
                 {deleteTarget &&
-                (USE_API
-                  ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-                  : totalInmueblesGrupo(deleteTarget)) > 0 ? (
+                deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) > 0 ? (
                   <>
                     El grupo{" "}
                     <span className="font-semibold text-foreground">
@@ -936,11 +917,7 @@ const filtered = useMemo(() => {
                     </span>{" "}
                     tiene{" "}
                     <span className="font-semibold text-foreground">
-                      {numberFmt.format(
-                        USE_API
-                          ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-                          : totalInmueblesGrupo(deleteTarget),
-                      )}{" "}
+{numberFmt.format(deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0))}{" "}
                       inmuebles
                     </span>{" "}
                     asignados, por lo que no puede eliminarse.
@@ -964,16 +941,12 @@ const filtered = useMemo(() => {
           <AlertDialogFooter>
             <AlertDialogCancel className="h-9 text-[13px]">
               {deleteTarget &&
-              (USE_API
-                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-                : totalInmueblesGrupo(deleteTarget)) > 0
+              deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) > 0
                 ? "Cerrar"
                 : "Cancelar"}
             </AlertDialogCancel>
             {deleteTarget &&
-              (USE_API
-                ? deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0)
-                : totalInmueblesGrupo(deleteTarget)) === 0 && (
+              deleteTarget.distritos.reduce((acc, d) => acc + Number(d.inmuebles ?? 0), 0) === 0 && (
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={mutating}
@@ -990,7 +963,9 @@ const filtered = useMemo(() => {
 }
 
 function SeguimientoResumen({ grupo }: { grupo: Grupo }) {
-  const { activos, total, estado } = resumenSeguimiento(grupo);
+  const total = grupo.distritos.length;
+  const activos = grupo.distritos.filter((d) => Boolean(d.seguimientoHabilitado)).length;
+  const estado = total === 0 ? "sin-distritos" : activos === total ? "todos" : activos === 0 ? "ninguno" : "parcial";
 
   if (estado === "sin-distritos") {
     return (

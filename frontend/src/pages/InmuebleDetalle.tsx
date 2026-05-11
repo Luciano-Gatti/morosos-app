@@ -31,8 +31,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { inmueblesPadron, distritosInmueble } from "@/demo/inmueblesDemo";
-import { gruposIniciales } from "@/demo/gruposDemo";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapInmuebleDetalle, type InmuebleDetalleViewModel } from "@/adapters/inmuebleDetalle";
@@ -55,35 +53,8 @@ export default function InmuebleDetalle() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const inmuebleMock = useMemo(() => inmueblesPadron.find((i) => i.id === id), [id]);
   const [inmuebleVm, setInmuebleVm] = useState<InmuebleDetalleViewModel | null>(null);
-  const inmueble = USE_API
-    ? inmuebleVm
-    : (inmuebleMock
-      ? {
-          id: inmuebleMock.id,
-          cuenta: inmuebleMock.cuenta,
-          titular: inmuebleMock.titular,
-          direccion: inmuebleMock.direccion,
-          grupoNombre: inmuebleMock.grupo,
-          distritoNombre: inmuebleMock.distrito,
-          activo: inmuebleMock.activo,
-          telefono: "",
-          email: "",
-          observaciones: "",
-          seguimientoHabilitado: true,
-        }
-      : null);
-
-  // Grupos del catálogo filtrados según el distrito seleccionado.
-  const distritoInicial = (inmueble as any)?.distritoNombre ?? distritosInmueble[0];
-  const gruposDelDistritoInicial = gruposIniciales
-    .filter((g) => g.distritos.some((d) => d.distrito === distritoInicial))
-    .map((g) => g.nombre);
-  const grupoInicial =
-    (inmueble as any)?.grupoNombre && gruposDelDistritoInicial.includes((inmueble as any).grupoNombre)
-      ? (inmueble as any).grupoNombre
-      : gruposDelDistritoInicial[0] ?? "";
+  const inmueble = inmuebleVm;
 
   const grupoNombreResueltoApi = useMemo(() => {
     if (!USE_API) return "";
@@ -103,17 +74,17 @@ export default function InmuebleDetalle() {
 
   const initial: ConfigState = useMemo(
     () => ({
-      grupo: USE_API ? grupoNombreResueltoApi : (inmueble?.grupoNombre ?? inmueble?.grupo ?? ""),
-      distrito: USE_API ? distritoNombreResueltoApi : (inmueble?.distritoNombre ?? inmueble?.distrito ?? distritosInmueble[0]),
-      grupoId: USE_API ? (inmuebleVm?.grupoId ?? "") : "",
-      distritoId: USE_API ? (inmuebleVm?.distritoId ?? "") : "",
-      telefono: USE_API ? (inmuebleVm?.telefono ?? "") : "+54 379 4-" + (300000 + Number(id ?? 0) * 137).toString().slice(-6),
-      email: USE_API ? (inmuebleVm?.email ?? "") : `contacto${id ?? "0"}@aosc.gob.ar`,
-      activo: USE_API ? (inmuebleVm?.activo ?? true) : (inmueble?.activo ?? true),
-      seguimientoHabilitado: USE_API ? (inmuebleVm?.seguimientoHabilitado ?? false) : ((inmueble?.activo ?? true) && Number(id ?? 0) % 4 !== 0),
-      observaciones: USE_API ? (inmuebleVm?.observaciones ?? "") : "",
+      grupo: grupoNombreResueltoApi,
+      distrito: distritoNombreResueltoApi,
+      grupoId: inmuebleVm?.grupoId ?? "",
+      distritoId: inmuebleVm?.distritoId ?? "",
+      telefono: inmuebleVm?.telefono ?? "",
+      email: inmuebleVm?.email ?? "",
+      activo: inmuebleVm?.activo ?? true,
+      seguimientoHabilitado: inmuebleVm?.seguimientoHabilitado ?? false,
+      observaciones: inmuebleVm?.observaciones ?? "",
     }),
-    [USE_API, grupoNombreResueltoApi, distritoNombreResueltoApi, inmuebleVm, inmueble, id],
+    [grupoNombreResueltoApi, distritoNombreResueltoApi, inmuebleVm],
   );
 
   const [editing, setEditing] = useState(false);
@@ -134,30 +105,20 @@ export default function InmuebleDetalle() {
 
   // Grupos disponibles según el distrito actualmente seleccionado.
   const gruposDelDistrito = useMemo(() => {
-    if (USE_API) {
-      if (!config.distritoId) return [];
-      const gruposPermitidos = new Set(
-        grupoDistritoConfig
-          .filter((rel) => rel.distritoId === config.distritoId)
-          .map((rel) => rel.grupoId),
-      );
-      return gruposCatalogo.filter((g) => gruposPermitidos.has(g.id));
-    }
-    return gruposIniciales
-      .filter((g) => g.distritos.some((d) => d.distrito === config.distrito))
-      .map((g) => ({ id: g.nombre, nombre: g.nombre }));
-  }, [config.distrito, config.distritoId, gruposCatalogo, grupoDistritoConfig]);
+    if (!config.distritoId) return [];
+    const gruposPermitidos = new Set(
+      grupoDistritoConfig
+        .filter((rel) => rel.distritoId === config.distritoId)
+        .map((rel) => rel.grupoId),
+    );
+    return gruposCatalogo.filter((g) => gruposPermitidos.has(g.id));
+  }, [config.distritoId, gruposCatalogo, grupoDistritoConfig]);
 
   const apiSelectsDisabled = USE_API
     && (!!catalogError || catalogLoading || saving || grupoDistritoConfig.length === 0);
 
   // ¿El par grupo+distrito tiene seguimiento habilitado en la configuración?
-  const seguimientoPorParHabilitado = useMemo(() => {
-    if (USE_API) return true;
-    const grupo = gruposIniciales.find((g) => g.nombre === config.grupo);
-    if (!grupo) return false;
-    return grupo.distritos.some((d) => d.distrito === config.distrito && d.seguimientoHabilitado);
-  }, [config.grupo, config.distrito]);
+  const seguimientoPorParHabilitado = true;
 
   // Elegibilidad efectiva del seguimiento del inmueble.
   const seguimientoElegible =
@@ -180,7 +141,7 @@ export default function InmuebleDetalle() {
   const handleSave = async () => {
     if (!id) return;
     if (!USE_API) {
-      setEditing(false);
+      setError("Funcionalidad pendiente de integración.");
       return;
     }
     try {
@@ -214,11 +175,7 @@ export default function InmuebleDetalle() {
   const handleToggleActivo = async (nextActivo: boolean) => {
     if (!editing || !id) return;
     if (!USE_API) {
-      setConfig((prev) => ({
-        ...prev,
-        activo: nextActivo,
-        seguimientoHabilitado: nextActivo ? prev.seguimientoHabilitado : false,
-      }));
+      setError("Funcionalidad pendiente de integración.");
       return;
     }
     try {
@@ -240,7 +197,7 @@ export default function InmuebleDetalle() {
   const handleToggleSeguimiento = async (nextSeguimientoHabilitado: boolean) => {
     if (!editing || !id) return;
     if (!USE_API) {
-      setConfig((prev) => ({ ...prev, seguimientoHabilitado: nextSeguimientoHabilitado }));
+      setError("Funcionalidad pendiente de integración.");
       return;
     }
     try {
@@ -261,7 +218,13 @@ export default function InmuebleDetalle() {
 
 
   useEffect(() => {
-    if (!USE_API) return;
+    if (!USE_API) {
+      setCatalogError("Funcionalidad pendiente de integración.");
+      setGruposCatalogo([]);
+      setDistritosCatalogo([]);
+      setGrupoDistritoConfig([]);
+      return;
+    }
     const toArray = (data: any) => (Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : []);
     const loadCatalogos = async () => {
       try {
@@ -289,7 +252,12 @@ export default function InmuebleDetalle() {
   }, []);
 
   useEffect(() => {
-    if (!USE_API || !id) return;
+    if (!id) return;
+    if (!USE_API) {
+      setInmuebleVm(null);
+      setError("Funcionalidad pendiente de integración.");
+      return;
+    }
     fetchInmueble(id);
   }, [id]);
 
@@ -449,10 +417,9 @@ export default function InmuebleDetalle() {
               )}
               <FieldGroup label="Distrito">
                 <Select
-                  value={USE_API ? config.distritoId : config.distrito}
+                  value={config.distritoId}
                   onValueChange={(v) => {
                     // Al cambiar de distrito, validamos que el grupo siga siendo válido.
-                    if (USE_API) {
                       const distritoSel = distritosCatalogo.find((d) => d.id === v);
                       const gruposPermitidos = gruposCatalogo.filter((g) =>
                         grupoDistritoConfig.some((rel) => rel.distritoId === v && rel.grupoId === g.id),
@@ -469,12 +436,6 @@ export default function InmuebleDetalle() {
                         grupo: grupoActualNombre,
                       });
                       return;
-                    }
-                    const gruposEnDistrito = gruposIniciales
-                      .filter((g) => g.distritos.some((d) => d.distrito === v))
-                      .map((g) => g.nombre);
-                    const nuevoGrupo = gruposEnDistrito.includes(config.grupo) ? config.grupo : gruposEnDistrito[0] ?? "";
-                    setConfig({ ...config, distrito: v, grupo: nuevoGrupo });
                   }}
                   disabled={!editing || apiSelectsDisabled}
                 >
@@ -482,7 +443,7 @@ export default function InmuebleDetalle() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(USE_API ? distritosCatalogo : distritosInmueble.map((d) => ({ id: d, nombre: d }))).map((d) => (
+                    {distritosCatalogo.map((d) => (
                       <SelectItem key={d.id} value={d.id} className="text-[13px]">
                         {d.nombre}
                       </SelectItem>
@@ -493,14 +454,10 @@ export default function InmuebleDetalle() {
 
               <FieldGroup label="Grupo">
                 <Select
-                  value={USE_API ? config.grupoId : config.grupo}
+                  value={config.grupoId}
                   onValueChange={(v) => {
-                    if (USE_API) {
-                      const grupoSel = gruposCatalogo.find((g) => g.id === v);
-                      setConfig({ ...config, grupoId: v, grupo: grupoSel?.nombre ?? "" });
-                      return;
-                    }
-                    setConfig({ ...config, grupo: v });
+                    const grupoSel = gruposCatalogo.find((g) => g.id === v);
+                    setConfig({ ...config, grupoId: v, grupo: grupoSel?.nombre ?? "" });
                   }}
                   disabled={!editing || gruposDelDistrito.length === 0 || apiSelectsDisabled}
                 >
@@ -515,16 +472,14 @@ export default function InmuebleDetalle() {
                   </SelectTrigger>
                   <SelectContent>
                     {gruposDelDistrito.map((g) => (
-                      <SelectItem key={USE_API ? g.id : g.nombre} value={USE_API ? g.id : g.nombre} className="text-[13px]">
+                      <SelectItem key={g.id} value={g.id} className="text-[13px]">
                         {g.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-[11.5px] text-muted-foreground">
-                  {USE_API
-                    ? "Catálogo de grupos provisto por backend."
-                    : "Solo se muestran los grupos asociados al distrito seleccionado."}
+                  Catálogo de grupos provisto por backend.
                 </p>
                 {USE_API && catalogError && (
                   <p className="text-[11.5px] text-destructive">No se pudieron cargar grupos/distritos desde backend.</p>
@@ -563,16 +518,10 @@ export default function InmuebleDetalle() {
 
               <ToggleRow
                 label="Seguimiento de morosidad"
-                hint={
-                  USE_API
-                    ? "El backend define la elegibilidad de seguimiento para este inmueble."
-                    : !seguimientoPorParHabilitado
-                      ? "El par grupo + distrito no tiene seguimiento habilitado."
-                      : "Habilita el flujo automático de avisos, intimaciones y cortes."
-                }
+                hint="El backend define la elegibilidad de seguimiento para este inmueble."
                 checked={config.seguimientoHabilitado}
                 disabled={
-                  !editing || !config.activo || (!USE_API && !seguimientoPorParHabilitado) || togglingSeguimiento
+                  !editing || !config.activo || !seguimientoPorParHabilitado || togglingSeguimiento
                 }
                 onCheckedChange={handleToggleSeguimiento}
               />
@@ -624,10 +573,10 @@ export default function InmuebleDetalle() {
             <section className="rounded-md border border-border bg-surface shadow-sm">
               <SectionHeader title="Resumen operativo" />
               <dl className="divide-y divide-border text-[12.5px]">
-                <ResumenRow label="Última gestión" value="12/03/2026" />
-                <ResumenRow label="Etapa actual" value="Intimación" />
-                <ResumenRow label="Períodos adeudados" value="3" />
-                <ResumenRow label="Monto adeudado" value="$ 184.520,00" mono />
+                                <ResumenRow label="Última gestión" value="No hay información disponible" />
+                <ResumenRow label="Etapa actual" value="No hay información disponible" />
+                <ResumenRow label="Períodos adeudados" value="No hay información disponible" />
+                <ResumenRow label="Monto adeudado" value="No hay información disponible" />
               </dl>
             </section>
           </aside>
