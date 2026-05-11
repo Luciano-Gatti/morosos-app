@@ -17,7 +17,7 @@ const accentMap: Record<AccionClave, string> = {
   cortes: "bg-status-debt-soft text-status-debt",
 };
 
-const fmt = (n: number) => n.toLocaleString("es-AR");
+const fmt = (value?: number | null) => Number(value ?? 0).toLocaleString("es-AR");
 
 interface Props {
   data: DistritoStat;
