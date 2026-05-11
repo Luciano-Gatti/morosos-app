@@ -134,7 +134,7 @@ export function DistritoCard({ data }: Props) {
                     className="font-serif font-semibold leading-none tabular text-foreground"
                     style={{ fontSize: "clamp(15px, 1.6cqi + 11px, 18px)" }}
                   >
-                    {fmt(data.acciones[k])}
+                    {fmt(data.acciones?.[k])}
                   </div>
                 </div>
               </li>
