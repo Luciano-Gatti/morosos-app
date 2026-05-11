@@ -134,7 +134,7 @@ export default function ConfiguracionGrupos() {
         const did = String(c.distritoId ?? c.distrito?.id ?? c.distrito_id ?? '');
         const d = distritosById.get(did) ?? c.distrito ?? {};
         return {
-          distrito: String(d.nombre ?? d.distrito ?? c.distritoNombre ?? c.distrito_codigo ?? did || '-'),
+          distrito: String((d.nombre ?? d.distrito ?? c.distritoNombre ?? c.distrito_codigo ?? did) || '-'),
           seguimientoHabilitado: Boolean(c.seguimientoHabilitado ?? c.seguimiento_habilitado ?? false),
           inmuebles: Number(c.inmuebles ?? 0),
           configId: String(c.id ?? ''),
