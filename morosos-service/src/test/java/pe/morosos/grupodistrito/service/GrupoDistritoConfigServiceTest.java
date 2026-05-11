@@ -88,6 +88,7 @@ class GrupoDistritoConfigServiceTest {
         when(repository.existsByGrupoIdAndDistritoIdAndIdNot(gid, did, id)).thenReturn(false);
         when(grupoRepository.findById(gid)).thenReturn(Optional.of(g));
         when(distritoRepository.findById(did)).thenReturn(Optional.of(d));
+        doCallRealMethod().when(mapper).update(any(GrupoDistritoConfig.class), any(GrupoDistritoConfigRequest.class), any(Grupo.class), any(Distrito.class));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         service.update(id, new GrupoDistritoConfigRequest(gid, did, true));
         assertTrue(cfg.isSeguimientoHabilitado());
