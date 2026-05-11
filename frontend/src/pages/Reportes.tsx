@@ -606,7 +606,13 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       <div className="px-4 py-4">
         {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito state={reporteState as ReporteDataState<ReturnType<typeof getReporteMorososViewModel>>} />}
         {reporte.id === "acciones-regularizacion" && (
-          <ReporteAcciones state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>} tipos={TIPOS_REGULARIZACION} variante="regularizacion" />
+          <ReporteAcciones
+            state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>}
+            tipos={TIPOS_REGULARIZACION}
+            variante="regularizacion"
+            desde={desde}
+            hasta={hasta}
+          />
         )}
         {reporte.id === "estado-inmuebles" && <ReporteEstadoInmuebles state={reporteState as ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>} />}
         {reporte.id === "acciones-fechas" && <ReporteAccionesFechas state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>} />}
@@ -826,10 +832,14 @@ function ReporteAcciones({
   state,
   tipos,
   variante,
+  desde = null,
+  hasta = null,
 }: {
   state: ReporteDataState<{ rows: AccionRegistro[] }>;
   tipos: AccionTipo[];
   variante: "notificacion" | "regularizacion";
+  desde?: Date | null;
+  hasta?: Date | null;
 }) {
   const filtradas = useMemo(() => (state.data.rows ?? []).filter((r) => tipos.includes(r.tipo)), [state.data.rows, tipos]);
   const conteos = useMemo(() => conteoPorTipo(filtradas, tipos), [filtradas, tipos]);
