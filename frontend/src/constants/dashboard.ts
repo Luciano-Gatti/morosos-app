@@ -1,4 +1,4 @@
-import type { AccionClave } from "@/types/mock";
+import type { AccionClave } from "@/types/dashboard";
 
 export const accionesLabels: Record<AccionClave, string> = {
   avisos_deuda: "Avisos deuda",
