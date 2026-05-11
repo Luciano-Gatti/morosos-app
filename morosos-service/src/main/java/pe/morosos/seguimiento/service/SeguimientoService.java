@@ -10,14 +10,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
-import pe.morosos.seguimiento.dto.SeguimientoBandejaAccionesResponse;
-import pe.morosos.seguimiento.dto.SeguimientoBandejaRowResponse;
+import pe.morosos.seguimiento.dto.*;
 import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.service.AuditService;
 import pe.morosos.common.exception.BusinessRuleException;
 import pe.morosos.etapa.entity.EtapaConfig;
 import pe.morosos.etapa.repository.EtapaConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
+import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.motivocierre.entity.MotivoCierre;
 import pe.morosos.seguimiento.MotorReglasSeguimiento;
 import pe.morosos.seguimiento.dto.BulkActionResultResponse;
@@ -43,6 +43,7 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.ProcesoCierrePlanPagoRepository procesoCierrePlanPagoRepository;
     private final pe.morosos.seguimiento.repository.ProcesoCierreCambioParametroRepository procesoCierreCambioParametroRepository;
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
+    private final InmuebleRepository inmuebleRepository;
 
     
 
@@ -298,6 +299,94 @@ public class SeguimientoService {
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
         }
         return result;
+    }
+
+
+    @Transactional(readOnly = true)
+    public HistorialSeguimientoResponse getHistorialByInmueble(UUID inmuebleId) {
+        Inmueble inmueble = inmuebleRepository.findById(inmuebleId)
+                .orElseThrow(() -> new BusinessRuleException("Inmueble no encontrado."));
+        List<CasoSeguimiento> casos = casoRepository.findByInmuebleIdOrderByFechaInicioDesc(inmuebleId);
+
+        List<HistorialCasoResponse> casosResponse = casos.stream()
+                .map(caso -> new HistorialCasoResponse(
+                        caso.getId(),
+                        caso.getEstado().name(),
+                        caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
+                        caso.getFechaInicio(),
+                        caso.getFechaUltimoMovimiento(),
+                        caso.getObservacion()
+                )).toList();
+
+        List<CasoEventoResponse> eventosResponse = new ArrayList<>();
+        List<HistorialCierreResponse> cierresResponse = new ArrayList<>();
+        List<HistorialCompromisoResponse> compromisosResponse = new ArrayList<>();
+
+        for (CasoSeguimiento caso : casos) {
+            casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento ->
+                    eventosResponse.add(new CasoEventoResponse(
+                            evento.getId(),
+                            caso.getId(),
+                            evento.getTipoEvento().name(),
+                            evento.getEtapaOrigen() == null ? null : evento.getEtapaOrigen().getNombre(),
+                            evento.getEtapaDestino() == null ? null : evento.getEtapaDestino().getNombre(),
+                            evento.getFechaEvento(),
+                            evento.getObservacion(),
+                            evento.getMetadata()
+                    )));
+
+            procesoCierreRepository.findByCasoSeguimientoId(caso.getId()).ifPresent(cierre -> {
+                Object planPago = procesoCierrePlanPagoRepository.findAll().stream()
+                        .filter(x -> x.getProcesoCierre().getId().equals(cierre.getId()))
+                        .findFirst()
+                        .map(x -> Map.of(
+                                "cantidadCuotas", x.getCantidadCuotas(),
+                                "fechaVencimientoPrimeraCuota", x.getFechaVencimientoPrimeraCuota()
+                        ))
+                        .orElse(null);
+                Object cambioParametro = procesoCierreCambioParametroRepository.findAll().stream()
+                        .filter(x -> x.getProcesoCierre().getId().equals(cierre.getId()))
+                        .findFirst()
+                        .map(x -> Map.of(
+                                "parametro", x.getParametro(),
+                                "valorAnterior", x.getValorAnterior(),
+                                "valorNuevo", x.getValorNuevo()
+                        ))
+                        .orElse(null);
+
+                cierresResponse.add(new HistorialCierreResponse(
+                        cierre.getId(),
+                        caso.getId(),
+                        cierre.getMotivoCierre().getCodigo(),
+                        cierre.getFechaCierre(),
+                        cierre.getObservacion(),
+                        planPago,
+                        cambioParametro
+                ));
+            });
+
+            compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(caso.getId()).forEach(compromiso ->
+                    compromisosResponse.add(new HistorialCompromisoResponse(
+                            compromiso.getId(),
+                            caso.getId(),
+                            compromiso.getFechaDesde(),
+                            compromiso.getFechaHasta(),
+                            compromiso.getMontoComprometido(),
+                            compromiso.getEstado().name(),
+                            compromiso.getObservacion()
+                    )));
+        }
+
+        InmuebleResumenResponse inmuebleResponse = new InmuebleResumenResponse(
+                inmueble.getId(),
+                inmueble.getCuenta(),
+                inmueble.getTitular(),
+                inmueble.getDireccion(),
+                inmueble.getGrupo() == null ? null : inmueble.getGrupo().getNombre(),
+                inmueble.getDistrito() == null ? null : inmueble.getDistrito().getNombre()
+        );
+
+        return new HistorialSeguimientoResponse(inmuebleResponse, casosResponse, eventosResponse, cierresResponse, compromisosResponse);
     }
 
     @Transactional

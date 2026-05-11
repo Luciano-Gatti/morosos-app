@@ -3,6 +3,7 @@ package pe.morosos.seguimiento.mapper;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 import pe.morosos.deuda.entity.CargaDeudaDetalle;
+import pe.morosos.seguimiento.dto.SeguimientoBandejaAccionesResponse;
 import pe.morosos.seguimiento.dto.SeguimientoBandejaRowResponse;
 import pe.morosos.seguimiento.entity.CasoSeguimiento;
 
@@ -23,9 +24,11 @@ public class SeguimientoBandejaMapper {
                 deudaDetalle.getCuotasVencidas(),
                 deudaDetalle.getMontoVencido() == null ? BigDecimal.ZERO : deudaDetalle.getMontoVencido(),
                 caso == null || caso.getEtapaActual() == null ? null : caso.getEtapaActual().getId(),
-                caso == null ? null : caso.getEtapaActual().getNombre(),
+                caso == null || caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
                 caso == null ? null : caso.getEstado().name(),
-                caso == null ? null : caso.getFechaUltimoMovimiento()
+                caso == null ? null : caso.getFechaUltimoMovimiento(),
+                null,
+                caso == null ? null : new SeguimientoBandejaAccionesResponse(false, false, false, false, false, false, false)
         );
     }
 }

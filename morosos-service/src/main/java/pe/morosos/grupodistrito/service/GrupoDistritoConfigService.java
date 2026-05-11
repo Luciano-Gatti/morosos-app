@@ -55,7 +55,7 @@ public class GrupoDistritoConfigService {
         mapper.update(config, request, grupo, distrito);
         GrupoDistritoConfig saved = repository.save(config);
         if (prevSeguimiento != saved.isSeguimientoHabilitado()) {
-            auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_SEGUIMIENTO_ACTUALIZADO", null, null);
+            auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_SEGUIMIENTO_ACTUALIZADO", null, null, "/api/v1/grupo-distrito/config", null, null);
         }
         return mapper.toResponse(saved);
     }
@@ -75,7 +75,7 @@ public class GrupoDistritoConfigService {
             entity.setSeguimientoHabilitado(true);
         }
         GrupoDistritoConfig saved = repository.save(entity);
-        auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_ASOCIADO", null, null);
+        auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_ASOCIADO", null, null, "/api/v1/grupo-distrito/config", null, null);
         return mapper.toResponse(saved);
     }
 
@@ -88,7 +88,7 @@ public class GrupoDistritoConfigService {
             throw new ConflictException("No se puede eliminar la relación porque tiene inmuebles o procesos asociados.");
         }
         repository.delete(config);
-        auditService.log("GRUPO_DISTRITO_CONFIG", id, "GRUPO_DISTRITO_DESASOCIADO", null, null);
+        auditService.log("GRUPO_DISTRITO_CONFIG", id, "GRUPO_DISTRITO_DESASOCIADO", null, null, "/api/v1/grupo-distrito/config", null, null);
     }
 
     private void validateActivos(Grupo grupo, Distrito distrito) {

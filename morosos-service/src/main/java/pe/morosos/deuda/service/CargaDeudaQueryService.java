@@ -9,6 +9,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -135,7 +136,7 @@ public class CargaDeudaQueryService {
     private Pageable normalizeErroresSort(Pageable pageable) { return normalizeSort(pageable, "createdAt", "fila", "fila", "cuenta", "cuenta", "motivo", "motivo", "createdAt", "createdAt"); }
 
     private Pageable normalizeSort(Pageable pageable, String defaultSort, String... aliases) {
-        if (pageable == null) return Pageable.ofSize(20).withPage(0).withSort(Sort.by(Sort.Direction.DESC, defaultSort));
+        if (pageable == null) return PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, defaultSort));
         if (aliases.length % 2 != 0) return pageable;
         Sort sort = pageable.getSort().isSorted() ? pageable.getSort() : Sort.by(Sort.Direction.DESC, defaultSort);
         List<Sort.Order> mapped = new ArrayList<>();
@@ -144,7 +145,7 @@ public class CargaDeudaQueryService {
             for (int i = 0; i < aliases.length; i += 2) if (aliases[i].equals(property)) property = aliases[i + 1];
             mapped.add(new Sort.Order(order.getDirection(), property));
         }
-        return org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(mapped));
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(mapped));
     }
 
     private void ensureCargaExists(UUID cargaId) {
