@@ -816,7 +816,7 @@ export default function GestionEtapas() {
         accion={accion}
         seleccionados={seleccionados}
         etapasOperativas={etapasOperativas}
-        motivosCierre={USE_API ? motivosCierreApi : null}
+        motivosCierre={motivosCierreApi}
         selectedActions={selectedActions}
         onCancel={() => setAccion(null)}
         onConfirm={confirmarAccion}
@@ -1461,14 +1461,8 @@ function CerrarProcesoDialog({
   })();
 
   const [motivo, setMotivo] = useState<MotivoCierre | "">("");
-  const motivosDemo: MotivoCierreOption[] = [
-    { codigo: "REGULARIZACION", nombre: "Regularización total" },
-    { codigo: "PLAN_DE_PAGO", nombre: "Plan de pago" },
-    { codigo: "JUDICIALIZACION", nombre: "Judicialización" },
-    { codigo: "OTRO", nombre: "Otro" },
-  ];
-  const motivosDisponibles = USE_API ? (motivosCierre ?? []) : motivosDemo;
-  const isApiWithoutMotivos = USE_API && motivosDisponibles.length === 0;
+  const motivosDisponibles = motivosCierre ?? [];
+  const isApiWithoutMotivos = motivosDisponibles.length === 0;
   const [parametro, setParametro] = useState("");
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
