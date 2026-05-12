@@ -16,20 +16,37 @@ import pe.morosos.deuda.entity.*;
 import pe.morosos.deuda.mapper.CargaDeudaMapper;
 import pe.morosos.deuda.repository.*;
 import pe.morosos.importacion.parser.CsvRowParser;
+import pe.morosos.importacion.parser.ExcelRowParser;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 
 @Slf4j
 @Service @RequiredArgsConstructor
 public class ImportacionDeudaService {
- private final CargaDeudaRepository cargaRepo; private final CargaDeudaDetalleRepository detRepo; private final CargaDeudaErrorRepository errRepo; private final InmuebleRepository inmuebleRepo; private final CsvRowParser parser; private final CargaDeudaMapper mapper; private final ObjectMapper objectMapper; private final AuditService auditService;
+ private final CargaDeudaRepository cargaRepo; private final CargaDeudaDetalleRepository detRepo; private final CargaDeudaErrorRepository errRepo; private final InmuebleRepository inmuebleRepo; private final CsvRowParser csvParser; private final ExcelRowParser excelParser; private final CargaDeudaMapper mapper; private final ObjectMapper objectMapper; private final AuditService auditService;
  @Transactional
  public CargaDeudaResponse importar(LocalDate periodo, MultipartFile file){
-  log.info("Iniciando importación de deuda para periodo {}", periodo);
+  String fileName = file != null ? file.getOriginalFilename() : null;
+  long fileSize = file != null ? file.getSize() : 0;
+  String extension = extensionOf(fileName);
+  log.info("Iniciando importación de deuda para periodo {}. archivo='{}' size={} bytes extensión='{}'", periodo, fileName, fileSize, extension);
   if(periodo.getDayOfMonth()!=1) throw new BusinessRuleException("El período debe corresponder al primer día del mes");
   CargaDeuda carga=new CargaDeuda(); carga.setPeriodo(periodo); carga.setEstado(CargaDeudaEstado.PROCESANDO); carga.setArchivoNombre(file.getOriginalFilename()); carga.setTotalRegistros(0); carga.setProcesados(0); carga.setErrores(0); carga.setMontoTotal(BigDecimal.ZERO); carga=cargaRepo.save(carga);
   auditService.log("CARGA_DEUDA", carga.getId(), "INICIO_IMPORTACION", null, null, "/api/v1/deuda/cargas", null, null);
-  List<Map<String,String>> rows=parser.parse(file,List.of("cuenta","cuotas_vencidas","monto_vencido"));
+  List<String> requiredHeaders = List.of("cuenta","cuotas_vencidas","monto_vencido");
+  log.info("Encabezados esperados para importación de deuda: {}", requiredHeaders);
+  List<Map<String,String>> rows;
+  switch (extension) {
+   case "csv" -> {
+    log.info("Parser seleccionado para deuda: CsvRowParser");
+    rows = csvParser.parse(file, requiredHeaders);
+   }
+   case "xlsx", "xls" -> {
+    log.info("Parser seleccionado para deuda: ExcelRowParser");
+    rows = excelParser.parse(file, requiredHeaders);
+   }
+   default -> throw new BusinessRuleException("Formato inválido. Extensión no soportada: " + extension + ". Use .csv, .xlsx o .xls");
+  }
   carga.setTotalRegistros(rows.size());
   Set<String> seen=new HashSet<>(); int fila=1; BigDecimal total=BigDecimal.ZERO;
   for(Map<String,String> r:rows){ fila++; String cuenta=r.getOrDefault("cuenta","").trim();
@@ -52,5 +69,12 @@ public class ImportacionDeudaService {
   auditService.log("CARGA_DEUDA", carga.getId(), "FIN_IMPORTACION", null, null, "/api/v1/deuda/cargas", null, objectMapper.valueToTree(Map.of("procesados",carga.getProcesados(),"errores",carga.getErrores(),"estado",carga.getEstado().name())));
   log.info("Finalizó importación deuda {} con estado {}, procesados {}, errores {}", carga.getId(), carga.getEstado(), carga.getProcesados(), carga.getErrores());
   return mapper.toResponse(carga);
+ }
+
+ private String extensionOf(String fileName){
+  if(fileName==null || fileName.isBlank()) return "";
+  int idx=fileName.lastIndexOf('.');
+  if(idx<0 || idx==fileName.length()-1) return "";
+  return fileName.substring(idx+1).trim().toLowerCase(Locale.ROOT);
  }
 }
