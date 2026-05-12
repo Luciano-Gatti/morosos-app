@@ -107,6 +107,18 @@ function getReporteAccionesRegularizacionViewModel(_desde: Date | null, _hasta: 
   return emptyRowsViewModel<AccionRegistro>();
 }
 
+interface PlanPagoDetalle {
+  fechaAlta: Date;
+  cuenta: string;
+  titular: string;
+  grupo: string;
+  cuotas: number;
+  montoTotal: number;
+  proximoVencimiento: Date;
+  vencimientoFinal: Date;
+  estado: string;
+}
+
 interface ReporteDef {
   id: ReporteId;
   titulo: string;
@@ -971,17 +983,18 @@ function ReporteAccionesDetalle({
    ============================================================ */
 
 function ReportePlanesDePagoDetalle({
-  desde,
-  hasta,
+  desde: _desde,
+  hasta: _hasta,
 }: {
   desde: Date | null;
   hasta: Date | null;
 }) {
-  const planes = useMemo(() => getPlanesDePago(desde, hasta), [desde, hasta]);
+  const planes = useMemo<PlanPagoDetalle[]>(() => [], []);
   const PAGE = 15;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(planes.length / PAGE));
-  const slice = planes.slice((page - 1) * PAGE, page * PAGE);
+  const safePage = Math.min(page, totalPages);
+  const slice = planes.slice((safePage - 1) * PAGE, safePage * PAGE);
 
   const totalCuotas = planes.reduce((acc, p) => acc + p.cuotas, 0);
   const promedioCuotas = planes.length === 0 ? 0 : totalCuotas / planes.length;
@@ -997,38 +1010,46 @@ function ReportePlanesDePagoDetalle({
           { label: "Monto comprometido", value: moneyFmt.format(montoTotal) },
         ]}
       />
-      <DataTable
-        head={[
-          "Fecha alta",
-          "Cuenta",
-          "Titular",
-          "Grupo",
-          "Cuotas",
-          "Monto total",
-          "Próx. vencimiento",
-          "Vto. final",
-          "Estado",
-        ]}
-        rows={slice.map((p) => [
-          dateFmt.format(p.fechaAlta),
-          p.cuenta,
-          p.titular,
-          p.grupo,
-          numberFmt.format(p.cuotas),
-          moneyFmt.format(p.montoTotal),
-          dateFmt.format(p.proximoVencimiento),
-          dateFmt.format(p.vencimientoFinal),
-          p.estado,
-        ])}
-        alignRight={[4, 5]}
-      />
-      <Paginador
-        page={page}
-        totalPages={totalPages}
-        setPage={setPage}
-        total={planes.length}
-        pageSize={PAGE}
-      />
+      {planes.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+          No hay datos cargados para este reporte.
+        </div>
+      ) : (
+        <>
+          <DataTable
+            head={[
+              "Fecha alta",
+              "Cuenta",
+              "Titular",
+              "Grupo",
+              "Cuotas",
+              "Monto total",
+              "Próx. vencimiento",
+              "Vto. final",
+              "Estado",
+            ]}
+            rows={slice.map((p) => [
+              dateFmt.format(p.fechaAlta),
+              p.cuenta,
+              p.titular,
+              p.grupo,
+              numberFmt.format(p.cuotas),
+              moneyFmt.format(p.montoTotal),
+              dateFmt.format(p.proximoVencimiento),
+              dateFmt.format(p.vencimientoFinal),
+              p.estado,
+            ])}
+            alignRight={[4, 5]}
+          />
+          <Paginador
+            page={safePage}
+            totalPages={totalPages}
+            setPage={setPage}
+            total={planes.length}
+            pageSize={PAGE}
+          />
+        </>
+      )}
     </div>
   );
 }
