@@ -419,6 +419,7 @@ export default function GestionDeuda() {
               <ul className="mt-1.5 space-y-1 text-foreground/80">
                 <li>• Formatos aceptados: .xlsx, .xls o .csv.</li>
                 <li>• Columnas requeridas: cuenta, cuotas adeudadas, monto adeudado.</li>
+                <li>• Columnas opcionales: cuotas adeudadas, monto adeudado (si vienen vacías se toman en 0).</li>
                 <li>• Si cuotas adeudadas viene vacío, se tomará como 0.</li>
                 <li>• Si monto adeudado viene vacío, se tomará como 0.</li>
                 <li>• Formatos de monto aceptados: 1500, 1500,50, 1500.50, 1.500,50.</li>

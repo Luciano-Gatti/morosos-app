@@ -204,6 +204,10 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
               <ul className="mt-1.5 space-y-1 text-[12.5px] text-foreground/80">
                 <li>• Formatos aceptados: <span className="font-medium text-foreground">.xlsx</span>, <span className="font-medium text-foreground">.xls</span> o <span className="font-medium text-foreground">.csv</span>.</li>
                 <li>• Columnas requeridas: N° de cuenta, titular, dirección, grupo, distrito.</li>
+                <li>• Columnas opcionales: activo, seguimiento_habilitado, observacion.</li>
+                <li>• Si activo no se informa, se toma como activo.</li>
+                <li>• Valores permitidos para activo: sí/no, true/false, 1/0, activo/inactivo, alta/baja.</li>
+                <li>• seguimiento_habilitado acepta true/false (si no se informa en nuevos, se toma true).</li>
                 <li>• La primera fila debe contener los nombres de columna.</li>
                 <li>• Las cuentas existentes serán actualizadas; las nuevas, creadas.</li>
               </ul>

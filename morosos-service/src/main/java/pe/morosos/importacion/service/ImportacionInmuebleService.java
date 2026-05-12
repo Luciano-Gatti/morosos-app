@@ -2,10 +2,12 @@ package pe.morosos.importacion.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.text.Normalizer;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,9 @@ import pe.morosos.inmueble.repository.InmuebleRepository;
 @Service
 @RequiredArgsConstructor
 public class ImportacionInmuebleService {
+    private static final String ERROR_ACTIVO_INVALIDO = "Valor inválido para columna activo. Valores permitidos: true/false, si/no, 1/0, activo/inactivo, alta/baja.";
+    private static final Set<String> ACTIVO_TRUE_VALUES = new HashSet<>(List.of("true", "si", "s", "1", "activo", "alta"));
+    private static final Set<String> ACTIVO_FALSE_VALUES = new HashSet<>(List.of("false", "no", "n", "0", "inactivo", "baja"));
 
     private final ImportacionInmuebleRepository repo;
     private final ImportacionInmuebleErrorRepository errRepo;
@@ -93,6 +98,7 @@ public class ImportacionInmuebleService {
                 in.setDireccion(r.get("direccion"));
                 in.setGrupo(g);
                 in.setDistrito(d);
+                in.setActivo(parseActivo(r));
                 if (r.containsKey("seguimiento_habilitado") && !r.get("seguimiento_habilitado").isBlank()) in.setSeguimientoHabilitado(Boolean.parseBoolean(r.get("seguimiento_habilitado")));
                 else if (created) in.setSeguimientoHabilitado(true);
                 in.setObservacion(r.get("observacion"));
@@ -137,6 +143,20 @@ public class ImportacionInmuebleService {
     private String obtenerExtension(String filename) {
         if (filename == null || filename.isBlank() || !filename.contains(".")) return "";
         return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+    }
+
+    static boolean parseActivo(Map<String, String> row) {
+        if (!row.containsKey("activo")) return true;
+        String raw = row.get("activo");
+        if (raw == null || raw.isBlank()) return true;
+
+        String normalized = Normalizer.normalize(raw.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT);
+
+        if (ACTIVO_TRUE_VALUES.contains(normalized)) return true;
+        if (ACTIVO_FALSE_VALUES.contains(normalized)) return false;
+        throw new IllegalArgumentException(ERROR_ACTIVO_INVALIDO);
     }
 
     private Grupo resolverGrupo(String valorExcelRaw) {
