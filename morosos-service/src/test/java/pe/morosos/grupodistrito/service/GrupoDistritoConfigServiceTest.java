@@ -88,8 +88,25 @@ class GrupoDistritoConfigServiceTest {
         when(repository.existsByGrupoIdAndDistritoIdAndIdNot(gid, did, id)).thenReturn(false);
         when(grupoRepository.findById(gid)).thenReturn(Optional.of(g));
         when(distritoRepository.findById(did)).thenReturn(Optional.of(d));
-        doCallRealMethod().when(mapper).update(any(GrupoDistritoConfig.class), any(GrupoDistritoConfigRequest.class), any(Grupo.class), any(Distrito.class));
-        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doAnswer(invocation -> {
+            GrupoDistritoConfig entity = invocation.getArgument(0);
+            GrupoDistritoConfigRequest request = invocation.getArgument(1);
+            Grupo grupo = invocation.getArgument(2);
+            Distrito distrito = invocation.getArgument(3);
+            entity.setGrupo(grupo);
+            entity.setDistrito(distrito);
+            if (request.seguimientoHabilitado() != null) {
+                entity.setSeguimientoHabilitado(request.seguimientoHabilitado());
+            }
+            return null;
+        }).when(mapper).update(
+                any(GrupoDistritoConfig.class),
+                any(GrupoDistritoConfigRequest.class),
+                any(Grupo.class),
+                any(Distrito.class)
+        );
+        when(repository.save(any(GrupoDistritoConfig.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mapper.toResponse(any(GrupoDistritoConfig.class))).thenReturn(null);
         service.update(id, new GrupoDistritoConfigRequest(gid, did, true));
         assertTrue(cfg.isSeguimientoHabilitado());
     }
