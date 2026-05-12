@@ -3,6 +3,7 @@ package pe.morosos.importacion.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,15 +24,18 @@ import pe.morosos.importacion.repository.*;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 
+@Slf4j
 @Service @RequiredArgsConstructor
 public class ImportacionInmuebleService {
  private final ImportacionInmuebleRepository repo; private final ImportacionInmuebleErrorRepository errRepo; private final InmuebleRepository inmuebleRepo; private final GrupoRepository grupoRepo; private final DistritoRepository distritoRepo; private final GrupoDistritoConfigRepository gdcRepo; private final CsvRowParser parser; private final ImportacionInmuebleMapper mapper; private final ObjectMapper objectMapper; private final AuditService auditService;
 
  @Transactional
  public ImportacionInmuebleResponse importar(MultipartFile file){
+  log.info("Iniciando importación de inmuebles: archivo='{}', size={} bytes", file != null ? file.getOriginalFilename() : null, file != null ? file.getSize() : 0);
   ImportacionInmueble imp=new ImportacionInmueble(); imp.setArchivoNombre(file.getOriginalFilename()); imp.setEstado(ImportacionEstado.PROCESANDO); imp.setTotalRegistros(0); imp.setProcesados(0); imp.setCreados(0); imp.setActualizados(0); imp.setErrores(0); imp=repo.save(imp);
   auditService.log("IMPORTACION_INMUEBLE", imp.getId(), "INICIO_IMPORTACION", null, null, "/api/v1/inmuebles/importaciones", null, null);
   List<Map<String,String>> rows=parser.parse(file,List.of("cuenta","titular","direccion","grupo","distrito"));
+  log.info("Importación de inmuebles {}: filas leídas={}", imp.getId(), rows.size());
   imp.setTotalRegistros(rows.size());
   int fila=1;
   for(Map<String,String> r: rows){ fila++; String cuenta=r.getOrDefault("cuenta","");
@@ -54,6 +58,7 @@ public class ImportacionInmuebleService {
   }
   imp.setEstado(imp.getProcesados()==0?ImportacionEstado.FALLIDA:(imp.getErrores()>0?ImportacionEstado.COMPLETADA_CON_ERRORES:ImportacionEstado.COMPLETADA));
   imp=repo.save(imp);
+  log.info("Finalizó importación de inmuebles {}: insertados/actualizados={}, errores={}, estado={}", imp.getId(), imp.getProcesados(), imp.getErrores(), imp.getEstado());
   auditService.log("IMPORTACION_INMUEBLE", imp.getId(), "FIN_IMPORTACION", null, null, "/api/v1/inmuebles/importaciones", null, objectMapper.valueToTree(Map.of("procesados",imp.getProcesados(),"errores",imp.getErrores(),"estado",imp.getEstado().name())));
   return mapper.toResponse(imp);
  }

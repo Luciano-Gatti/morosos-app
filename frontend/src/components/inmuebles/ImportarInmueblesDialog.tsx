@@ -48,34 +48,6 @@ interface Resultado {
 
 const EXTENSIONES_VALIDAS = [".xlsx", ".xls", ".csv"];
 
-function generarResultadoMock(file: File): Resultado {
-  // Heurística simple basada en el tamaño del archivo para que el preview sea creíble
-  const sizeKb = Math.max(1, Math.round(file.size / 1024));
-  const procesados = Math.min(2400, 80 + sizeKb * 3);
-  const errores = Math.floor(procesados * 0.04);
-  const noEncontradas = Math.floor(procesados * 0.015);
-  const creados = Math.floor((procesados - errores) * 0.42);
-  const actualizados = procesados - errores - creados;
-
-  const motivos = [
-    "Cuenta no encontrada en el padrón",
-    "Formato de N° de cuenta inválido",
-    "Distrito no reconocido",
-    "Grupo no reconocido",
-    "Campo obligatorio vacío: titular",
-    "Campo obligatorio vacío: dirección",
-    "Cuenta duplicada en el archivo",
-  ];
-
-  const detalleErrores: ErrorFila[] = Array.from({ length: errores }, (_, i) => ({
-    fila: 2 + ((i * 17 + 11) % Math.max(procesados, 50)),
-    cuenta: String(100000 + ((i * 41 + 7) % 899999)),
-    motivo: motivos[(i * 5) % motivos.length],
-  })).sort((a, b) => a.fila - b.fila);
-
-  return { procesados, creados, actualizados, errores, noEncontradas, detalleErrores };
-}
-
 function descargarErroresCSV(file: File, errores: ErrorFila[]) {
   const header = "Fila,Cuenta,Motivo\n";
   const rows = errores
@@ -143,15 +115,20 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
 
   const procesar = async () => {
     if (!file) return;
+    setResultado(null);
+    setError(null);
     setFase("procesando");
     try {
-      if (!USE_API) {
-        setResultado(generarResultadoMock(file));
-        setFase("resultado");
-        return;
+      if (import.meta.env.DEV) {
+        console.log("[ImportarInmuebles] selectedFile", file);
+        console.log("[ImportarInmuebles] selectedFile.name", file.name);
+        console.log("[ImportarInmuebles] selectedFile.size", file.size);
       }
+      if (!USE_API) throw new Error("VITE_USE_API debe estar en true para usar importación real.");
       const imp = await inmueblesApi.importarInmuebles(file);
+      if (import.meta.env.DEV) console.log("[ImportarInmuebles] response.data", imp);
       const id = String(imp.id ?? "");
+      if (!id) throw new Error("La API no devolvió el ID de la importación.");
       const estado = await inmueblesApi.getImportacionInmueble(id);
       const erroresPage = await inmueblesApi.getErroresImportacionInmueble(id, { page: 0, size: 50 });
       setResultado({
@@ -160,7 +137,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
         actualizados: Number(estado.actualizados ?? 0),
         errores: Number(estado.errores ?? 0),
         noEncontradas: 0,
-        detalleErrores: (erroresPage.content ?? []).map((e: any) => ({
+        detalleErrores: (erroresPage.content ?? []).map((e: Record<string, unknown>) => ({
           fila: Number(e.fila ?? e.rowNumber ?? 0),
           cuenta: String(e.cuenta ?? "-"),
           motivo: String(e.motivo ?? e.descripcion ?? "Error"),
@@ -170,6 +147,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
       onImported?.();
       toast({ title: "Importación finalizada", description: "El archivo fue procesado correctamente." });
     } catch (e) {
+      setResultado(null);
       toast({ title: "Error de importación", description: e instanceof ApiError ? e.message : "No se pudo importar el archivo.", variant: "destructive" });
       setFase("seleccion");
     }
