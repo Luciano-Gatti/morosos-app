@@ -82,6 +82,16 @@ interface FormState {
   orden: number;
 }
 
+function buildCodigo(nombre: string): string {
+  const normalized = nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized.slice(0, 50) || "ETAPA";
+}
+
 export default function ConfiguracionEtapas() {
   const { toast } = useToast();
   const [etapasGuardadas, setEtapasGuardadas] = useState<EtapaConfig[]>([]);
@@ -109,7 +119,7 @@ export default function ConfiguracionEtapas() {
     try {
       setLoading(true);
       setError(null);
-      const data = await configuracionApi.etapas({ size: 200 });
+      const data = await configuracionApi.etapas();
       const rows = (data?.content ?? data ?? [])
         .sort((a: any, b: any) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
         .map(mapEtapa);
@@ -180,13 +190,27 @@ export default function ConfiguracionEtapas() {
 
     try {
     if (editing) {
-      await configuracionApi.actualizarEtapa(editing.id, { nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
+      await configuracionApi.actualizarEtapa(editing.id, {
+        codigo: editing.codigo,
+        nombre,
+        descripcion: form.descripcion.trim() || null,
+        orden: ordenSeguro,
+        activo: editing.activo,
+        esFinal: editing.esFinal,
+      });
       toast({
         title: "Etapa actualizada",
         description: `Se guardaron los cambios en "${nombre}".`,
       });
     } else {
-      await configuracionApi.crearEtapa({ nombre, descripcion: form.descripcion.trim() || null, orden: ordenSeguro });
+      await configuracionApi.crearEtapa({
+        codigo: buildCodigo(nombre),
+        nombre,
+        descripcion: form.descripcion.trim() || null,
+        orden: ordenSeguro,
+        activo: true,
+        esFinal: false,
+      });
       toast({
         title: "Etapa creada",
         description: `Se creó la etapa "${nombre}" en la posición ${ordenSeguro}.`,
