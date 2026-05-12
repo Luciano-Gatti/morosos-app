@@ -1,6 +1,7 @@
 package pe.morosos.importacion.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,9 +80,11 @@ public class ImportacionInmuebleService {
             String cuenta = r.getOrDefault("cuenta", "");
             try {
                 if (cuenta.isBlank() || r.getOrDefault("titular", "").isBlank() || r.getOrDefault("direccion", "").isBlank()) throw new IllegalArgumentException("Faltan campos obligatorios");
-                Grupo g = grupoRepo.findByCodigoIgnoreCase(r.getOrDefault("grupo", "")).orElseThrow(() -> new IllegalArgumentException("Grupo no existe"));
-                Distrito d = distritoRepo.findByCodigoIgnoreCase(r.getOrDefault("distrito", "")).orElseThrow(() -> new IllegalArgumentException("Distrito no existe"));
-                if (!gdcRepo.existsByGrupoIdAndDistritoId(g.getId(), d.getId())) throw new IllegalArgumentException("No existe grupo_distrito_config");
+                Grupo g = resolverGrupo(r.getOrDefault("grupo", ""));
+                Distrito d = resolverDistrito(r.getOrDefault("distrito", ""));
+                if (!gdcRepo.existsByGrupoIdAndDistritoId(g.getId(), d.getId())) {
+                    throw new IllegalArgumentException("El distrito existe pero no está asociado al grupo");
+                }
                 Optional<Inmueble> opt = inmuebleRepo.findByCuentaIgnoreCase(cuenta);
                 Inmueble in = opt.orElseGet(Inmueble::new);
                 boolean created = opt.isEmpty();
@@ -134,6 +137,37 @@ public class ImportacionInmuebleService {
     private String obtenerExtension(String filename) {
         if (filename == null || filename.isBlank() || !filename.contains(".")) return "";
         return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private Grupo resolverGrupo(String valorExcelRaw) {
+        String valorExcel = valorExcelRaw == null ? "" : valorExcelRaw.trim();
+        String codigoGenerado = generarCodigo(valorExcel);
+        log.info("Resolviendo grupo: valorExcel='{}', codigoGenerado='{}'", valorExcel, codigoGenerado);
+        return grupoRepo.findByNombreIgnoreCase(valorExcel)
+                .or(() -> grupoRepo.findByCodigoIgnoreCase(codigoGenerado))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Grupo no existe: " + valorExcel + ". Código buscado: " + codigoGenerado));
+    }
+
+    private Distrito resolverDistrito(String valorExcelRaw) {
+        String valorExcel = valorExcelRaw == null ? "" : valorExcelRaw.trim();
+        String codigoGenerado = generarCodigo(valorExcel);
+        log.info("Resolviendo distrito: valorExcel='{}', codigoGenerado='{}'", valorExcel, codigoGenerado);
+        return distritoRepo.findByNombreIgnoreCase(valorExcel)
+                .or(() -> distritoRepo.findByCodigoIgnoreCase(codigoGenerado))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Distrito no existe: " + valorExcel + ". Código buscado: " + codigoGenerado));
+    }
+
+    private String generarCodigo(String nombre) {
+        if (nombre == null || nombre.isBlank()) return "";
+        String normalized = Normalizer.normalize(nombre.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_|_$", "");
+        return normalized;
     }
 
     @Transactional(readOnly = true)
