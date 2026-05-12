@@ -4,17 +4,32 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
-import pe.morosos.common.exception.ValidationException;
 import pe.morosos.common.api.ErrorResponse;
+import pe.morosos.common.exception.ValidationException;
 
+@Slf4j
 @Component
 public class CsvRowParser {
+
+    private static final List<String> REQUIRED_CANONICAL_HEADERS = List.of("cuenta", "titular", "direccion", "grupo", "distrito");
+    private static final Map<String, Set<String>> HEADER_ALIASES = Map.of(
+            "cuenta", Set.of("cuenta", "n de cuenta", "nro de cuenta", "numero de cuenta", "número de cuenta", "n° de cuenta"),
+            "titular", Set.of("titular"),
+            "direccion", Set.of("direccion", "dirección", "domicilio"),
+            "grupo", Set.of("grupo"),
+            "distrito", Set.of("distrito")
+    );
 
     public List<Map<String, String>> parse(MultipartFile file, List<String> requiredHeaders) {
         if (file == null || file.isEmpty()) {
@@ -26,13 +41,36 @@ public class CsvRowParser {
                 throw new ValidationException("Archivo vacío", List.of(new ErrorResponse.Detail("file", "Archivo vacío")));
             }
             String[] headers = splitCsv(headerLine);
-            Map<String, Integer> idx = new HashMap<>();
-            for (int i = 0; i < headers.length; i++) idx.put(headers[i].trim().toLowerCase(), i);
-            for (String req : requiredHeaders) {
-                if (!idx.containsKey(req.toLowerCase())) {
-                    throw new ValidationException("Encabezados inválidos", List.of(new ErrorResponse.Detail("header", "Falta columna: " + req)));
+            List<String> receivedHeaders = new ArrayList<>();
+            Map<String, Integer> idx = new LinkedHashMap<>();
+            for (int i = 0; i < headers.length; i++) {
+                String original = headers[i] == null ? "" : headers[i];
+                receivedHeaders.add(original);
+                String normalized = normalizarHeader(original);
+                String canonical = toCanonicalHeader(normalized);
+                if (canonical != null) {
+                    idx.putIfAbsent(canonical, i);
                 }
             }
+            log.info("Encabezados detectados en Excel: {}", receivedHeaders);
+
+            List<String> missing = new ArrayList<>();
+            for (String req : requiredHeaders) {
+                String canonicalReq = toCanonicalHeader(normalizarHeader(req));
+                canonicalReq = canonicalReq != null ? canonicalReq : normalizarHeader(req);
+                if (!idx.containsKey(canonicalReq)) {
+                    missing.add(req);
+                }
+            }
+            if (!missing.isEmpty()) {
+                String expected = String.join(", ", REQUIRED_CANONICAL_HEADERS);
+                String received = String.join(", ", receivedHeaders);
+                String detail = "Faltan columnas: " + String.join(", ", missing)
+                        + ". Encabezados esperados: [" + expected + "]"
+                        + ". Encabezados recibidos: [" + received + "]";
+                throw new ValidationException("Encabezados inválidos", List.of(new ErrorResponse.Detail("header", detail)));
+            }
+
             List<Map<String, String>> rows = new ArrayList<>();
             String line;
             while ((line = br.readLine()) != null) {
@@ -50,6 +88,25 @@ public class CsvRowParser {
         } catch (IOException e) {
             throw new ValidationException("Formato inválido", List.of(new ErrorResponse.Detail("file", "No se pudo leer archivo")));
         }
+    }
+
+    static String normalizarHeader(String header) {
+        if (header == null) return "";
+        String normalized = header.trim().toLowerCase();
+        normalized = normalized.replaceAll("[°º.]", " ");
+        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        normalized = normalized.replaceAll("\\s+", " ").trim();
+        return normalized;
+    }
+
+    private static String toCanonicalHeader(String normalizedHeader) {
+        if (normalizedHeader == null || normalizedHeader.isBlank()) return null;
+        for (Map.Entry<String, Set<String>> entry : HEADER_ALIASES.entrySet()) {
+            Set<String> normalizedAliases = new LinkedHashSet<>();
+            for (String alias : entry.getValue()) normalizedAliases.add(normalizarHeader(alias));
+            if (normalizedAliases.contains(normalizedHeader)) return entry.getKey();
+        }
+        return normalizedHeader;
     }
 
     private String[] splitCsv(String line) { return line.split(",", -1); }
