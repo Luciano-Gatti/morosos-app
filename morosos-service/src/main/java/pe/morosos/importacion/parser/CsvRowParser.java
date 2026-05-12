@@ -28,6 +28,7 @@ public class CsvRowParser {
             "direccion", Set.of("direccion", "dirección", "domicilio"),
             "grupo", Set.of("grupo"),
             "distrito", Set.of("distrito"),
+            "activo", Set.of("activo"),
             "cuotas_vencidas", Set.of("cuotas", "cuotas adeudadas", "cantidad de cuotas", "facturas adeudadas", "cantidad facturas", "cuotas vencidas"),
             "monto_vencido", Set.of("monto", "monto adeudado", "deuda", "importe", "importe adeudado", "monto vencido")
     );
