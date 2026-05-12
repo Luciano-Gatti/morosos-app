@@ -51,6 +51,7 @@ public class CargaDeudaMapper {
                 entity.getFila(),
                 entity.getCuenta(),
                 entity.getMotivo(),
+                entity.getMotivo(),
                 entity.getPayload(),
                 entity.getCreatedBy(),
                 entity.getCreatedAt()

@@ -145,7 +145,7 @@ export default function CargaDetalle() {
           search: erroresSearch.trim() || undefined,
           sort: `${erroresSortKey},${erroresSortDir}`,
         });
-        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: (r.descripcion ?? r.error ?? "").trim() || "Sin detalle informado por el backend" })));
+        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: (r.descripcion ?? r.descripcionError ?? r.mensaje ?? r.error ?? r.detalle ?? "").trim() || "Sin detalle informado por el backend" })));
         setErroresTotalPages(Math.max(1, e?.totalPages || 1));
         setErroresTotalElements(e?.totalElements || 0);
       } catch {
