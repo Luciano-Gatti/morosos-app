@@ -146,9 +146,14 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
       setFase("resultado");
       onImported?.();
       toast({ title: "Importación finalizada", description: "El archivo fue procesado correctamente." });
-    } catch (e) {
+    } catch (error) {
+      console.error("[ImportarInmuebles] error", error);
+      console.error("[ImportarInmuebles] response", (error as { response?: { data?: unknown } })?.response?.data);
+      console.error("[ImportarInmuebles] status", (error as { response?: { status?: number } })?.response?.status);
       setResultado(null);
-      toast({ title: "Error de importación", description: e instanceof ApiError ? e.message : "No se pudo importar el archivo.", variant: "destructive" });
+      const message = error instanceof ApiError ? error.message : "No se pudo importar el archivo.";
+      setError(message);
+      toast({ title: "Error de importación", description: message, variant: "destructive" });
       setFase("seleccion");
     }
   };

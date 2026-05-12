@@ -58,7 +58,8 @@ public class ImportacionInmuebleService {
   }
   imp.setEstado(imp.getProcesados()==0?ImportacionEstado.FALLIDA:(imp.getErrores()>0?ImportacionEstado.COMPLETADA_CON_ERRORES:ImportacionEstado.COMPLETADA));
   imp=repo.save(imp);
-  log.info("Finalizó importación de inmuebles {}: insertados/actualizados={}, errores={}, estado={}", imp.getId(), imp.getProcesados(), imp.getErrores(), imp.getEstado());
+  log.info("Finalizó importación de inmuebles {}: filas leídas={}, inmuebles guardados={}, creados={}, actualizados={}, errores={}, estado={}",
+      imp.getId(), imp.getTotalRegistros(), imp.getProcesados(), imp.getCreados(), imp.getActualizados(), imp.getErrores(), imp.getEstado());
   auditService.log("IMPORTACION_INMUEBLE", imp.getId(), "FIN_IMPORTACION", null, null, "/api/v1/inmuebles/importaciones", null, objectMapper.valueToTree(Map.of("procesados",imp.getProcesados(),"errores",imp.getErrores(),"estado",imp.getEstado().name())));
   return mapper.toResponse(imp);
  }
