@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Upload,
@@ -126,6 +126,8 @@ export default function GestionDeuda() {
   const [importPeriodo, setImportPeriodo] = useState("");
   const [importing, setImporting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isPeriodoValido = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
   const resetImportForm = () => {
@@ -192,8 +194,8 @@ export default function GestionDeuda() {
       return;
     }
     const ext = importFile.name.toLowerCase();
-    if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx"))) {
-      toast({ title: "Formato no permitido", description: "Solo se permiten archivos .csv o .xlsx.", variant: "destructive" });
+    if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
+      toast({ title: "Formato no permitido", description: "Solo se permiten archivos .csv, .xlsx o .xls.", variant: "destructive" });
       return;
     }
     try {
@@ -404,40 +406,39 @@ export default function GestionDeuda() {
         </div>
       </main>
       <Dialog open={importOpen} onOpenChange={(v) => { if (!importing) setImportOpen(v); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Importar deuda</DialogTitle>
-            <DialogDescription>
-              Seleccioná archivo y período de la carga.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-[12px] font-medium text-foreground">Archivo (.csv o .xlsx)</label>
-              <Input
-                type="file"
-                accept=".csv,.xlsx"
-                disabled={importing}
-                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
-              />
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <div className="border-b border-border bg-primary-soft/40 px-6 py-4">
+            <DialogHeader>
+              <DialogTitle>Importar deuda</DialogTitle>
+              <DialogDescription>Cargá un archivo Excel o CSV con el estado de deuda.</DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 px-6 py-5">
+            <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3 text-[12.5px]">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Instrucciones</p>
+              <ul className="mt-1.5 space-y-1 text-foreground/80">
+                <li>• Formatos aceptados: .xlsx, .xls o .csv.</li>
+                <li>• Columnas requeridas: cuenta, cuotas adeudadas, monto adeudado.</li>
+                <li>• Si cuotas adeudadas viene vacío, se tomará como 0.</li>
+                <li>• Si monto adeudado viene vacío, se tomará como 0.</li>
+                <li>• Formatos de monto aceptados: 1500, 1500,50, 1500.50, 1.500,50.</li>
+                <li>• La primera fila debe contener los nombres de columna.</li>
+              </ul>
             </div>
+            <label onDragOver={(e)=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={(e)=>{e.preventDefault();setDragOver(false);setImportFile(e.dataTransfer.files?.[0]??null);}} className={cn("flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed px-6 py-8 text-center", dragOver ? "border-primary bg-primary-soft/40" : "border-border bg-surface hover:bg-surface-muted/50")}>
+              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing} onChange={(e)=>setImportFile(e.target.files?.[0]??null)} />
+              <Upload className="h-5 w-5 text-primary" />
+              <p className="mt-2 text-[13px] font-medium">Arrastrá el archivo o hacé click para seleccionarlo</p>
+            </label>
+            {importFile && <div className="rounded-md border border-border px-3 py-2 text-[12.5px]">Archivo seleccionado: <span className="font-medium">{importFile.name}</span></div>}
             <div className="space-y-1">
               <label className="text-[12px] font-medium text-foreground">Período (YYYY-MM)</label>
-              <Input
-                type="month"
-                value={importPeriodo}
-                disabled={importing}
-                onChange={(e) => setImportPeriodo(e.target.value)}
-              />
+              <Input type="month" value={importPeriodo} disabled={importing} onChange={(e) => setImportPeriodo(e.target.value)} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" disabled={importing} onClick={() => setImportOpen(false)}>
-              Cancelar
-            </Button>
-            <Button disabled={importing} onClick={handleImportar}>
-              {importing ? "Importando..." : "Confirmar importación"}
-            </Button>
+          <DialogFooter className="px-6 pb-5">
+            <Button variant="outline" disabled={importing} onClick={() => setImportOpen(false)}>Cancelar</Button>
+            <Button disabled={importing} onClick={handleImportar}>{importing ? "Importando..." : "Importar archivo"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
