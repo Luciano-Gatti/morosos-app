@@ -22,8 +22,8 @@ import pe.morosos.common.exception.ValidationException;
 @Component
 public class CsvRowParser {
 
-    private static final List<String> REQUIRED_CANONICAL_HEADERS = List.of("cuenta", "titular", "direccion", "grupo", "distrito");
-    private static final Map<String, Set<String>> HEADER_ALIASES = Map.of(
+    public static final List<String> REQUIRED_CANONICAL_HEADERS = List.of("cuenta", "titular", "direccion", "grupo", "distrito");
+    public static final Map<String, Set<String>> HEADER_ALIASES = Map.of(
             "cuenta", Set.of("cuenta", "n de cuenta", "nro de cuenta", "numero de cuenta", "número de cuenta", "n° de cuenta"),
             "titular", Set.of("titular"),
             "direccion", Set.of("direccion", "dirección", "domicilio"),
@@ -41,35 +41,8 @@ public class CsvRowParser {
                 throw new ValidationException("Archivo vacío", List.of(new ErrorResponse.Detail("file", "Archivo vacío")));
             }
             String[] headers = splitCsv(headerLine);
-            List<String> receivedHeaders = new ArrayList<>();
-            Map<String, Integer> idx = new LinkedHashMap<>();
-            for (int i = 0; i < headers.length; i++) {
-                String original = headers[i] == null ? "" : headers[i];
-                receivedHeaders.add(original);
-                String normalized = normalizarHeader(original);
-                String canonical = toCanonicalHeader(normalized);
-                if (canonical != null) {
-                    idx.putIfAbsent(canonical, i);
-                }
-            }
-            log.info("Encabezados detectados en Excel: {}", receivedHeaders);
-
-            List<String> missing = new ArrayList<>();
-            for (String req : requiredHeaders) {
-                String canonicalReq = toCanonicalHeader(normalizarHeader(req));
-                canonicalReq = canonicalReq != null ? canonicalReq : normalizarHeader(req);
-                if (!idx.containsKey(canonicalReq)) {
-                    missing.add(req);
-                }
-            }
-            if (!missing.isEmpty()) {
-                String expected = String.join(", ", REQUIRED_CANONICAL_HEADERS);
-                String received = String.join(", ", receivedHeaders);
-                String detail = "Faltan columnas: " + String.join(", ", missing)
-                        + ". Encabezados esperados: [" + expected + "]"
-                        + ". Encabezados recibidos: [" + received + "]";
-                throw new ValidationException("Encabezados inválidos", List.of(new ErrorResponse.Detail("header", detail)));
-            }
+            ParsedHeader parsedHeader = buildHeaderIndex(headers, requiredHeaders);
+            log.info("Encabezados detectados en CSV: {}", parsedHeader.receivedHeaders());
 
             List<Map<String, String>> rows = new ArrayList<>();
             String line;
@@ -77,7 +50,7 @@ public class CsvRowParser {
                 String[] cols = splitCsv(line);
                 Map<String, String> row = new HashMap<>();
                 boolean allBlank = true;
-                for (Map.Entry<String, Integer> e : idx.entrySet()) {
+                for (Map.Entry<String, Integer> e : parsedHeader.indexes().entrySet()) {
                     String v = e.getValue() < cols.length ? cols[e.getValue()].trim() : "";
                     if (!v.isBlank()) allBlank = false;
                     row.put(e.getKey(), v);
@@ -90,6 +63,41 @@ public class CsvRowParser {
         }
     }
 
+    public static ParsedHeader buildHeaderIndex(String[] headers, List<String> requiredHeaders) {
+        List<String> receivedHeaders = new ArrayList<>();
+        Map<String, Integer> idx = new LinkedHashMap<>();
+        for (int i = 0; i < headers.length; i++) {
+            String original = headers[i] == null ? "" : headers[i];
+            receivedHeaders.add(original);
+            String normalized = normalizarHeader(original);
+            String canonical = toCanonicalHeader(normalized);
+            if (canonical != null) {
+                idx.putIfAbsent(canonical, i);
+            }
+        }
+        validateRequiredHeaders(requiredHeaders, receivedHeaders, idx);
+        return new ParsedHeader(receivedHeaders, idx);
+    }
+
+    public static void validateRequiredHeaders(List<String> requiredHeaders, List<String> receivedHeaders, Map<String, Integer> idx) {
+        List<String> missing = new ArrayList<>();
+        for (String req : requiredHeaders) {
+            String canonicalReq = toCanonicalHeader(normalizarHeader(req));
+            canonicalReq = canonicalReq != null ? canonicalReq : normalizarHeader(req);
+            if (!idx.containsKey(canonicalReq)) {
+                missing.add(req);
+            }
+        }
+        if (!missing.isEmpty()) {
+            String expected = String.join(", ", REQUIRED_CANONICAL_HEADERS);
+            String received = String.join(", ", receivedHeaders);
+            String detail = "Faltan columnas: " + String.join(", ", missing)
+                    + ". Encabezados esperados: [" + expected + "]"
+                    + ". Encabezados recibidos: [" + received + "]";
+            throw new ValidationException("Encabezados inválidos", List.of(new ErrorResponse.Detail("header", detail)));
+        }
+    }
+
     static String normalizarHeader(String header) {
         if (header == null) return "";
         String normalized = header.trim().toLowerCase();
@@ -99,7 +107,7 @@ public class CsvRowParser {
         return normalized;
     }
 
-    private static String toCanonicalHeader(String normalizedHeader) {
+    public static String toCanonicalHeader(String normalizedHeader) {
         if (normalizedHeader == null || normalizedHeader.isBlank()) return null;
         for (Map.Entry<String, Set<String>> entry : HEADER_ALIASES.entrySet()) {
             Set<String> normalizedAliases = new LinkedHashSet<>();
@@ -110,4 +118,6 @@ public class CsvRowParser {
     }
 
     private String[] splitCsv(String line) { return line.split(",", -1); }
+
+    public record ParsedHeader(List<String> receivedHeaders, Map<String, Integer> indexes) {}
 }
