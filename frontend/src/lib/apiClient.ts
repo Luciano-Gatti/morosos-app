@@ -49,7 +49,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const message =
       (typeof payload === "object" && payload && "message" in payload && String(payload.message)) ||
-      `HTTP ${response.status}`;
+      (typeof payload === "string" && payload.trim()) ||
+      `${response.status} ${response.statusText}`.trim();
     throw new ApiError(message, response.status, payload);
   }
 
