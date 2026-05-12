@@ -73,6 +73,43 @@ interface FormState {
 
 const emptyForm: FormState = { nombre: "", descripcion: "" };
 
+const buildGrupoCodigo = (nombre: string): string =>
+  nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const getApiErrorMessage = (error: ApiError): string => {
+  if (error.status === 409) return "Ya existe un grupo con ese nombre o código";
+  const data = error.data as any;
+  if (typeof data === "string" && data.trim()) return data;
+  if (data && typeof data === "object") {
+    const candidates = [data.message, data.error, data.detail, data.title];
+    for (const value of candidates) {
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  return error.message || "No se pudo guardar el grupo.";
+};
+
+
+const getApiErrorMessageDistrito = (error: ApiError): string => {
+  if (error.status === 409) return "Ya existe un distrito con ese nombre o código";
+  const data = error.data as any;
+  if (typeof data === "string" && data.trim()) return data;
+  if (data && typeof data === "object") {
+    const candidates = [data.message, data.error, data.detail, data.title];
+    for (const value of candidates) {
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  return error.message || "No se pudo guardar el distrito.";
+};
+
 export default function ConfiguracionGrupos() {
   const { toast } = useToast();
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -206,15 +243,24 @@ const filtered = useMemo(() => {
     try {
       setMutating(true);
       if (USE_API) {
-        if (editing) await configuracionApi.actualizarGrupo(editing.id, { nombre, descripcion: form.descripcion.trim() || null });
-        else await configuracionApi.crearGrupo({ nombre, descripcion: form.descripcion.trim() || null });
+        const codigo = buildGrupoCodigo(nombre);
+        if (!codigo) {
+          throw new ApiError("No se pudo generar un código válido para el grupo.", 400);
+        }
+        const payload = { codigo, nombre, activo: true };
+        if (editing) await configuracionApi.actualizarGrupo(editing.id, payload);
+        else await configuracionApi.crearGrupo(payload);
         await loadData();
       } else {
         throw new ApiError("Funcionalidad pendiente de integración.", 501);
       }
       toast({ title: editing ? 'Grupo actualizado' : 'Grupo creado', description: editing ? `Se guardaron los cambios en "${nombre}".` : `"${nombre}" fue creado.` });
     } catch (e) {
-      toast({ title: 'Error', description: e instanceof ApiError ? e.message : 'No se pudo guardar el grupo.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: e instanceof ApiError ? getApiErrorMessage(e) : 'No se pudo guardar el grupo.',
+        variant: 'destructive',
+      });
       return;
     } finally {
       setMutating(false);
@@ -407,8 +453,13 @@ const filtered = useMemo(() => {
     try {
       setMutating(true);
       if (USE_API) {
-        if (editingDistrito) await configuracionApi.actualizarDistrito(String(editingDistrito.id), { nombre });
-        else await configuracionApi.crearDistrito({ nombre });
+        const codigo = buildGrupoCodigo(nombre);
+        if (!codigo) {
+          throw new ApiError("No se pudo generar un código válido para el distrito.", 400);
+        }
+        const payload = { codigo, nombre, activo: true };
+        if (editingDistrito) await configuracionApi.actualizarDistrito(String(editingDistrito.id), payload);
+        else await configuracionApi.crearDistrito(payload);
         await loadData();
       } else {
         throw new ApiError("Funcionalidad pendiente de integración.", 501);
@@ -418,7 +469,7 @@ const filtered = useMemo(() => {
       setEditingDistrito(null);
       setDistritoForm({ nombre: "" });
     } catch (e) {
-      toast({ title: "Error", description: e instanceof ApiError ? e.message : "No se pudo guardar el distrito.", variant: "destructive" });
+      toast({ title: "Error", description: e instanceof ApiError ? getApiErrorMessageDistrito(e) : "No se pudo guardar el distrito.", variant: "destructive" });
     } finally {
       setMutating(false);
     }
