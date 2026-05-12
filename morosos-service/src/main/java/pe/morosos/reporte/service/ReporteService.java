@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import pe.morosos.audit.entity.AuditLog;
 import pe.morosos.audit.repository.AuditLogRepository;
@@ -29,12 +30,14 @@ import pe.morosos.reporte.dto.*;
 public class ReporteService {
     private static final int CUOTAS_MIN_DEFAULT = 2;
     private static final String PARAM_CUOTAS_MIN = "CUOTAS_MINIMAS_MOROSIDAD";
+
     private final InmuebleRepository inmuebleRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
     private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
     private final ParametroSeguimientoRepository parametroSeguimientoRepository;
     private final AuditLogRepository auditLogRepository;
     private final EntityManager entityManager;
+
 
     public Object obtenerReporte(String reporteId, LocalDate fechaDesde, LocalDate fechaHasta, String action,
                                  String entityType, String tipoAccion, java.util.UUID grupoId, java.util.UUID distritoId, java.util.UUID actorId, Pageable pageable) {
@@ -50,7 +53,8 @@ public class ReporteService {
     }
     // implementations abbreviated but complete
     private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(){
-        int min = cuotasMinimas(); List<Inmueble> activos = inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList();
+        int min = cuotasMinimas(); 
+        List<Inmueble> activos = inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList();
         Map<UUID,Object[]> deuda=deudaUltimaCarga();
         List<MorososGrupoDistritoRowResponse> filas=new ArrayList<>();
         Map<UUID,List<Inmueble>> porDist=activos.stream().collect(Collectors.groupingBy(i->i.getDistrito().getId()));
