@@ -121,7 +121,7 @@ export default function CargaDetalle() {
           }),
         ]);
         setCarga(mapCarga(c));
-        setInmuebles((d?.content ?? d ?? []).map((r: any) => ({ cuenta: String(r.cuenta ?? r.idCuenta ?? "-"), titular: r.titular ?? "-", direccion: r.direccion ?? "-", cuotas: Number(r.cuotas ?? 0), monto: Number(r.monto ?? 0) })));
+        setInmuebles((d?.content ?? d ?? []).map((r: any) => ({ cuenta: String(r.cuenta ?? r.idCuenta ?? "-"), titular: r.titular ?? "-", direccion: r.direccion ?? "-", cuotas: Number(r.cuotas ?? r.cuotasVencidas ?? 0), monto: Number(r.monto ?? r.montoVencido ?? 0) })));
         setDetalleTotalPages(Math.max(1, d?.totalPages || 1));
         setDetalleTotalElements(d?.totalElements || 0);
       } catch (err) {
@@ -145,7 +145,7 @@ export default function CargaDetalle() {
           search: erroresSearch.trim() || undefined,
           sort: `${erroresSortKey},${erroresSortDir}`,
         });
-        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: r.descripcion ?? r.error ?? "Error" })));
+        setErroresList((e?.content ?? e ?? []).map((r: any, i: number) => ({ fila: Number(r.fila ?? i + 1), cuenta: String(r.cuenta ?? "-"), descripcion: (r.descripcion ?? r.error ?? "").trim() || "Sin detalle informado por el backend" })));
         setErroresTotalPages(Math.max(1, e?.totalPages || 1));
         setErroresTotalElements(e?.totalElements || 0);
       } catch {

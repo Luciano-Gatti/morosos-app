@@ -27,7 +27,9 @@ public class CsvRowParser {
             "titular", Set.of("titular"),
             "direccion", Set.of("direccion", "dirección", "domicilio"),
             "grupo", Set.of("grupo"),
-            "distrito", Set.of("distrito")
+            "distrito", Set.of("distrito"),
+            "cuotas_vencidas", Set.of("cuotas", "cuotas adeudadas", "cantidad de cuotas", "facturas adeudadas", "cantidad facturas", "cuotas vencidas"),
+            "monto_vencido", Set.of("monto", "monto adeudado", "deuda", "importe", "importe adeudado", "monto vencido")
     );
 
     public List<Map<String, String>> parse(MultipartFile file, List<String> requiredHeaders) {
@@ -88,6 +90,9 @@ public class CsvRowParser {
             }
         }
         if (!missing.isEmpty()) {
+            if (missing.size() == 1) {
+                throw new ValidationException("Encabezados inválidos", List.of(new ErrorResponse.Detail("header", "Falta la columna requerida: " + missing.get(0))));
+            }
             List<String> expectedCanonical = new ArrayList<>();
             for (String req : requiredHeaders) {
                 String canonicalReq = toCanonicalHeader(normalizarHeader(req));
