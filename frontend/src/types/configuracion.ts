@@ -1,7 +1,10 @@
 export interface EtapaConfig {
   id: string;
+  codigo: string;
   nombre: string;
   descripcion?: string;
+  activo: boolean;
+  esFinal: boolean;
   procesosAsociados: number;
 }
 
