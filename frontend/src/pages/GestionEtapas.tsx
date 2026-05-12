@@ -185,7 +185,6 @@ export default function GestionEtapas() {
 
   // Universo base: solo los inmuebles que cumplen con el umbral configurado en
   // /configuracion/seguimiento. El resto no debe aparecer en gestión de etapas.
-  const universoMorosos = useMemo(() => rows, [rows]);
   const excluidosPorUmbral = 0;
 
   const [query, setQuery] = useState("");
@@ -210,6 +209,7 @@ export default function GestionEtapas() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
+  const universoMorosos = useMemo(() => rows, [rows]);
   const etapasOperativas = etapasApi as EtapaSeguimiento[];
 
   useEffect(() => {
