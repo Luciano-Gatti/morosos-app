@@ -83,7 +83,7 @@ public class ImportacionDeudaService {
       fila++;
       String cuenta = valorRequerido(row, KEY_CUENTA, "cuenta").trim();
       try {
-        if (cuenta.isBlank()) throw new ImportacionFilaException("Cuenta vacía");
+        if (cuenta.isBlank()) throw new ImportacionFilaException("La cuenta es obligatoria");
         if (!seen.add(cuenta.toLowerCase(Locale.ROOT))) throw new ImportacionFilaException("Cuenta duplicada en archivo");
 
         String cuotasRaw = valorRequerido(row, KEY_CUOTAS, "cuotas adeudadas");
@@ -96,7 +96,7 @@ public class ImportacionDeudaService {
         }
 
         Inmueble inmueble = inmuebleRepo.findByCuentaIgnoreCase(cuenta)
-            .orElseThrow(() -> new ImportacionFilaException("La cuenta no existe: " + cuenta));
+            .orElseThrow(() -> new ImportacionFilaException("No existe un inmueble registrado con la cuenta: " + cuenta));
 
         CargaDeudaDetalle detalle = new CargaDeudaDetalle();
         detalle.setCargaDeuda(carga);
@@ -126,12 +126,15 @@ public class ImportacionDeudaService {
   }
 
   private void guardarErrorFila(CargaDeuda carga, int fila, String cuenta, Map<String, String> row, String motivo) {
-    log.warn("Error de validación en fila {} de importación deuda: {}", fila, motivo);
+    String descripcion = (motivo == null || motivo.isBlank())
+        ? "Error inesperado al procesar la fila: sin detalle adicional"
+        : motivo;
+    log.warn("Error de validación en fila {} de importación deuda: {}", fila, descripcion);
     CargaDeudaError error = new CargaDeudaError();
     error.setCargaDeuda(carga);
     error.setFila(fila);
     error.setCuenta(cuenta == null || cuenta.isBlank() ? null : cuenta);
-    error.setMotivo(motivo);
+    error.setMotivo(descripcion);
     error.setPayload(objectMapper.valueToTree(row));
     errRepo.save(error);
     carga.setErrores(carga.getErrores() + 1);
@@ -147,7 +150,7 @@ public class ImportacionDeudaService {
     try {
       return Integer.parseInt(valor.trim());
     } catch (NumberFormatException ex) {
-      throw new ImportacionFilaException("Valor inválido para " + campo + ": '" + valor + "'");
+      throw new ImportacionFilaException("El campo " + campo + " debe ser un número entero válido. Valor recibido: '" + valor + "'");
     }
   }
 
@@ -165,7 +168,7 @@ public class ImportacionDeudaService {
     try {
       return new BigDecimal(normalized);
     } catch (NumberFormatException ex) {
-      throw new ImportacionFilaException("Valor inválido para " + campo + ": '" + valor + "'");
+      throw new ImportacionFilaException("El campo " + campo + " debe ser un monto válido. Valor recibido: '" + valor + "'");
     }
   }
 
