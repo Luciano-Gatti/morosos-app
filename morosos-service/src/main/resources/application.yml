@@ -24,7 +24,8 @@ spring:
     time-zone: UTC
 
 server:
-  port: 8080
+  # 8080 queda reservado para auth; este servicio de gestión de morosos corre en 8081.
+  port: 8081
 
 springdoc:
   swagger-ui:

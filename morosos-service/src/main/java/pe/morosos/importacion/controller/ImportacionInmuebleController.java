@@ -2,6 +2,7 @@ package pe.morosos.importacion.controller;
 
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,9 +16,13 @@ import pe.morosos.importacion.service.ImportacionInmuebleService;
 @RestController
 @RequestMapping("/api/v1/inmuebles/importaciones")
 @RequiredArgsConstructor
+@Slf4j
 public class ImportacionInmuebleController {
  private final ImportacionInmuebleService service;
- @PostMapping public ImportacionInmuebleResponse importar(@RequestParam("file") MultipartFile file){return service.importar(file);} 
+ @PostMapping public ImportacionInmuebleResponse importar(@RequestParam("file") MultipartFile file){
+  log.info("POST /api/v1/inmuebles/importaciones recibido: nombre='{}', tamaño={} bytes", file != null ? file.getOriginalFilename() : null, file != null ? file.getSize() : 0);
+  return service.importar(file);
+ } 
  @GetMapping("/{id}") public ImportacionInmuebleResponse get(@PathVariable UUID id){return service.get(id);} 
  @GetMapping("/{id}/errores") public Page<ImportacionInmuebleErrorResponse> errores(@PathVariable UUID id, @ParameterObject @PageableDefault(size=50) Pageable p){return service.errores(id,p);} 
 }

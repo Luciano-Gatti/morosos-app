@@ -10,7 +10,8 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8081/api/v1";
+const API_PREFIX = "/api/v1";
 
 export const USE_API = import.meta.env.VITE_USE_API === "true";
 
@@ -28,7 +29,10 @@ export function buildQueryParams(params?: Record<string, QueryValue>): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const normalizedPath = API_BASE_URL.endsWith(API_PREFIX) && path.startsWith(API_PREFIX)
+    ? path.slice(API_PREFIX.length) || "/"
+    : path;
+  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
