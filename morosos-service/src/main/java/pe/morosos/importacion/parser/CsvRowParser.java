@@ -22,7 +22,6 @@ import pe.morosos.common.exception.ValidationException;
 @Component
 public class CsvRowParser {
 
-    public static final List<String> REQUIRED_CANONICAL_HEADERS = List.of("cuenta", "titular", "direccion", "grupo", "distrito");
     public static final Map<String, Set<String>> HEADER_ALIASES = Map.of(
             "cuenta", Set.of("cuenta", "n de cuenta", "nro de cuenta", "numero de cuenta", "número de cuenta", "n° de cuenta"),
             "titular", Set.of("titular"),
@@ -89,7 +88,12 @@ public class CsvRowParser {
             }
         }
         if (!missing.isEmpty()) {
-            String expected = String.join(", ", REQUIRED_CANONICAL_HEADERS);
+            List<String> expectedCanonical = new ArrayList<>();
+            for (String req : requiredHeaders) {
+                String canonicalReq = toCanonicalHeader(normalizarHeader(req));
+                expectedCanonical.add(canonicalReq != null ? canonicalReq : normalizarHeader(req));
+            }
+            String expected = String.join(", ", expectedCanonical);
             String received = String.join(", ", receivedHeaders);
             String detail = "Faltan columnas: " + String.join(", ", missing)
                     + ". Encabezados esperados: [" + expected + "]"
