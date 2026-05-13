@@ -11,6 +11,7 @@ export type SeguimientoRow = {
   montoAdeudado: number;
   etapa: string | null;
   estado: "No iniciado" | "Activo" | "Pausado" | "Cerrado";
+  fechaProgramada: string | null;
   accionesDisponibles?: {
     puedeIniciar?: boolean;
     puedeAvanzar?: boolean;
@@ -44,6 +45,7 @@ export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
     montoAdeudado: Number(row.montoAdeudado ?? row.montoVencido ?? 0),
     etapa: row.etapaActual ?? row.etapa ?? null,
     estado: mapEstadoCasoLabel(row.estadoCaso ?? row.estado),
+    fechaProgramada: row.fechaProgramada ?? row.fechaUltimoMovimiento ?? null,
     accionesDisponibles:
       row && typeof row.accionesDisponibles === "object" && !Array.isArray(row.accionesDisponibles)
         ? row.accionesDisponibles
