@@ -10,6 +10,7 @@ import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
 public class ParametroSeguimientoRulesService {
 
     private static final String PARAM_CUOTAS_MIN_MOROSIDAD = "CUOTAS_MINIMAS_MOROSIDAD";
+    private static final String PARAM_CUOTAS_PARA_MOROSO = "CUOTAS_PARA_MOROSO";
     private static final String PARAM_DIAS_ENTRE_ETAPAS = "DIAS_ENTRE_ETAPAS";
     private static final int DEFAULT_CUOTAS_MIN_MOROSIDAD = 2;
     private static final int DEFAULT_DIAS_ENTRE_ETAPAS = 15;
@@ -17,7 +18,7 @@ public class ParametroSeguimientoRulesService {
     private final ParametroSeguimientoRepository parametroSeguimientoRepository;
 
     public int cuotasMinimasMorosidad() {
-        return parametroEntero(PARAM_CUOTAS_MIN_MOROSIDAD, DEFAULT_CUOTAS_MIN_MOROSIDAD);
+        return parametroEnteroConAlias(DEFAULT_CUOTAS_MIN_MOROSIDAD, PARAM_CUOTAS_PARA_MOROSO, PARAM_CUOTAS_MIN_MOROSIDAD);
     }
 
     public int diasMinimosEntreEtapas() {
@@ -28,6 +29,16 @@ public class ParametroSeguimientoRulesService {
         return parametroSeguimientoRepository.findByCodigoIgnoreCase(codigo)
                 .map(parametro -> parseEntero(codigo, parametro.getValor(), valorDefault))
                 .orElse(valorDefault);
+    }
+
+    private int parametroEnteroConAlias(int valorDefault, String... codigos) {
+        for (String codigo : codigos) {
+            var parametroOpt = parametroSeguimientoRepository.findByCodigoIgnoreCase(codigo);
+            if (parametroOpt.isPresent()) {
+                return parseEntero(codigo, parametroOpt.get().getValor(), valorDefault);
+            }
+        }
+        return valorDefault;
     }
 
     private int parseEntero(String codigo, String valor, int valorDefault) {
