@@ -56,13 +56,25 @@ export default function InmuebleDetalle() {
   const [inmuebleVm, setInmuebleVm] = useState<InmuebleDetalleViewModel | null>(null);
   const inmueble = inmuebleVm;
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [togglingActivo, setTogglingActivo] = useState(false);
+  const [togglingSeguimiento, setTogglingSeguimiento] = useState(false);
+  const [gruposCatalogo, setGruposCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [distritosCatalogo, setDistritosCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [grupoDistritoConfig, setGrupoDistritoConfig] = useState<Array<{ grupoId: string; distritoId: string }>>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const notFound = !inmueble;
+
   const grupoNombreResueltoApi = useMemo(() => {
     if (!USE_API) return "";
     const nombrePayload = (inmuebleVm?.grupoNombre ?? "").trim();
     if (nombrePayload && nombrePayload !== "-") return nombrePayload;
     if (!inmuebleVm?.grupoId) return "-";
     return gruposCatalogo.find((g) => g.id === inmuebleVm.grupoId)?.nombre ?? "-";
-  }, [USE_API, inmuebleVm?.grupoId, inmuebleVm?.grupoNombre, gruposCatalogo]);
+  }, [inmuebleVm?.grupoId, inmuebleVm?.grupoNombre, gruposCatalogo]);
 
   const distritoNombreResueltoApi = useMemo(() => {
     if (!USE_API) return "";
@@ -70,7 +82,7 @@ export default function InmuebleDetalle() {
     if (nombrePayload && nombrePayload !== "-") return nombrePayload;
     if (!inmuebleVm?.distritoId) return "-";
     return distritosCatalogo.find((d) => d.id === inmuebleVm.distritoId)?.nombre ?? "-";
-  }, [USE_API, inmuebleVm?.distritoId, inmuebleVm?.distritoNombre, distritosCatalogo]);
+  }, [inmuebleVm?.distritoId, inmuebleVm?.distritoNombre, distritosCatalogo]);
 
   const initial: ConfigState = useMemo(
     () => ({
@@ -89,17 +101,6 @@ export default function InmuebleDetalle() {
 
   const [editing, setEditing] = useState(false);
   const [config, setConfig] = useState<ConfigState>(initial);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [togglingActivo, setTogglingActivo] = useState(false);
-  const [togglingSeguimiento, setTogglingSeguimiento] = useState(false);
-  const [gruposCatalogo, setGruposCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
-  const [distritosCatalogo, setDistritosCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
-  const [grupoDistritoConfig, setGrupoDistritoConfig] = useState<Array<{ grupoId: string; distritoId: string }>>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const notFound = !inmueble;
 
   const dirty = JSON.stringify(config) !== JSON.stringify(initial);
 
