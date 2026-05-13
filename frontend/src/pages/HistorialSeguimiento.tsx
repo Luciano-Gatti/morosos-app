@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -59,7 +59,7 @@ export default function HistorialSeguimiento() {
   const historial = historialVm ? { procesos: historialVm.procesos as any[], observacionesLibres: historialVm.observacionesLibres } : null;
   const empty = historialVm ? isHistorialEmpty(historialVm) : false;
 
-  if (!id || (!loading && !error && !historial)) {
+  if (!id) {
     return (
       <>
         <AppHeader
@@ -83,7 +83,70 @@ export default function HistorialSeguimiento() {
     );
   }
 
+  if (loading) {
+    return (
+      <>
+        <AppHeader
+          title="Historial de seguimiento"
+          breadcrumb={[
+            { label: "Inmuebles", to: "/inmuebles" },
+            { label: "Historial" },
+          ]}
+        />
+        <main className="flex-1 px-6 py-10">
+          <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
+            Cargando historial…
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <AppHeader
+          title="Historial de seguimiento"
+          breadcrumb={[
+            { label: "Inmuebles", to: "/inmuebles" },
+            { label: "Historial" },
+          ]}
+        />
+        <main className="flex-1 px-6 py-10">
+          <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-status-debt">
+            Error al cargar historial: {error}.
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (!historialVm || !inmueble) {
+    return (
+      <>
+        <AppHeader
+          title="Historial no disponible"
+          breadcrumb={[
+            { label: "Inmuebles", to: "/inmuebles" },
+            { label: "Historial" },
+          ]}
+        />
+        <main className="flex-1 px-6 py-10">
+          <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
+            No se encontró información del inmueble solicitado.
+            <div className="mt-4">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/inmuebles">Volver al listado</Link>
+              </Button>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   const procesos = historial?.procesos ?? [];
+  const observacionesLibres = historial?.observacionesLibres ?? [];
   const procesoActual = procesos.find((p) => p.estado === "abierto") ?? procesos[procesos.length - 1] ?? null;
   const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "-", fecha: "-", estado: "-", responsable: "-" };
 
@@ -118,9 +181,7 @@ export default function HistorialSeguimiento() {
       />
 
       <main className="flex-1 space-y-6 px-6 py-6">
-        {loading && <div className="text-xs text-muted-foreground">Cargando historial…</div>}
-        {error && <div className="text-xs text-status-debt">Error al cargar historial: {error}.</div>}
-        {/* Cabecera con datos del inmueble */}
+                {/* Cabecera con datos del inmueble */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <div className="border-b border-border bg-surface-muted/40 px-5 py-3">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -237,12 +298,12 @@ export default function HistorialSeguimiento() {
               </div>
             </div>
             <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {historial.observacionesLibres.length} observaciones
+              {observacionesLibres.length} observaciones
             </span>
           </div>
 
           <div className="divide-y divide-border">
-            {historial.observacionesLibres.map((obs) => (
+            {observacionesLibres.map((obs) => (
               <article key={obs.id} className="px-5 py-5">
                 <header className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="text-[13px] font-semibold text-foreground">{obs.autor}</span>
