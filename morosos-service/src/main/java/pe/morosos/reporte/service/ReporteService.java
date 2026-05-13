@@ -68,7 +68,7 @@ public class ReporteService {
                 .toList();
             log.info("[morosos-grupo-distrito] Inmuebles activos encontrados: {}", activos.size());
 
-            Optional<CargaDeuda> ultimaCargaValida = cargaDeudaRepository.findFirstByEstadoOrderByFechaCargaDesc(CargaDeudaEstado.COMPLETADA);
+            Optional<CargaDeuda> ultimaCargaValida = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
             log.info("[morosos-grupo-distrito] Última carga válida existe: {}", ultimaCargaValida.isPresent());
             ultimaCargaValida.ifPresent(carga -> log.info("[morosos-grupo-distrito] Carga usada id={}, periodo={}, estado={}", carga.getId(), carga.getPeriodo(), carga.getEstado()));
 
