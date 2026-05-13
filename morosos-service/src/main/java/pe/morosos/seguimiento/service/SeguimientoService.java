@@ -76,7 +76,7 @@ public class SeguimientoService {
             if (!inmueble.isActivo() || !inmueble.isSeguimientoHabilitado()) continue;
             boolean seguimientoParHabilitado = grupoDistritoConfigRepository
                     .findByGrupoIdAndDistritoId(inmueble.getGrupo().getId(), inmueble.getDistrito().getId())
-                    .map(cfg -> Boolean.TRUE.equals(cfg.getSeguimientoHabilitado()))
+                    .map(cfg -> cfg.isSeguimientoHabilitado())
                     .orElse(false);
             if (!seguimientoParHabilitado) continue;
             if (cuotas != null && cuotas < minCuotas) continue;
