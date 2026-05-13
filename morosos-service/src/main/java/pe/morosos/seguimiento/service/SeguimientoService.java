@@ -54,7 +54,8 @@ public class SeguimientoService {
     @Transactional(readOnly = true)
     public Page<SeguimientoBandejaRowResponse> findBandeja(String query, UUID grupoId, UUID distritoId, UUID etapaId,
                                                            CasoSeguimientoEstado estado, Integer cuotasMin, Pageable pageable) {
-        int minCuotas = cuotasMin == null ? parametroRulesService.cuotasMinimasMorosidad() : cuotasMin;
+        int umbralConfigurado = parametroRulesService.cuotasMinimasMorosidad();
+        int minCuotas = cuotasMin == null ? umbralConfigurado : Math.max(cuotasMin, umbralConfigurado);
         Optional<pe.morosos.deuda.entity.CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
                 List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
 
@@ -79,7 +80,7 @@ public class SeguimientoService {
                     .map(cfg -> cfg.isSeguimientoHabilitado())
                     .orElse(false);
             if (!seguimientoParHabilitado) continue;
-            if (cuotas != null && cuotas < minCuotas) continue;
+            if (cuotas == null || cuotas < minCuotas) continue;
             if (!matchesFilters(caso, inmueble, query, grupoId, distritoId, etapaId, estado)) continue;
             data.add(toRow(caso, inmueble, inmuebleId, cuotas, monto));
         }

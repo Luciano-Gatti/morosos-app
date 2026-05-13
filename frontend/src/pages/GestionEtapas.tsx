@@ -85,17 +85,6 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
 
 const UMBRAL_VISUAL_DEFAULT = 0;
 
-// Fecha programada determinística por inmueble (solo operativa/informativa).
-function fechaProgramadaPara(id: string): Date | null {
-  const n = parseInt(id, 10);
-  if (!Number.isFinite(n)) return null;
-  const base = new Date();
-  base.setHours(0, 0, 0, 0);
-  const offset = ((n * 7) % 45) - 15; // rango -15 a +29 días
-  base.setDate(base.getDate() + offset);
-  return base;
-}
-
 function etapaIndexEnLista(e: EtapaSeguimiento | null, etapas: EtapaSeguimiento[]): number {
   if (!e) return -1;
   return etapas.indexOf(e);
@@ -837,7 +826,7 @@ function InmuebleRow({
   checked: boolean;
   onToggle: () => void;
 }) {
-  const fecha = fechaProgramadaPara(m.id);
+  const fecha = m.fechaProgramada ? new Date(m.fechaProgramada) : null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const vencida = fecha ? fecha.getTime() < today.getTime() : false;
