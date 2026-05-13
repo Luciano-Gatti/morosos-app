@@ -1,6 +1,7 @@
 package pe.morosos.seguimiento;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +19,7 @@ import pe.morosos.grupodistrito.repository.GrupoDistritoConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.motivocierre.entity.MotivoCierre;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.motivocierre.repository.MotivoCierreRepository;
 import pe.morosos.seguimiento.entity.CasoSeguimiento;
 import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
@@ -38,6 +40,7 @@ public class MotorReglasSeguimiento {
     private final EtapaConfigRepository etapaConfigRepository;
     private final MotivoCierreRepository motivoCierreRepository;
     private final ProcesoCierreRepository procesoCierreRepository;
+    private final ParametroSeguimientoRulesService parametroRulesService;
 
     public Inmueble validarInicioSeguimiento(UUID inmuebleId) {
         Inmueble inmueble = inmuebleRepository.findById(inmuebleId)
@@ -91,6 +94,15 @@ public class MotorReglasSeguimiento {
         if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) throw new ConflictException("No se puede avanzar un caso CERRADO");
         if (caso.getEtapaActual() == null) throw new BusinessRuleException("El caso no tiene etapa actual");
         if (caso.getEtapaActual().isEsFinal()) throw new BusinessRuleException("El caso ya está en etapa final");
+
+        int diasMinimos = parametroRulesService.diasMinimosEntreEtapas();
+        Instant ultimoMovimiento = caso.getFechaUltimoMovimiento();
+        if (ultimoMovimiento != null) {
+            long diasTranscurridos = java.time.Duration.between(ultimoMovimiento, Instant.now()).toDays();
+            if (diasTranscurridos < diasMinimos) {
+                throw new BusinessRuleException("No se puede avanzar etapa: se requieren " + diasMinimos + " días mínimos en la etapa actual");
+            }
+        }
 
         return etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(caso.getEtapaActual().getOrden())
                 .orElseThrow(() -> new BusinessRuleException("No existe una etapa siguiente activa para avanzar"));
