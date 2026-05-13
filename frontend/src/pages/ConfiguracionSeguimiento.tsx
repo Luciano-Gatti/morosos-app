@@ -48,6 +48,15 @@ interface ParametrosSeguimiento {
   modoOperacion: "manual" | "asistido";
 }
 
+interface ImpactoSeguimiento {
+  hayImpacto: boolean;
+  impactoCalculable: boolean;
+  totalProcesosAbiertos: number;
+  procesosAfectados: number;
+  porcentajeImpacto: number;
+  mensaje: string;
+}
+
 const valoresIniciales: ParametrosSeguimiento = {
   cuotasParaMoroso: 3,
   reanudacionPorIncumplimiento: true,
@@ -55,39 +64,6 @@ const valoresIniciales: ParametrosSeguimiento = {
   notificarCambiosEtapa: true,
   modoOperacion: "asistido",
 };
-
-// Distribución demo de procesos abiertos por cantidad de cuotas adeudadas.
-// Se usa para calcular el impacto al modificar el umbral.
-const procesosAbiertosPorCuotas: Record<number, number> = {
-  1: 184,
-  2: 312,
-  3: 421,
-  4: 268,
-  5: 192,
-  6: 134,
-  7: 98,
-  8: 72,
-  9: 54,
-  10: 41,
-};
-
-const TOTAL_PROCESOS_ABIERTOS = Object.values(procesosAbiertosPorCuotas).reduce(
-  (a, b) => a + b,
-  0,
-);
-
-function procesosQueDejanDeCumplir(
-  cuotasActual: number,
-  cuotasNuevo: number,
-): number {
-  // Solo si el umbral sube quedan procesos por debajo del nuevo mínimo.
-  if (cuotasNuevo <= cuotasActual) return 0;
-  let total = 0;
-  for (let c = cuotasActual; c < cuotasNuevo; c++) {
-    total += procesosAbiertosPorCuotas[c] ?? 0;
-  }
-  return total;
-}
 
 function parseBooleanParam(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") return value;
@@ -106,6 +82,9 @@ export default function ConfiguracionSeguimiento() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [calculandoImpacto, setCalculandoImpacto] = useState(false);
+  const [impactoError, setImpactoError] = useState<string | null>(null);
+  const [impacto, setImpacto] = useState<ImpactoSeguimiento | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [parametrosDisponibles, setParametrosDisponibles] = useState<Set<string>>(new Set());
   const [empty, setEmpty] = useState(false);
@@ -189,14 +168,26 @@ export default function ConfiguracionSeguimiento() {
 
   const hayCambios = cambios.length > 0;
 
-  const procesosImpactados = procesosQueDejanDeCumplir(
-    guardado.cuotasParaMoroso,
-    form.cuotasParaMoroso,
-  );
-
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     if (!hayCambios) return;
-    setConfirmOpen(true);
+    try {
+      setCalculandoImpacto(true);
+      setImpactoError(null);
+      const response = await configuracionApi.calcularImpactoParametrosSeguimiento({
+        parametros: cambios.map((c) => ({
+          clave: c.key === "cuotasParaMoroso" ? "CUOTAS_PARA_MOROSO" : c.key,
+          valorAnterior: c.key === "cuotasParaMoroso" ? guardado.cuotasParaMoroso : c.antes,
+          valorNuevo: c.key === "cuotasParaMoroso" ? form.cuotasParaMoroso : c.despues,
+        })),
+      });
+      setImpacto(response as ImpactoSeguimiento);
+    } catch (e) {
+      setImpacto(null);
+      setImpactoError(e instanceof ApiError ? e.message : "No se pudo calcular el impacto en este momento.");
+    } finally {
+      setCalculandoImpacto(false);
+      setConfirmOpen(true);
+    }
   };
 
   const handleConfirmar = async () => {
@@ -322,7 +313,6 @@ export default function ConfiguracionSeguimiento() {
               <ImpactCallout
                 actual={guardado.cuotasParaMoroso}
                 nuevo={form.cuotasParaMoroso}
-                impactados={procesosImpactados}
               />
             </div>
 
@@ -461,7 +451,7 @@ export default function ConfiguracionSeguimiento() {
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[15px]">
-              {procesosImpactados > 0 ? (
+              {impacto?.hayImpacto ? (
                 <>
                   <AlertTriangle className="h-4 w-4 text-status-debt" />
                   Confirmar cambios — Impacto detectado
@@ -479,35 +469,43 @@ export default function ConfiguracionSeguimiento() {
             </DialogDescription>
           </DialogHeader>
 
-          {procesosImpactados > 0 && (
+          {calculandoImpacto && (
+            <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3 text-[12.5px] text-muted-foreground">
+              Calculando impacto real...
+            </div>
+          )}
+
+          {impactoError && (
+            <div className="rounded-md border border-status-paused/30 bg-status-paused-soft px-4 py-3 text-[12.5px] text-foreground">
+              No se pudo calcular el impacto automáticamente. Podés confirmar igual y guardar los cambios.
+            </div>
+          )}
+
+          {impacto && !impacto.hayImpacto && (
+            <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3 text-[12.5px] text-muted-foreground">
+              {impacto.mensaje}
+            </div>
+          )}
+
+          {impacto?.hayImpacto && (
             <div className="rounded-md border border-status-debt/30 bg-status-debt-soft px-4 py-3">
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-debt" />
                 <div className="text-[12.5px] leading-5 text-foreground">
                   <div className="font-semibold">
-                    {numberFmt.format(procesosImpactados)} procesos abiertos dejarán de
-                    cumplir el umbral.
+                    {impacto?.mensaje}
                   </div>
                   <p className="mt-1 text-muted-foreground">
-                    Al subir el umbral de morosidad de{" "}
-                    <span className="font-medium text-foreground">
-                      {guardado.cuotasParaMoroso} a {form.cuotasParaMoroso} cuotas
-                    </span>
-                    , esos procesos quedarán fuera de la condición actual. El sistema los
-                    marcará como{" "}
-                    <span className="font-medium text-foreground">
-                      "pendientes de revisión"
-                    </span>{" "}
-                    y deberán ser cerrados manualmente o esperar a que se regularicen.
+                    Impacto calculado con datos reales de procesos abiertos y última carga de deuda disponible en backend.
                   </p>
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Total de procesos abiertos en el sistema:{" "}
                     <span className="tabular font-medium text-foreground">
-                      {numberFmt.format(TOTAL_PROCESOS_ABIERTOS)}
+                      {numberFmt.format(impacto?.totalProcesosAbiertos ?? 0)}
                     </span>{" "}
                     · Impacto:{" "}
                     <span className="font-medium text-status-debt">
-                      {((procesosImpactados / TOTAL_PROCESOS_ABIERTOS) * 100).toFixed(1)}%
+                      {(impacto?.porcentajeImpacto ?? 0).toFixed(1)}%
                     </span>
                   </p>
                 </div>
@@ -546,13 +544,11 @@ export default function ConfiguracionSeguimiento() {
               disabled={saving}
               className={cn(
                 "h-9 text-[13px]",
-                procesosImpactados > 0 &&
+                impacto?.hayImpacto &&
                   "bg-status-debt text-status-debt-foreground hover:bg-status-debt/90",
               )}
             >
-              {procesosImpactados > 0
-                ? "Confirmar y aplicar cambios"
-                : "Aplicar cambios"}
+              {impacto?.hayImpacto ? "Confirmar y aplicar cambios" : "Aplicar cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -606,11 +602,9 @@ function InfoNote({ children }: { children: React.ReactNode }) {
 function ImpactCallout({
   actual,
   nuevo,
-  impactados,
 }: {
   actual: number;
   nuevo: number;
-  impactados: number;
 }) {
   if (nuevo === actual) {
     return (
@@ -640,8 +634,7 @@ function ImpactCallout({
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-debt" />
       <div>
         <div className="font-semibold">
-          {numberFmt.format(impactados)} procesos abiertos dejarían de cumplir la
-          condición.
+          El impacto se calculará con datos reales al confirmar cambios.
         </div>
         <div className="mt-0.5 text-muted-foreground">
           Al elevar el umbral, esos procesos quedarán pendientes de revisión. Se te

@@ -5,10 +5,13 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pe.morosos.parametro.dto.ImpactoSeguimientoRequest;
+import pe.morosos.parametro.dto.ImpactoSeguimientoResponse;
 import pe.morosos.parametro.dto.ParametroSeguimientoRequest;
 import pe.morosos.parametro.dto.ParametroSeguimientoResponse;
 import pe.morosos.parametro.service.ParametroSeguimientoService;
@@ -29,5 +32,10 @@ public class ParametroSeguimientoController {
     public ParametroSeguimientoResponse updateByCodigo(@PathVariable String codigo,
                                                        @Valid @RequestBody ParametroSeguimientoRequest request) {
         return service.updateByCodigo(codigo, request);
+    }
+
+    @PostMapping("/impacto")
+    public ImpactoSeguimientoResponse calcularImpacto(@Valid @RequestBody ImpactoSeguimientoRequest request) {
+        return service.calcularImpacto(request);
     }
 }

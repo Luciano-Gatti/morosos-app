@@ -11,6 +11,7 @@ import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
 public interface CasoSeguimientoRepository extends JpaRepository<CasoSeguimiento, UUID> {
     Optional<CasoSeguimiento> findByInmuebleIdAndEstado(UUID inmuebleId, CasoSeguimientoEstado estado);
     boolean existsByInmuebleIdAndEstado(UUID inmuebleId, CasoSeguimientoEstado estado);
+    List<CasoSeguimiento> findByEstado(CasoSeguimientoEstado estado);
     List<CasoSeguimiento> findByInmuebleIdOrderByFechaInicioDesc(UUID inmuebleId);
 
     @Query("select c.etapaActual.id, count(c.id) from CasoSeguimiento c where c.etapaActual.id in :etapaIds group by c.etapaActual.id")
