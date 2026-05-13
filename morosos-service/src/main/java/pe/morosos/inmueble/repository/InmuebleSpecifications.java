@@ -1,5 +1,6 @@
 package pe.morosos.inmueble.repository;
 
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 import pe.morosos.inmueble.entity.Inmueble;
@@ -9,16 +10,31 @@ public final class InmuebleSpecifications {
     private InmuebleSpecifications() {
     }
 
-    public static Specification<Inmueble> cuentaLike(String cuenta) {
-        return (root, query, cb) -> cuenta == null || cuenta.isBlank()
-                ? null
-                : cb.like(cb.lower(root.get("cuenta")), "%" + cuenta.trim().toLowerCase() + "%");
-    }
+    public static Specification<Inmueble> search(String q, String campo) {
+        return (root, query, cb) -> {
+            if (q == null || q.isBlank()) {
+                return null;
+            }
 
-    public static Specification<Inmueble> titularLike(String titular) {
-        return (root, query, cb) -> titular == null || titular.isBlank()
-                ? null
-                : cb.like(cb.lower(root.get("titular")), "%" + titular.trim().toLowerCase() + "%");
+            String like = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+            String normalizedCampo = campo == null ? "" : campo.trim().toLowerCase(Locale.ROOT);
+
+            return switch (normalizedCampo) {
+                case "cuenta" -> cb.like(cb.lower(root.get("cuenta")), like);
+                case "titular" -> cb.like(cb.lower(root.get("titular")), like);
+                case "direccion" -> cb.like(cb.lower(root.get("direccion")), like);
+                case "", "all" -> cb.or(
+                        cb.like(cb.lower(root.get("cuenta")), like),
+                        cb.like(cb.lower(root.get("titular")), like),
+                        cb.like(cb.lower(root.get("direccion")), like)
+                );
+                default -> cb.or(
+                        cb.like(cb.lower(root.get("cuenta")), like),
+                        cb.like(cb.lower(root.get("titular")), like),
+                        cb.like(cb.lower(root.get("direccion")), like)
+                );
+            };
+        };
     }
 
     public static Specification<Inmueble> grupoEquals(UUID grupoId) {

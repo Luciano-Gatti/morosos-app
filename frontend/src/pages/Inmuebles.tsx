@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Upload,
@@ -39,7 +39,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { USE_API } from "@/lib/apiClient";
 import { inmueblesApi } from "@/services/api/inmueblesApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { ImportarInmueblesDialog } from "@/components/inmuebles/ImportarInmueblesDialog";
@@ -76,32 +75,6 @@ export default function Inmuebles() {
   const [catalogDistritos, setCatalogDistritos] = useState<Array<{ id: string; nombre: string }>>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogWarning, setCatalogWarning] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((it) => {
-      if (grupo !== "all" && it.grupoNombre !== grupo) return false;
-      if (distrito !== "all" && it.distritoNombre !== distrito) return false;
-      if (estado === "activo" && !it.activo) return false;
-      if (estado === "inactivo" && it.activo) return false;
-      if (!q) return true;
-      if (field === "all") return it.cuenta.toLowerCase().includes(q) || it.titular.toLowerCase().includes(q) || it.direccion.toLowerCase().includes(q);
-      return String((it as any)[field] ?? "").toLowerCase().includes(q);
-    });
-  }, [query, field, grupo, distrito, estado, rows]);
-
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
-    copy.sort((a, b) => {
-      const mapKey = sortKey === "grupo" ? "grupoNombre" : sortKey === "distrito" ? "distritoNombre" : sortKey;
-      const av = (a as any)[mapKey];
-      const bv = (b as any)[mapKey];
-      if (typeof av === "boolean" && typeof bv === "boolean") return av === bv ? 0 : av ? -1 : 1;
-      const cmp = String(av).localeCompare(String(bv), "es", { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return copy;
-  }, [filtered, sortKey, sortDir]);
 
   const safePage = Math.min(page, Math.max(1, totalPages));
   const pageStart = (safePage - 1) * PAGE_SIZE;
