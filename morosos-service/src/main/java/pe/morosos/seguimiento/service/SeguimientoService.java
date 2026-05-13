@@ -19,6 +19,7 @@ import pe.morosos.etapa.repository.EtapaConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
+import pe.morosos.grupodistrito.repository.GrupoDistritoConfigRepository;
 import pe.morosos.motivocierre.entity.MotivoCierre;
 import pe.morosos.seguimiento.MotorReglasSeguimiento;
 import pe.morosos.seguimiento.dto.BulkActionResultResponse;
@@ -46,6 +47,7 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
     private final InmuebleRepository inmuebleRepository;
     private final ParametroSeguimientoRulesService parametroRulesService;
+    private final GrupoDistritoConfigRepository grupoDistritoConfigRepository;
 
     
 
@@ -58,8 +60,6 @@ public class SeguimientoService {
 
         UUID cargaId = cargaOpt.map(pe.morosos.deuda.entity.CargaDeuda::getId).orElse(null);
         List<Object[]> rows = cargaId == null ? List.of() : cargaDeudaDetalleRepository.findDeudaByCarga(cargaId);
-        Map<UUID, Object[]> deudaByInmueble = new HashMap<>();
-        for (Object[] r : rows) deudaByInmueble.put((UUID) r[0], r);
 
         List<CasoSeguimiento> casos = casoRepository.findAll();
         Map<UUID, CasoSeguimiento> casoByInmueble = new HashMap<>();
@@ -71,9 +71,17 @@ public class SeguimientoService {
             Integer cuotas = (Integer) r[1];
             BigDecimal monto = (BigDecimal) r[2];
             CasoSeguimiento caso = casoByInmueble.get(inmuebleId);
+            Inmueble inmueble = caso != null ? caso.getInmueble() : inmuebleRepository.findById(inmuebleId).orElse(null);
+            if (inmueble == null) continue;
+            if (!inmueble.isActivo() || !inmueble.isSeguimientoHabilitado()) continue;
+            boolean seguimientoParHabilitado = grupoDistritoConfigRepository
+                    .findByGrupoIdAndDistritoId(inmueble.getGrupo().getId(), inmueble.getDistrito().getId())
+                    .map(cfg -> Boolean.TRUE.equals(cfg.getSeguimientoHabilitado()))
+                    .orElse(false);
+            if (!seguimientoParHabilitado) continue;
             if (cuotas != null && cuotas < minCuotas) continue;
-            if (!matchesFilters(caso, query, grupoId, distritoId, etapaId, estado)) continue;
-            data.add(toRow(caso, inmuebleId, cuotas, monto));
+            if (!matchesFilters(caso, inmueble, query, grupoId, distritoId, etapaId, estado)) continue;
+            data.add(toRow(caso, inmueble, inmuebleId, cuotas, monto));
         }
 
         data.sort(buildComparator(pageable));
@@ -82,13 +90,11 @@ public class SeguimientoService {
         return new PageImpl<>(data.subList(from, to), pageable, data.size());
     }
 
-    private boolean matchesFilters(CasoSeguimiento caso, String query, UUID grupoId, UUID distritoId, UUID etapaId, CasoSeguimientoEstado estado) {
-        if (caso == null) return false;
-        var i = caso.getInmueble();
+    private boolean matchesFilters(CasoSeguimiento caso, Inmueble i, String query, UUID grupoId, UUID distritoId, UUID etapaId, CasoSeguimientoEstado estado) {
         if (grupoId != null && !grupoId.equals(i.getGrupo().getId())) return false;
         if (distritoId != null && !distritoId.equals(i.getDistrito().getId())) return false;
-        if (etapaId != null && (caso.getEtapaActual() == null || !etapaId.equals(caso.getEtapaActual().getId()))) return false;
-        if (estado != null && caso.getEstado() != estado) return false;
+        if (etapaId != null && (caso == null || caso.getEtapaActual() == null || !etapaId.equals(caso.getEtapaActual().getId()))) return false;
+        if (estado != null && (caso == null || caso.getEstado() != estado)) return false;
         if (query != null && !query.isBlank()) {
             String q = query.toLowerCase(Locale.ROOT);
             if (!(contains(i.getCuenta(), q) || contains(i.getTitular(), q) || contains(i.getDireccion(), q))) return false;
@@ -98,12 +104,11 @@ public class SeguimientoService {
 
     private boolean contains(String value, String query){ return value != null && value.toLowerCase(Locale.ROOT).contains(query); }
 
-    private SeguimientoBandejaRowResponse toRow(CasoSeguimiento caso, UUID inmuebleId, Integer cuotas, BigDecimal monto) {
-        var i = caso.getInmueble();
-        Instant ultimo = caso.getFechaUltimoMovimiento();
+    private SeguimientoBandejaRowResponse toRow(CasoSeguimiento caso, Inmueble i, UUID inmuebleId, Integer cuotas, BigDecimal monto) {
+        Instant ultimo = caso == null ? null : caso.getFechaUltimoMovimiento();
         Long dias = ultimo == null ? null : Duration.between(ultimo, Instant.now()).toDays();
         return new SeguimientoBandejaRowResponse(
-                caso.getId(),
+                caso == null ? null : caso.getId(),
                 inmuebleId,
                 i.getCuenta(),
                 i.getTitular(),
@@ -114,12 +119,14 @@ public class SeguimientoService {
                 i.getDistrito().getNombre(),
                 cuotas == null ? 0 : cuotas,
                 monto == null ? BigDecimal.ZERO : monto,
-                caso.getEtapaActual() == null ? null : caso.getEtapaActual().getId(),
-                caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
-                caso.getEstado().name(),
+                caso == null || caso.getEtapaActual() == null ? null : caso.getEtapaActual().getId(),
+                caso == null || caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
+                caso == null ? "NO_INICIADO" : caso.getEstado().name(),
                 ultimo,
                 dias,
-                accionesDisponibles(caso)
+                caso == null
+                        ? new SeguimientoBandejaAccionesResponse(true, false, false, false, false, false, false)
+                        : accionesDisponibles(caso)
         );
     }
 
@@ -312,7 +319,7 @@ public class SeguimientoService {
 
         List<HistorialCasoResponse> casosResponse = casos.stream()
                 .map(caso -> new HistorialCasoResponse(
-                        caso.getId(),
+                        caso == null ? null : caso.getId(),
                         caso.getEstado().name(),
                         caso.getEtapaActual() == null ? null : caso.getEtapaActual().getNombre(),
                         caso.getFechaInicio(),
@@ -328,7 +335,7 @@ public class SeguimientoService {
             casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento ->
                     eventosResponse.add(new CasoEventoResponse(
                             evento.getId(),
-                            caso.getId(),
+                            caso == null ? null : caso.getId(),
                             evento.getTipoEvento().name(),
                             evento.getEtapaOrigen() == null ? null : evento.getEtapaOrigen().getNombre(),
                             evento.getEtapaDestino() == null ? null : evento.getEtapaDestino().getNombre(),
@@ -358,7 +365,7 @@ public class SeguimientoService {
 
                 cierresResponse.add(new HistorialCierreResponse(
                         cierre.getId(),
-                        caso.getId(),
+                        caso == null ? null : caso.getId(),
                         cierre.getMotivoCierre().getCodigo(),
                         cierre.getFechaCierre(),
                         cierre.getObservacion(),
@@ -370,7 +377,7 @@ public class SeguimientoService {
             compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(caso.getId()).forEach(compromiso ->
                     compromisosResponse.add(new HistorialCompromisoResponse(
                             compromiso.getId(),
-                            caso.getId(),
+                            caso == null ? null : caso.getId(),
                             compromiso.getFechaDesde(),
                             compromiso.getFechaHasta(),
                             compromiso.getMontoComprometido(),
