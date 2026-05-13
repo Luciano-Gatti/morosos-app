@@ -61,8 +61,8 @@ public class DashboardService {
     private DashboardKpisResponse queryKpis(UUID cargaId, int minCuotas, UUID grupoId, UUID distritoId) {
         Object[] row = entityManager.createQuery("""
                 select count(i.id),
-                       sum(case when d.id is not null then 1 else 0 end),
-                       sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end),
+                       coalesce(sum(case when d.id is not null then 1 else 0 end), 0),
+                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
                        coalesce(sum(d.montoVencido), 0)
                 from Inmueble i
                 left join CargaDeudaDetalle d on d.inmueble.id = i.id and d.cargaDeuda.id = :cargaId
@@ -79,7 +79,7 @@ public class DashboardService {
         long total = ((Number) row[0]).longValue();
         long deudores = ((Number) row[1]).longValue();
         long morosos = ((Number) row[2]).longValue();
-        BigDecimal monto = (BigDecimal) row[3];
+        BigDecimal monto = decimalOrZero(row[3]);
         long alDia = Math.max(0, total - deudores);
         double porcentaje = total == 0 ? 0 : morosos * 100d / total;
         return new DashboardKpisResponse(total, alDia, deudores, morosos, porcentaje, monto);
@@ -90,8 +90,8 @@ public class DashboardService {
         List<Object[]> rows = entityManager.createQuery("""
                 select dist.id, dist.nombre,
                        count(i.id),
-                       sum(case when d.id is not null then 1 else 0 end),
-                       sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end),
+                       coalesce(sum(case when d.id is not null then 1 else 0 end), 0),
+                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
                        coalesce(sum(d.montoVencido), 0)
                 from Inmueble i
                 join i.distrito dist
@@ -127,7 +127,7 @@ public class DashboardService {
                     deudores,
                     morosos,
                     porcentaje,
-                    (BigDecimal) r[5],
+                    decimalOrZero(r[5]),
                     agg.avisosDeuda,
                     agg.avisosCorte,
                     agg.intimaciones,
@@ -139,11 +139,11 @@ public class DashboardService {
     private DashboardAccionesMesResponse queryAccionesMes(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         Object[] eventos = entityManager.createQuery("""
                 select
-                    sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end),
-                    sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end),
-                    sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end),
-                    sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end),
-                    sum(case when e.tipoEvento = :compromisoRegistrado then 1 else 0 end)
+                    coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
+                    coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
+                    coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
+                    coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0),
+                    coalesce(sum(case when e.tipoEvento = :compromisoRegistrado then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -182,10 +182,10 @@ public class DashboardService {
     private Map<UUID, DistritosAccionAgg> queryAccionesPorDistrito(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         List<Object[]> rows = entityManager.createQuery("""
                 select i.distrito.id,
-                       sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end),
-                       sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end),
-                       sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end),
-                       sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end)
+                       coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
+                       coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
+                       coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
+                       coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -294,6 +294,10 @@ public class DashboardService {
 
     private long numberOrZero(Object n) {
         return n == null ? 0L : ((Number) n).longValue();
+    }
+
+    private BigDecimal decimalOrZero(Object n) {
+        return n == null ? BigDecimal.ZERO : (BigDecimal) n;
     }
 
     private record DistritosAccionAgg(long avisosDeuda, long avisosCorte, long intimaciones, long cortes) {
