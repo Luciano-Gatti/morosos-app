@@ -100,8 +100,9 @@ function etapaSiguienteEnLista(e: EtapaSeguimiento | null, etapas: EtapaSeguimie
 
 const PAGE_SIZE = 15;
 
-type EtapaFiltro = "all" | "sin-etapa" | EtapaSeguimiento;
-type EstadoFiltro = "all" | EstadoProceso;
+type EtapaFiltro = "all" | "sin-etapa" | string;
+type EstadoBackend = "ABIERTO" | "PAUSADO" | "CERRADO";
+type EstadoFiltro = "all" | EstadoBackend;
 
 type AccionMasiva =
   | { kind: "enviar-etapa"; etapa: EtapaSeguimiento }
@@ -193,13 +194,13 @@ export default function GestionEtapas() {
   const [totalPages, setTotalPages] = useState(1);
   const [gruposApi, setGruposApi] = useState<CatalogOption[]>([]);
   const [distritosApi, setDistritosApi] = useState<CatalogOption[]>([]);
-  const [etapasApi, setEtapasApi] = useState<string[]>([]);
+  const [etapasApi, setEtapasApi] = useState<CatalogOption[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
   const universoMorosos = useMemo(() => rows, [rows]);
-  const etapasOperativas = etapasApi as EtapaSeguimiento[];
+  const etapasOperativas = etapasApi.map((e) => e.nombre as EtapaSeguimiento);
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -231,7 +232,12 @@ export default function GestionEtapas() {
             }))
             .filter((x: CatalogOption) => x.id.length > 0 && x.nombre.length > 0),
         );
-        const etapasFromApi = (es?.content ?? es ?? []).map((x: any) => x.nombre ?? x.etapa ?? String(x));
+        const etapasFromApi = (es?.content ?? es ?? [])
+          .map((x: any) => ({
+            id: String(x?.id ?? x?.etapaId ?? ""),
+            nombre: String(x?.nombre ?? x?.etapa ?? ""),
+          }))
+          .filter((x: CatalogOption) => x.id.length > 0 && x.nombre.length > 0);
         setEtapasApi(etapasFromApi);
         if (etapasFromApi.length === 0) {
           setCatalogWarnings((prev) => [...prev, "No hay etapas configuradas en API para operar seguimiento."]);
@@ -275,16 +281,25 @@ export default function GestionEtapas() {
     try {
       setLoading(true);
       setError(null);
-      const res = await seguimientoApi.getBandeja({
-        query: query || undefined,
+      const normalizeFilterParams = (params: Record<string, string | number | undefined>) =>
+        Object.fromEntries(
+          Object.entries(params).filter(([_, value]) => {
+            if (value === undefined || value === null || value === "") return false;
+            if (typeof value === "string" && ["todos", "todas", "all"].includes(value.toLowerCase())) return false;
+            return true;
+          }),
+        );
+
+      const res = await seguimientoApi.getBandeja(normalizeFilterParams({
+        query: query.trim() || undefined,
         grupoId: grupo === "all" ? undefined : grupo,
         distritoId: distrito === "all" ? undefined : distrito,
         etapaId: etapaFiltro === "all" || etapaFiltro === "sin-etapa" ? undefined : etapaFiltro,
         estado: estadoFiltro === "all" ? undefined : estadoFiltro,
-        cuotasMin: cuotasMin || undefined,
+        cuotasMin: cuotasMin ? Number(cuotasMin) : undefined,
         page: page - 1,
         size: PAGE_SIZE,
-      });
+      }));
       const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
       setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
       setTotalElements(pageData.totalElements);
@@ -576,7 +591,7 @@ export default function GestionEtapas() {
                 <SelectItem value="all" className="text-[13px]">Todas las etapas</SelectItem>
                 <SelectItem value="sin-etapa" className="text-[13px]">Sin etapa asignada</SelectItem>
                 {etapasApi.map((e) => (
-                  <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
+                  <SelectItem key={e.id} value={e.id} className="text-[13px]">{e.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -593,8 +608,12 @@ export default function GestionEtapas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
-                {(["No iniciado", "Activo", "Pausado", "Cerrado"] as EstadoProceso[]).map((e) => (
-                  <SelectItem key={e} value={e} className="text-[13px]">{e}</SelectItem>
+                {([
+                  { label: "Activo", value: "ABIERTO" },
+                  { label: "Pausado", value: "PAUSADO" },
+                  { label: "Cerrado", value: "CERRADO" },
+                ] as const).map((e) => (
+                  <SelectItem key={e.value} value={e.value} className="text-[13px]">{e.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
