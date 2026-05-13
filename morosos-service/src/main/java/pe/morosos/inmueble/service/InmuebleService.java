@@ -41,8 +41,7 @@ public class InmuebleService {
     @Transactional(readOnly = true)
     public Page<InmuebleResponse> findAll(InmuebleFilterRequest filter, Pageable pageable) {
         Specification<Inmueble> spec = Specification
-                .where(InmuebleSpecifications.cuentaLike(filter.cuenta()))
-                .and(InmuebleSpecifications.titularLike(filter.titular()))
+                .where(InmuebleSpecifications.search(filter.q(), filter.campo()))
                 .and(InmuebleSpecifications.grupoEquals(filter.grupoId()))
                 .and(InmuebleSpecifications.distritoEquals(filter.distritoId()))
                 .and(InmuebleSpecifications.activoEquals(filter.activo()));

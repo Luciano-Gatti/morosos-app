@@ -30,13 +30,13 @@ public class InmuebleController {
     private final InmuebleService inmuebleService;
 
     @GetMapping
-    public Page<InmuebleResponse> findAll(@RequestParam(required = false) String cuenta,
-                                          @RequestParam(required = false) String titular,
+    public Page<InmuebleResponse> findAll(@RequestParam(required = false) String q,
+                                          @RequestParam(required = false) String campo,
                                           @RequestParam(required = false) UUID grupoId,
                                           @RequestParam(required = false) UUID distritoId,
                                           @RequestParam(required = false) Boolean activo,
                                           @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
-        InmuebleFilterRequest filter = new InmuebleFilterRequest(cuenta, titular, grupoId, distritoId, activo);
+        InmuebleFilterRequest filter = new InmuebleFilterRequest(q, campo, grupoId, distritoId, activo);
         return inmuebleService.findAll(filter, pageable);
     }
 
