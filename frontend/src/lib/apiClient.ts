@@ -33,7 +33,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = API_BASE_URL.endsWith(API_PREFIX) && path.startsWith(API_PREFIX)
     ? path.slice(API_PREFIX.length) || "/"
     : path;
-  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
+  const url = `${API_BASE_URL}${normalizedPath}`;
+  const method = init?.method ?? "GET";
+  console.debug("[apiClient] request:start", { url, method });
+
+  const response = await fetch(url, {
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -44,14 +48,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const contentType = response.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");
-  const payload = isJson ? await response.json() : await response.text();
+  const rawResponseText = await response.text();
+
+  console.debug("[apiClient] request:response", {
+    url,
+    method,
+    status: response.status,
+    ok: response.ok,
+    rawResponseText,
+  });
+
+  let payload: unknown = rawResponseText;
+  if (isJson && rawResponseText) {
+    try {
+      payload = JSON.parse(rawResponseText);
+      console.debug("[apiClient] request:parsed-json", { url, method, payload });
+    } catch (error) {
+      console.warn("[apiClient] request:json-parse-error", { url, method, error });
+    }
+  }
 
   if (!response.ok) {
     const message =
       (typeof payload === "object" && payload && "message" in payload && String(payload.message)) ||
       (typeof payload === "string" && payload.trim()) ||
       `${response.status} ${response.statusText}`.trim();
-    throw new ApiError(message, response.status, payload);
+    throw new ApiError(`${response.status} ${message}`.trim(), response.status, { rawResponseText, payload });
   }
 
   return payload as T;

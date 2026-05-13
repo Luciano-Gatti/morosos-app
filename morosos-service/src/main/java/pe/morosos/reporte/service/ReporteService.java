@@ -5,6 +5,7 @@ import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -26,6 +27,7 @@ import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
 import pe.morosos.reporte.dto.*;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ReporteService {
     private static final int CUOTAS_MIN_DEFAULT = 2;
@@ -55,13 +57,28 @@ public class ReporteService {
     }
     // implementations abbreviated but complete
     private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(){
-        int min = cuotasMinimas();
-        List<Inmueble> activos = inmuebleRepository.findAll().stream()
+        try {
+            log.info("[morosos-grupo-distrito] Inicio armado de reporte");
+            int min = cuotasMinimas();
+            log.info("[morosos-grupo-distrito] Umbral cuotas mínimas: {}", min);
+            List<Inmueble> activos = inmuebleRepository.findAll().stream()
                 .filter(Objects::nonNull)
                 .filter(Inmueble::isActivo)
                 .filter(i -> i.getId() != null)
                 .toList();
-        Map<UUID,Object[]> deuda = deudaUltimaCarga();
+            log.info("[morosos-grupo-distrito] Inmuebles activos encontrados: {}", activos.size());
+
+            Optional<CargaDeuda> ultimaCargaValida = cargaDeudaRepository.findFirstByEstadoOrderByFechaCargaDesc(CargaDeudaEstado.COMPLETADA);
+            log.info("[morosos-grupo-distrito] Última carga válida existe: {}", ultimaCargaValida.isPresent());
+            ultimaCargaValida.ifPresent(carga -> log.info("[morosos-grupo-distrito] Carga usada id={}, periodo={}, estado={}", carga.getId(), carga.getPeriodo(), carga.getEstado()));
+
+            Map<UUID,Object[]> deuda = deudaUltimaCarga();
+            int detallesEncontrados = deuda.size();
+            long cuotasVencidasNull = deuda.values().stream().filter(Objects::nonNull).filter(x -> x.length > 1 && x[1] == null).count();
+            long montoVencidoNull = deuda.values().stream().filter(Objects::nonNull).filter(x -> x.length > 2 && x[2] == null).count();
+            log.info("[morosos-grupo-distrito] Detalles deuda encontrados: {}", detallesEncontrados);
+            log.info("[morosos-grupo-distrito] Detalles con cuotas_vencidas null: {}", cuotasVencidasNull);
+            log.info("[morosos-grupo-distrito] Detalles con monto_vencido null: {}", montoVencidoNull);
 
         Map<String, List<Inmueble>> porPar = activos.stream()
                 .filter(Objects::nonNull)
@@ -108,7 +125,7 @@ public class ReporteService {
             filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
         }
 
-        List<MorososGrupoDistritoDistritoResponse> porDistrito = new ArrayList<>();
+            List<MorososGrupoDistritoDistritoResponse> porDistrito = new ArrayList<>();
         for (List<Inmueble> items : porDist.values()) {
             if (items.isEmpty()) {
                 continue;
@@ -134,7 +151,15 @@ public class ReporteService {
             }
             porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
         }
-        return new MorososGrupoDistritoResponse(totalPad, totalDeu, totalMor, totalPad - totalMor, totalPad == 0 ? 0 : totalMor * 100d / totalPad, filas, porDistrito);
+            long detallesDebajoUmbral = deuda.values().stream().filter(Objects::nonNull).filter(x -> asIntegerOrZero(x[1]) < min).count();
+            log.info("[morosos-grupo-distrito] Detalles por debajo del umbral: {}", detallesDebajoUmbral);
+            log.info("[morosos-grupo-distrito] Cantidad final de items para el reporte (filas): {}", filas.size());
+
+            return new MorososGrupoDistritoResponse(totalPad, totalDeu, totalMor, totalPad - totalMor, totalPad == 0 ? 0 : totalMor * 100d / totalPad, filas, porDistrito);
+        } catch (Exception e) {
+            log.error("[morosos-grupo-distrito] Error armando reporte", e);
+            throw e;
+        }
     }
     private EstadoInmueblesResponse reporteEstadoInmuebles(){List<Inmueble> all=inmuebleRepository.findAll(); long total=all.size(),act=all.stream().filter(Inmueble::isActivo).count(),hab=all.stream().filter(Inmueble::isSeguimientoHabilitado).count();
         var porGrupo=all.stream().collect(Collectors.groupingBy(i->i.getGrupo()==null?null:i.getGrupo().getId()));
