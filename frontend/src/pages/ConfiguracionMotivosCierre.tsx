@@ -83,6 +83,15 @@ interface FormState {
 
 const emptyForm: FormState = { nombre: "", descripcion: "", activo: true };
 
+const normalizeCodigo = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 50);
+
 export default function ConfiguracionMotivosCierre() {
   const { toast } = useToast();
   const [motivos, setMotivos] = useState<MotivoCierre[]>([]);
@@ -187,12 +196,22 @@ export default function ConfiguracionMotivosCierre() {
       return;
     }
 
+    const codigo = editing?.codigo?.trim() || normalizeCodigo(nombre);
+    if (!codigo) {
+      toast({
+        title: "Código inválido",
+        description: "El nombre debe contener letras o números para generar un código válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
     if (editing) {
       await configuracionApi.actualizarMotivoCierre(editing.id, {
+        codigo,
         nombre,
         descripcion: form.descripcion.trim() || null,
-        activo: form.activo,
       });
       toast({
         title: "Motivo actualizado",
@@ -200,9 +219,9 @@ export default function ConfiguracionMotivosCierre() {
       });
     } else {
       await configuracionApi.crearMotivoCierre({
+        codigo,
         nombre,
         descripcion: form.descripcion.trim() || null,
-        activo: form.activo,
       });
       toast({
         title: "Motivo creado",

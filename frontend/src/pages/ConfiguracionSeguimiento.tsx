@@ -89,6 +89,16 @@ function procesosQueDejanDeCumplir(
   return total;
 }
 
+function parseBooleanParam(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return fallback;
+}
+
 export default function ConfiguracionSeguimiento() {
   const { toast } = useToast();
   const [guardado, setGuardado] = useState<ParametrosSeguimiento>(valoresIniciales);
@@ -111,9 +121,15 @@ export default function ConfiguracionSeguimiento() {
       const get = (code: string) => rows.find((r: any) => r.codigo === code)?.valor;
       const next = {
         cuotasParaMoroso: Number(get("CUOTAS_PARA_MOROSO") ?? valoresIniciales.cuotasParaMoroso),
-        reanudacionPorIncumplimiento: Boolean(get("REANUDACION_POR_INCUMPLIMIENTO") ?? valoresIniciales.reanudacionPorIncumplimiento),
+        reanudacionPorIncumplimiento: parseBooleanParam(
+          get("REANUDACION_POR_INCUMPLIMIENTO"),
+          valoresIniciales.reanudacionPorIncumplimiento,
+        ),
         diasEntreEtapas: Number(get("DIAS_ENTRE_ETAPAS") ?? valoresIniciales.diasEntreEtapas),
-        notificarCambiosEtapa: Boolean(get("NOTIFICAR_CAMBIOS_ETAPA") ?? valoresIniciales.notificarCambiosEtapa),
+        notificarCambiosEtapa: parseBooleanParam(
+          get("NOTIFICAR_CAMBIOS_ETAPA"),
+          valoresIniciales.notificarCambiosEtapa,
+        ),
         modoOperacion: String(get("MODO_OPERACION") ?? valoresIniciales.modoOperacion) === "manual" ? "manual" : "asistido",
       } as ParametrosSeguimiento;
       setGuardado(next);
