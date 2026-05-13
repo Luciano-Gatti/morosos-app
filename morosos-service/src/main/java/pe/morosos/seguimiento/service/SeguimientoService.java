@@ -18,6 +18,7 @@ import pe.morosos.etapa.entity.EtapaConfig;
 import pe.morosos.etapa.repository.EtapaConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.motivocierre.entity.MotivoCierre;
 import pe.morosos.seguimiento.MotorReglasSeguimiento;
 import pe.morosos.seguimiento.dto.BulkActionResultResponse;
@@ -44,13 +45,14 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.ProcesoCierreCambioParametroRepository procesoCierreCambioParametroRepository;
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
     private final InmuebleRepository inmuebleRepository;
+    private final ParametroSeguimientoRulesService parametroRulesService;
 
     
 
     @Transactional(readOnly = true)
     public Page<SeguimientoBandejaRowResponse> findBandeja(String query, UUID grupoId, UUID distritoId, UUID etapaId,
                                                            CasoSeguimientoEstado estado, Integer cuotasMin, Pageable pageable) {
-        int minCuotas = cuotasMin == null ? 0 : cuotasMin;
+        int minCuotas = cuotasMin == null ? parametroRulesService.cuotasMinimasMorosidad() : cuotasMin;
         Optional<pe.morosos.deuda.entity.CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
                 List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
 
