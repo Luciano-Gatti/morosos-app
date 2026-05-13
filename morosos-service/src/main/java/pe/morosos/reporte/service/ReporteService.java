@@ -13,6 +13,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.entity.AuditLog;
 import pe.morosos.audit.repository.AuditLogRepository;
 import pe.morosos.common.api.PageResponse;
@@ -31,7 +32,8 @@ import pe.morosos.reporte.dto.*;
 @RequiredArgsConstructor
 public class ReporteService {
     private static final int CUOTAS_MIN_DEFAULT = 2;
-    private static final String PARAM_CUOTAS_MIN = "CUOTAS_MINIMAS_MOROSIDAD";
+    private static final String PARAM_CUOTAS_MIN = "CUOTAS_PARA_MOROSO";
+    private static final String PARAM_CUOTAS_MIN_LEGACY = "CUOTAS_MINIMAS_MOROSIDAD";
     private static final String SIN_GRUPO = "Sin grupo";
     private static final String SIN_DISTRITO = "Sin distrito";
 
@@ -43,6 +45,7 @@ public class ReporteService {
     private final EntityManager entityManager;
 
 
+    @Transactional(readOnly = true)
     public Object obtenerReporte(String reporteId, LocalDate fechaDesde, LocalDate fechaHasta, String action,
                                  String entityType, String tipoAccion, java.util.UUID grupoId, java.util.UUID distritoId, java.util.UUID actorId, Pageable pageable) {
         return switch (reporteId) {
@@ -61,9 +64,8 @@ public class ReporteService {
             log.info("[morosos-grupo-distrito] Inicio armado de reporte");
             int min = cuotasMinimas();
             log.info("[morosos-grupo-distrito] Umbral cuotas mínimas: {}", min);
-            List<Inmueble> activos = inmuebleRepository.findAll().stream()
+            List<Inmueble> activos = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
-                .filter(Inmueble::isActivo)
                 .filter(i -> i.getId() != null)
                 .toList();
             log.info("[morosos-grupo-distrito] Inmuebles activos encontrados: {}", activos.size());
@@ -174,6 +176,7 @@ public class ReporteService {
     private List<PorcentajesMorosidadDetalleResponse> buildDetalle(List<Inmueble> activos,Map<UUID,Object[]> deuda,int min,boolean grupo){Map<UUID,List<Inmueble>> map=activos.stream().collect(Collectors.groupingBy(i->grupo?i.getGrupo().getId():i.getDistrito().getId())); List<PorcentajesMorosidadDetalleResponse> out=new ArrayList<>(); for(List<Inmueble> v:map.values()){Inmueble r=v.get(0); long t=v.size(),c=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:v){Object[] x=deuda.get(i.getId()); if(x!=null){c++; Integer cc=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(cc!=null&&cc>=min)m++;}} out.add(new PorcentajesMorosidadDetalleResponse(grupo?r.getGrupo().getId():r.getDistrito().getId(),grupo?r.getGrupo().getNombre():r.getDistrito().getNombre(),t,c,m,t-m,t==0?0:c*100d/t,t==0?0:m*100d/t,t==0?0:(t-m)*100d/t,mt));} return out;}
     private int cuotasMinimas() {
         return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
+                .or(() -> parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN_LEGACY))
                 .map(p -> {
                     String valor = p.getValor();
                     if (valor == null || valor.isBlank()) {
