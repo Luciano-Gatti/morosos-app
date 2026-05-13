@@ -30,6 +30,8 @@ import pe.morosos.reporte.dto.*;
 public class ReporteService {
     private static final int CUOTAS_MIN_DEFAULT = 2;
     private static final String PARAM_CUOTAS_MIN = "CUOTAS_MINIMAS_MOROSIDAD";
+    private static final String SIN_GRUPO = "Sin grupo";
+    private static final String SIN_DISTRITO = "Sin distrito";
 
     private final InmuebleRepository inmuebleRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
@@ -53,17 +55,70 @@ public class ReporteService {
     }
     // implementations abbreviated but complete
     private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(){
-        int min = cuotasMinimas(); 
+        int min = cuotasMinimas();
         List<Inmueble> activos = inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList();
-        Map<UUID,Object[]> deuda=deudaUltimaCarga();
-        List<MorososGrupoDistritoRowResponse> filas=new ArrayList<>();
-        Map<UUID,List<Inmueble>> porDist=activos.stream().collect(Collectors.groupingBy(i->i.getDistrito().getId()));
-        Map<String,List<Inmueble>> porPar=activos.stream().collect(Collectors.groupingBy(i->i.getGrupo().getId()+"|"+i.getDistrito().getId()));
-        long totalPad=activos.size(), totalDeu=0,totalMor=0; BigDecimal montoTotal=BigDecimal.ZERO;
-        for(List<Inmueble> items:porPar.values()){Inmueble r=items.get(0); long p=items.size(),d=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:items){Object[] x=deuda.get(i.getId()); if(x!=null){d++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)m++;}} totalDeu+=d; totalMor+=m; montoTotal=montoTotal.add(mt); filas.add(new MorososGrupoDistritoRowResponse(r.getGrupo().getId(),r.getGrupo().getNombre(),r.getDistrito().getId(),r.getDistrito().getNombre(),p,d,m,p-m,p==0?0:m*100d/p,mt));}
-        List<MorososGrupoDistritoDistritoResponse> porDistrito=new ArrayList<>();
-        for(List<Inmueble> items:porDist.values()){Inmueble r=items.get(0); long p=items.size(),d=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:items){Object[] x=deuda.get(i.getId()); if(x!=null){d++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)m++;}} porDistrito.add(new MorososGrupoDistritoDistritoResponse(r.getDistrito().getId(),r.getDistrito().getNombre(),p,d,m,p-m,p==0?0:m*100d/p,mt));}
-        return new MorososGrupoDistritoResponse(totalPad,totalDeu,totalMor,totalPad-totalMor,totalPad==0?0:totalMor*100d/totalPad,filas,porDistrito);
+        Map<UUID,Object[]> deuda = deudaUltimaCarga();
+
+        Map<String, List<Inmueble>> porPar = activos.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(i -> grupoId(i) + "|" + distritoId(i)));
+        Map<UUID, List<Inmueble>> porDist = activos.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(this::distritoId));
+
+        List<MorososGrupoDistritoRowResponse> filas = new ArrayList<>();
+        long totalPad = activos.size();
+        long totalDeu = 0;
+        long totalMor = 0;
+        BigDecimal montoTotal = BigDecimal.ZERO;
+
+        for (List<Inmueble> items : porPar.values()) {
+            Inmueble r = items.get(0);
+            UUID grupoId = grupoId(r);
+            String grupoNombre = grupoNombre(r);
+            UUID distritoId = distritoId(r);
+            String distritoNombre = distritoNombre(r);
+            long p = items.size();
+            long d = 0;
+            long m = 0;
+            BigDecimal mt = BigDecimal.ZERO;
+
+            for (Inmueble i : items) {
+                Object[] x = deuda.get(i.getId());
+                if (x == null) continue;
+                d++;
+                int cuotas = asIntegerOrZero(x[1]);
+                BigDecimal monto = asBigDecimalOrZero(x[2]);
+                mt = mt.add(monto);
+                if (cuotas >= min) m++;
+            }
+            totalDeu += d;
+            totalMor += m;
+            montoTotal = montoTotal.add(mt);
+            filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+        }
+
+        List<MorososGrupoDistritoDistritoResponse> porDistrito = new ArrayList<>();
+        for (List<Inmueble> items : porDist.values()) {
+            Inmueble r = items.get(0);
+            UUID distritoId = distritoId(r);
+            String distritoNombre = distritoNombre(r);
+            long p = items.size();
+            long d = 0;
+            long m = 0;
+            BigDecimal mt = BigDecimal.ZERO;
+            for (Inmueble i : items) {
+                Object[] x = deuda.get(i.getId());
+                if (x == null) continue;
+                d++;
+                int cuotas = asIntegerOrZero(x[1]);
+                BigDecimal monto = asBigDecimalOrZero(x[2]);
+                mt = mt.add(monto);
+                if (cuotas >= min) m++;
+            }
+            porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+        }
+        return new MorososGrupoDistritoResponse(totalPad, totalDeu, totalMor, totalPad - totalMor, totalPad == 0 ? 0 : totalMor * 100d / totalPad, filas, porDistrito);
     }
     private EstadoInmueblesResponse reporteEstadoInmuebles(){List<Inmueble> all=inmuebleRepository.findAll(); long total=all.size(),act=all.stream().filter(Inmueble::isActivo).count(),hab=all.stream().filter(Inmueble::isSeguimientoHabilitado).count();
         var porGrupo=all.stream().collect(Collectors.groupingBy(i->i.getGrupo()==null?null:i.getGrupo().getId()));
@@ -76,7 +131,21 @@ public class ReporteService {
     private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=cuotasMinimas(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}
         List<PorcentajesMorosidadDetalleResponse> pg=buildDetalle(activos,deuda,min,true); List<PorcentajesMorosidadDetalleResponse> pd=buildDetalle(activos,deuda,min,false); long t=activos.size(); return new PorcentajesMorosidadResponse(t,con,mor,t-mor,t==0?0:con*100d/t,t==0?0:mor*100d/t,t==0?0:(t-mor)*100d/t,monto,pg,pd);}    
     private List<PorcentajesMorosidadDetalleResponse> buildDetalle(List<Inmueble> activos,Map<UUID,Object[]> deuda,int min,boolean grupo){Map<UUID,List<Inmueble>> map=activos.stream().collect(Collectors.groupingBy(i->grupo?i.getGrupo().getId():i.getDistrito().getId())); List<PorcentajesMorosidadDetalleResponse> out=new ArrayList<>(); for(List<Inmueble> v:map.values()){Inmueble r=v.get(0); long t=v.size(),c=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:v){Object[] x=deuda.get(i.getId()); if(x!=null){c++; Integer cc=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(cc!=null&&cc>=min)m++;}} out.add(new PorcentajesMorosidadDetalleResponse(grupo?r.getGrupo().getId():r.getDistrito().getId(),grupo?r.getGrupo().getNombre():r.getDistrito().getNombre(),t,c,m,t-m,t==0?0:c*100d/t,t==0?0:m*100d/t,t==0?0:(t-m)*100d/t,mt));} return out;}
-    private int cuotasMinimas(){return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN).map(p->Integer.parseInt(p.getValor())).orElse(CUOTAS_MIN_DEFAULT);}    
+    private int cuotasMinimas() {
+        return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
+                .map(p -> {
+                    String valor = p.getValor();
+                    if (valor == null || valor.isBlank()) {
+                        return CUOTAS_MIN_DEFAULT;
+                    }
+                    try {
+                        return Integer.parseInt(valor.trim());
+                    } catch (NumberFormatException ex) {
+                        return CUOTAS_MIN_DEFAULT;
+                    }
+                })
+                .orElse(CUOTAS_MIN_DEFAULT);
+    }
 
 
     private AccionesFechasResponse reporteAccionesFechas(LocalDate fechaDesde, LocalDate fechaHasta, String tipoAccion, UUID grupoId, UUID distritoId, UUID actorId, Pageable pageable) {
@@ -332,5 +401,35 @@ public class ReporteService {
         int totalPages = pageable.getPageSize() == 0 ? 1 : (int) Math.ceil((double) items.size() / pageable.getPageSize());
         return new PageResponse<>(items.subList(from, to), pageable.getPageNumber(), pageable.getPageSize(), items.size(), totalPages);
     }
-    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); if(c.isEmpty()) return Map.of(); return cargaDeudaDetalleRepository.findDeudaByCarga(c.get().getId()).stream().collect(Collectors.toMap(v->(UUID)v[0],v->v));}
+    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); if(c.isEmpty()) return Map.of(); return cargaDeudaDetalleRepository.findDeudaByCarga(c.get().getId()).stream().filter(v -> v != null && v.length > 0 && v[0] instanceof UUID).collect(Collectors.toMap(v->(UUID)v[0],v->v,(a,b)->a));}
+
+    private UUID grupoId(Inmueble i) {
+        return i.getGrupo() == null ? null : i.getGrupo().getId();
+    }
+
+    private String grupoNombre(Inmueble i) {
+        return i.getGrupo() == null ? SIN_GRUPO : i.getGrupo().getNombre();
+    }
+
+    private UUID distritoId(Inmueble i) {
+        return i.getDistrito() == null ? null : i.getDistrito().getId();
+    }
+
+    private String distritoNombre(Inmueble i) {
+        return i.getDistrito() == null ? SIN_DISTRITO : i.getDistrito().getNombre();
+    }
+
+    private int asIntegerOrZero(Object value) {
+        if (value == null) return 0;
+        if (value instanceof Integer i) return i;
+        if (value instanceof Number n) return n.intValue();
+        return 0;
+    }
+
+    private BigDecimal asBigDecimalOrZero(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal b) return b;
+        if (value instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        return BigDecimal.ZERO;
+    }
 }
