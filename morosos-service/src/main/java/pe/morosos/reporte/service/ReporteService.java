@@ -114,17 +114,24 @@ public class ReporteService {
                     continue;
                 }
                 Object[] x = deuda.get(i.getId());
-                if (x == null) continue;
-                d++;
-                int cuotas = asIntegerOrZero(x[1]);
-                BigDecimal monto = asBigDecimalOrZero(x[2]);
-                mt = mt.add(monto);
-                if (cuotas >= min) m++;
+                int cuotas = 0;
+                BigDecimal monto = BigDecimal.ZERO;
+                if (x != null) {
+                    cuotas = asIntegerOrZero(x[1]);
+                    monto = asBigDecimalOrZero(x[2]);
+                    mt = mt.add(monto);
+                }
+                if (cuotas >= min) {
+                    m++;
+                } else if (cuotas > 0) {
+                    d++;
+                }
             }
             totalDeu += d;
             totalMor += m;
             montoTotal = montoTotal.add(mt);
-            filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+            long a = p - d - m;
+            filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, a, p == 0 ? 0 : m * 100d / p, mt));
         }
 
             List<MorososGrupoDistritoDistritoResponse> porDistrito = new ArrayList<>();
@@ -144,25 +151,60 @@ public class ReporteService {
                     continue;
                 }
                 Object[] x = deuda.get(i.getId());
-                if (x == null) continue;
-                d++;
-                int cuotas = asIntegerOrZero(x[1]);
-                BigDecimal monto = asBigDecimalOrZero(x[2]);
-                mt = mt.add(monto);
-                if (cuotas >= min) m++;
+                int cuotas = 0;
+                BigDecimal monto = BigDecimal.ZERO;
+                if (x != null) {
+                    cuotas = asIntegerOrZero(x[1]);
+                    monto = asBigDecimalOrZero(x[2]);
+                    mt = mt.add(monto);
+                }
+                if (cuotas >= min) {
+                    m++;
+                } else if (cuotas > 0) {
+                    d++;
+                }
             }
-            porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+            long a = p - d - m;
+            porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, a, p == 0 ? 0 : m * 100d / p, mt));
         }
             long detallesDebajoUmbral = deuda.values().stream().filter(Objects::nonNull).filter(x -> asIntegerOrZero(x[1]) < min).count();
             log.info("[morosos-grupo-distrito] Detalles por debajo del umbral: {}", detallesDebajoUmbral);
             log.info("[morosos-grupo-distrito] Cantidad final de items para el reporte (filas): {}", filas.size());
 
-            return new MorososGrupoDistritoResponse(totalPad, totalDeu, totalMor, totalPad - totalMor, totalPad == 0 ? 0 : totalMor * 100d / totalPad, filas, porDistrito);
+            long totalAlDia = totalPad - totalDeu - totalMor;
+            return new MorososGrupoDistritoResponse(
+                    totalPad,
+                    totalDeu,
+                    totalMor,
+                    totalAlDia,
+                    totalPad == 0 ? 0 : totalMor * 100d / totalPad,
+                    min,
+                    filas,
+                    aggregatePorGrupo(filas),
+                    porDistrito,
+                    filas
+            );
         } catch (Exception e) {
             log.error("[morosos-grupo-distrito] Error armando reporte", e);
             throw e;
         }
     }
+    private List<MorososGrupoDistritoRowResponse> aggregatePorGrupo(List<MorososGrupoDistritoRowResponse> filas) {
+        Map<UUID, List<MorososGrupoDistritoRowResponse>> porGrupo = filas.stream()
+                .collect(Collectors.groupingBy(MorososGrupoDistritoRowResponse::grupoId));
+        List<MorososGrupoDistritoRowResponse> resultado = new ArrayList<>();
+        for (List<MorososGrupoDistritoRowResponse> items : porGrupo.values()) {
+            MorososGrupoDistritoRowResponse ref = items.get(0);
+            long padron = items.stream().mapToLong(MorososGrupoDistritoRowResponse::padron).sum();
+            long deudores = items.stream().mapToLong(MorososGrupoDistritoRowResponse::deudores).sum();
+            long morosos = items.stream().mapToLong(MorososGrupoDistritoRowResponse::morosos).sum();
+            long alDia = items.stream().mapToLong(MorososGrupoDistritoRowResponse::alDia).sum();
+            BigDecimal monto = items.stream().map(MorososGrupoDistritoRowResponse::montoTotalDeuda).reduce(BigDecimal.ZERO, BigDecimal::add);
+            resultado.add(new MorososGrupoDistritoRowResponse(ref.grupoId(), ref.grupoNombre(), null, "", padron, deudores, morosos, alDia, padron == 0 ? 0 : morosos * 100d / padron, monto));
+        }
+        return resultado;
+    }
+
     private EstadoInmueblesResponse reporteEstadoInmuebles(){List<Inmueble> all=inmuebleRepository.findAll(); long total=all.size(),act=all.stream().filter(Inmueble::isActivo).count(),hab=all.stream().filter(Inmueble::isSeguimientoHabilitado).count();
         var porGrupo=all.stream().collect(Collectors.groupingBy(i->i.getGrupo()==null?null:i.getGrupo().getId()));
         List<EstadoInmueblesGrupoResponse> g=porGrupo.values().stream().map(v->{Inmueble r=v.get(0); long t=v.size(),a=v.stream().filter(Inmueble::isActivo).count(),h=v.stream().filter(Inmueble::isSeguimientoHabilitado).count(); return new EstadoInmueblesGrupoResponse(r.getGrupo()==null?null:r.getGrupo().getId(),r.getGrupo()==null?"Sin grupo":r.getGrupo().getNombre(),t,a,t-a,h,t-h);}).toList();
