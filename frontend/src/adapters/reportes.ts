@@ -16,34 +16,35 @@ export function mapReporteMorosos(payload: any): {
   grupos: MorososPorGrupoRow[];
   distritos: MorososPorDistritoRow[];
   total: MorosidadPorcentajeTotal;
+  parametroCuotasMoroso: number;
 } {
   const root = payload ?? {};
-  const gruposRaw = root.grupos ?? root.porGrupo ?? root.content ?? [];
+  const gruposRaw = root.grupos ?? root.porGrupo ?? root.filas ?? root.content ?? [];
   const distritosRaw = root.distritos ?? root.porDistrito ?? [];
   const grupos: MorososPorGrupoRow[] = (Array.isArray(gruposRaw) ? gruposRaw : []).map((r: any) => ({
-    grupo: toStr(r.grupo),
-    distrito: toStr(r.distrito),
-    etiqueta: toStr(r.etiqueta, `${toStr(r.grupo)} — ${toStr(r.distrito)}`),
-    totalInmuebles: toNum(r.totalInmuebles),
+    grupo: toStr(r.grupo ?? r.grupoNombre),
+    distrito: toStr(r.distrito ?? r.distritoNombre),
+    etiqueta: toStr(r.etiqueta, `${toStr(r.grupo ?? r.grupoNombre)} — ${toStr(r.distrito ?? r.distritoNombre)}`),
+    totalInmuebles: toNum(r.totalInmuebles ?? r.padron),
     deudores: toNum(r.deudores),
     morosos: toNum(r.morosos),
-    porcentaje: toNum(r.porcentaje),
+    porcentaje: toNum(r.porcentaje ?? r.porcentajeMorosidad),
   }));
   const distritos: MorososPorDistritoRow[] = (Array.isArray(distritosRaw) ? distritosRaw : []).map((r: any) => ({
-    distrito: toStr(r.distrito),
-    totalInmuebles: toNum(r.totalInmuebles),
+    distrito: toStr(r.distrito ?? r.distritoNombre),
+    totalInmuebles: toNum(r.totalInmuebles ?? r.padron),
     deudores: toNum(r.deudores),
     morosos: toNum(r.morosos),
-    porcentaje: toNum(r.porcentaje),
+    porcentaje: toNum(r.porcentaje ?? r.porcentajeMorosidad),
   }));
   const total: MorosidadPorcentajeTotal = {
-    totalInmuebles: toNum(root.totalInmuebles),
-    deudores: toNum(root.deudores),
-    morosos: toNum(root.morosos),
-    alDia: toNum(root.alDia),
-    porcentajeMorosidad: toNum(root.porcentajeMorosidad),
+    totalInmuebles: toNum(root.totalInmuebles ?? root.totalPadron),
+    deudores: toNum(root.deudores ?? root.totalDeudores),
+    morosos: toNum(root.morosos ?? root.totalMorosos),
+    alDia: toNum(root.alDia ?? root.totalAlDia),
+    porcentajeMorosidad: toNum(root.porcentajeMorosidad ?? root.porcentajeMorosidadGeneral),
   };
-  return { grupos, distritos, total };
+  return { grupos, distritos, total, parametroCuotasMoroso: toNum(root.parametroCuotasMoroso, 0) };
 }
 
 export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
