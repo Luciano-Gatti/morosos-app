@@ -96,7 +96,7 @@ function getReporteMorososViewModel() {
   return emptyMorososViewModel();
 }
 function getReporteEstadoInmueblesViewModel() {
-  return emptyRowsViewModel<any>();
+  return { rows: [], totales: { totalInmuebles: 0, alDia: 0, deudores: 0, morosos: 0, deudaTotal: 0 }, distribucion: [], parametroCuotasMoroso: 0 };
 }
 function getReporteHistorialMovimientosViewModel() {
   return emptyRowsViewModel<MovimientoRegistro>();
@@ -396,12 +396,12 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       .estadoInmuebles()
       .then((payload) => {
         if (cancelled) return;
-        const vm = { rows: mapReporteEstadoInmuebles(payload) };
+        const vm = mapReporteEstadoInmuebles(payload);
         setEstadoInmueblesState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<any>(), empty: true }));
+        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: getReporteEstadoInmueblesViewModel(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener estado de inmuebles.", variant: "destructive" });
       });
     return () => {
@@ -422,7 +422,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setHistorialState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<any>(), empty: true }));
+        setHistorialState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: getReporteHistorialMovimientosViewModel(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener historial de movimientos.", variant: "destructive" });
       });
     return () => {
@@ -1073,12 +1073,37 @@ function ReporteEstadoInmuebles({
 }) {
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
-  if (state.empty) return <div className="text-sm text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
-  const rows = state.data.rows;
-  const morosos = rows.filter((r) => r.estado === "Moroso").length;
-  const deudores = rows.filter((r) => r.estado === "Deudor").length;
-  const alDia = rows.filter((r) => r.estado === "Al día").length;
-  const totalDeuda = rows.reduce((acc, r) => acc + r.montoAdeudado, 0);
+  const reporte = state.data ?? null;
+  const hasTotales = !!reporte?.totales;
+  const rows = Array.isArray(reporte?.rows) ? reporte.rows : [];
+  const distribucionBase = Array.isArray(reporte?.distribucion) ? reporte.distribucion : [];
+
+  if (state.empty || (!hasTotales && rows.length === 0 && distribucionBase.length === 0)) {
+    return <div className="text-sm text-muted-foreground">No hay datos cargados para este reporte.</div>;
+  }
+
+  const totales = reporte?.totales ?? { totalInmuebles: 0, alDia: 0, deudores: 0, morosos: 0, deudaTotal: 0 };
+  const totalInmuebles = Number(totales.totalInmuebles ?? 0);
+  const alDia = Number(totales.alDia ?? 0);
+  const deudores = Number(totales.deudores ?? 0);
+  const morosos = Number(totales.morosos ?? 0);
+  const totalDeuda = Number(totales.deudaTotal ?? 0);
+  const distribucion = distribucionBase.length > 0
+    ? distribucionBase
+    : (hasTotales
+      ? [
+          { estado: "AL_DIA", cantidad: alDia, porcentaje: totalInmuebles === 0 ? 0 : (alDia * 100) / totalInmuebles },
+          { estado: "DEUDOR", cantidad: deudores, porcentaje: totalInmuebles === 0 ? 0 : (deudores * 100) / totalInmuebles },
+          { estado: "MOROSO", cantidad: morosos, porcentaje: totalInmuebles === 0 ? 0 : (morosos * 100) / totalInmuebles },
+        ]
+      : []);
+  const chartData = distribucion.map((d) => ({
+    key: d.estado,
+    name: d.estado === "AL_DIA" ? "Al día" : d.estado === "DEUDOR" ? "Deudores" : "Morosos",
+    value: d.cantidad,
+    pct: d.porcentaje,
+    fill: d.estado === "AL_DIA" ? "hsl(145 35% 38%)" : d.estado === "DEUDOR" ? "hsl(215 75% 38%)" : "hsl(8 78% 50%)",
+  }));
 
   const PAGE = 25;
   const [page, setPage] = useState(1);
@@ -1089,7 +1114,7 @@ function ReporteEstadoInmuebles({
     <div className="space-y-5">
       <KpiBar
         items={[
-          { label: "Total inmuebles", value: numberFmt.format(rows.length) },
+          { label: "Total inmuebles", value: numberFmt.format(totalInmuebles) },
           { label: "Al día", value: numberFmt.format(alDia), tone: "ok" },
           { label: "Deudores", value: numberFmt.format(deudores), tone: "primary" },
           { label: "Morosos", value: numberFmt.format(morosos), tone: "danger" },
@@ -1098,41 +1123,51 @@ function ReporteEstadoInmuebles({
       />
 
       <ChartBox id="rep-estado-chart" title="Distribución de inmuebles por estado" height={220}>
-        <PieChart>
-          <Pie
-            data={[
-              { name: "Al día", value: alDia, fill: "hsl(145 35% 38%)" },
-              { name: "Deudores", value: deudores, fill: "hsl(215 75% 38%)" },
-              { name: "Morosos", value: morosos, fill: "hsl(8 78% 50%)" },
-            ]}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={45}
-            outerRadius={80}
-            paddingAngle={2}
-          />
-          <Tooltip />
-          <Legend />
-        </PieChart>
+        {chartData.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            No hay datos para graficar.
+          </div>
+        ) : (
+          <PieChart>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={45}
+              outerRadius={80}
+              paddingAngle={2}
+            />
+            <Tooltip formatter={(value: number, _n, p: any) => `${numberFmt.format(Number(value))} (${pctFmt(Number(p?.payload?.pct ?? 0))})`} />
+            <Legend formatter={(value: string, e: any) => `${value} — ${numberFmt.format(Number(e?.payload?.value ?? 0))} (${pctFmt(Number(e?.payload?.pct ?? 0))})`} />
+          </PieChart>
+        )}
       </ChartBox>
 
       <div>
         <SectionTitle>Listado completo del padrón</SectionTitle>
-        <DataTable
-          head={["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"]}
-          rows={slice.map((r) => [
-            r.cuenta,
-            r.titular,
-            r.grupo,
-            r.distrito,
-            r.estado,
-            r.etapa,
-            r.cuotasAdeudadas === 0 ? "—" : numberFmt.format(r.cuotasAdeudadas),
-            r.montoAdeudado === 0 ? "—" : moneyFmt.format(r.montoAdeudado),
-          ])}
-          alignRight={[6, 7]}
-        />
-        <Paginador page={page} totalPages={totalPages} setPage={setPage} total={rows.length} pageSize={PAGE} />
+        {rows.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            No hay inmuebles para mostrar.
+          </div>
+        ) : (
+          <>
+            <DataTable
+              head={["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"]}
+              rows={slice.map((r) => [
+                r.cuenta,
+                r.titular,
+                r.grupo,
+                r.distrito,
+                r.estado,
+                r.etapa,
+                r.cuotasAdeudadas === 0 ? "—" : numberFmt.format(r.cuotasAdeudadas),
+                r.montoAdeudado === 0 ? "—" : moneyFmt.format(r.montoAdeudado),
+              ])}
+              alignRight={[6, 7]}
+            />
+            <Paginador page={page} totalPages={totalPages} setPage={setPage} total={rows.length} pageSize={PAGE} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -1773,7 +1808,7 @@ async function runExport(
         meta: {
           ...meta,
           kpis: [
-            { label: "Total", value: numberFmt.format(rows.length) },
+            { label: "Total", value: numberFmt.format(totalInmuebles) },
             { label: "Al día", value: numberFmt.format(alDia) },
             { label: "Deudores", value: numberFmt.format(deudores) },
             { label: "Morosos", value: numberFmt.format(morosos) },
@@ -1873,7 +1908,7 @@ async function runExport(
         meta: {
           ...meta,
           kpis: [
-            { label: "Total movimientos", value: numberFmt.format(rows.length) },
+            { label: "Total movimientos", value: numberFmt.format(totalInmuebles) },
             { label: "Usuarios distintos", value: numberFmt.format(usuariosUnicos) },
             { label: "Tipos representados", value: numberFmt.format(tiposUnicos) },
           ],
