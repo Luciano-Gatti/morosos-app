@@ -401,7 +401,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: getReporteHistorialMovimientosViewModel(), empty: true }));
+        setEstadoInmueblesState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: getReporteEstadoInmueblesViewModel(), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener estado de inmuebles.", variant: "destructive" });
       });
     return () => {
@@ -1073,13 +1073,14 @@ function ReporteEstadoInmuebles({
 }) {
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
-  if (state.empty) return <div className="text-sm text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
+  if (state.empty) return <div className="text-sm text-muted-foreground">No hay datos cargados para este reporte.</div>;
   const rows = state.data.rows;
-  const morosos = state.data.totales.morosos;
-  const deudores = state.data.totales.deudores;
-  const alDia = state.data.totales.alDia;
-  const totalDeuda = state.data.totales.deudaTotal;
-  const totalInmuebles = state.data.totales.totalInmuebles;
+  const totales = state.data?.totales ?? { totalInmuebles: 0, alDia: 0, deudores: 0, morosos: 0, deudaTotal: 0 };
+  const morosos = totales.morosos;
+  const deudores = totales.deudores;
+  const alDia = totales.alDia;
+  const totalDeuda = totales.deudaTotal;
+  const totalInmuebles = totales.totalInmuebles;
   const distribucion = state.data.distribucion.length > 0 ? state.data.distribucion : [
     { estado: "AL_DIA", cantidad: alDia, porcentaje: totalInmuebles === 0 ? 0 : (alDia * 100) / totalInmuebles },
     { estado: "DEUDOR", cantidad: deudores, porcentaje: totalInmuebles === 0 ? 0 : (deudores * 100) / totalInmuebles },
