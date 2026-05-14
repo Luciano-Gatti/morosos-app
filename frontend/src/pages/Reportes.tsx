@@ -868,9 +868,12 @@ function ReporteAcciones({
     ? (state.data as AccionesRegularizacionViewModel).detallePorTipo
     : conteosFallback;
   const total = filtradas.length;
+  const hasChartData = conteos.some((c) => Number(c.cantidad ?? 0) > 0);
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
-  if (state.empty) return <div className="text-sm text-muted-foreground">No hay acciones para el período seleccionado.</div>;
+  if (state.empty && variante !== "regularizacion") {
+    return <div className="text-sm text-muted-foreground">No hay acciones para el período seleccionado.</div>;
+  }
 
   return (
     <div className="space-y-5">
@@ -888,30 +891,42 @@ function ReporteAcciones({
         id={`rep-acciones-${variante}-chart`}
         title={variante === "notificacion" ? "Acciones de notificación" : "Acciones de regularización"}
       >
-        <BarChart data={conteos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-          <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip />
-          <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
-            {conteos.map((c, i) => (
-              <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
-            ))}
-          </Bar>
-        </BarChart>
+        {hasChartData ? (
+          <BarChart data={conteos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+            <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
+              {conteos.map((c, i) => (
+                <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        ) : (
+          <div className="flex h-[240px] items-center justify-center text-[12.5px] text-muted-foreground">
+            No hay datos para graficar.
+          </div>
+        )}
       </ChartBox>
 
       <div>
         <SectionTitle>Detalle por tipo</SectionTitle>
-        <DataTable
-          head={["Tipo de acción", "Cantidad", "% del total"]}
-          rows={conteos.map((c) => [
-            c.tipo,
-            numberFmt.format(c.cantidad),
-            total === 0 ? pctFmt(0) : pctFmt(c.porcentaje ?? (c.cantidad / total) * 100),
-          ])}
-          alignRight={[1, 2]}
-        />
+        {total === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            No hay acciones registradas en el período.
+          </div>
+        ) : (
+          <DataTable
+            head={["Tipo de acción", "Cantidad", "% del total"]}
+            rows={conteos.map((c) => [
+              c.tipo,
+              numberFmt.format(c.cantidad),
+              total === 0 ? pctFmt(0) : pctFmt(c.porcentaje ?? (c.cantidad / total) * 100),
+            ])}
+            alignRight={[1, 2]}
+          />
+        )}
       </div>
 
       {variante === "regularizacion" && (
@@ -920,6 +935,7 @@ function ReporteAcciones({
             titulo="Regularizaciones — detalle"
             descripcion="Inmuebles que regularizaron su situación en el período."
             acciones={filtradas.filter((a) => a.tipo === "Regularización")}
+            emptyMessage="No hay acciones registradas en el período."
           />
           <ReportePlanesDePagoDetalle planes={(state.data as AccionesRegularizacionViewModel).planesDePago ?? []} />
           <ReporteAccionesDetalle
@@ -927,6 +943,7 @@ function ReporteAcciones({
             descripcion="Compromisos de pago asumidos por los titulares en el período."
             acciones={filtradas.filter((a) => a.tipo === "Compromiso de pago")}
             compromisos={(state.data as AccionesRegularizacionViewModel).compromisosDePago ?? []}
+            emptyMessage="No hay compromisos de pago registrados en el período."
           />
         </>
       )}
@@ -942,10 +959,12 @@ function ReporteAccionesDetalle({
   titulo,
   descripcion,
   acciones,
+  emptyMessage,
 }: {
   titulo: string;
   descripcion?: string;
   acciones: AccionRegistro[];
+  emptyMessage?: string;
   compromisos?: { fecha: Date; cuenta: string; titular: string; grupo: string; distrito: string; responsable: string }[];
 }) {
   const PAGE = 15;
@@ -964,7 +983,7 @@ function ReporteAccionesDetalle({
       </div>
       {acciones.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
-          Sin registros en el período seleccionado.
+          {emptyMessage ?? "Sin registros en el período seleccionado."}
         </div>
       ) : (
         <>
@@ -1014,7 +1033,7 @@ function ReportePlanesDePagoDetalle({ planes }: { planes: PlanPagoDetalle[] }) {
       />
       {planes.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
-          No hay datos cargados para este reporte.
+          No hay planes de pago registrados en el período.
         </div>
       ) : (
         <>
