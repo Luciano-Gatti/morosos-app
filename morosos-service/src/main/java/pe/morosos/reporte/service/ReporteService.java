@@ -130,7 +130,8 @@ public class ReporteService {
             totalDeu += d;
             totalMor += m;
             montoTotal = montoTotal.add(mt);
-            filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+            long a = p - d - m;
+            filas.add(new MorososGrupoDistritoRowResponse(grupoId, grupoNombre, distritoId, distritoNombre, p, d, m, a, p == 0 ? 0 : m * 100d / p, mt));
         }
 
             List<MorososGrupoDistritoDistritoResponse> porDistrito = new ArrayList<>();
@@ -163,7 +164,8 @@ public class ReporteService {
                     d++;
                 }
             }
-            porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, p - m, p == 0 ? 0 : m * 100d / p, mt));
+            long a = p - d - m;
+            porDistrito.add(new MorososGrupoDistritoDistritoResponse(distritoId, distritoNombre, p, d, m, a, p == 0 ? 0 : m * 100d / p, mt));
         }
             long detallesDebajoUmbral = deuda.values().stream().filter(Objects::nonNull).filter(x -> asIntegerOrZero(x[1]) < min).count();
             log.info("[morosos-grupo-distrito] Detalles por debajo del umbral: {}", detallesDebajoUmbral);
