@@ -36,6 +36,34 @@ export interface AccionRegistro {
   usuario: string;
 }
 
+export interface RegularizacionPlanDetalle {
+  fechaAlta: Date;
+  cuenta: string;
+  titular: string;
+  grupo: string;
+  cuotas: number;
+  montoTotal: number;
+  proximoVencimiento: Date | null;
+  vencimientoFinal: Date | null;
+  estado: string;
+}
+
+export interface CompromisoPagoDetalle {
+  fecha: Date;
+  cuenta: string;
+  titular: string;
+  grupo: string;
+  distrito: string;
+  responsable: string;
+}
+
+export interface AccionesRegularizacionViewModel {
+  rows: AccionRegistro[];
+  detallePorTipo: { tipo: AccionTipo; cantidad: number; porcentaje: number }[];
+  planesDePago: RegularizacionPlanDetalle[];
+  compromisosDePago: CompromisoPagoDetalle[];
+}
+
 export type EstadoInmueble = "Moroso" | "Deudor" | "Al día";
 
 export interface InmuebleEstadoRow {
@@ -77,4 +105,3 @@ export interface MovimientoRegistro {
   usuario: string;
   categoria: string;
 }
-
