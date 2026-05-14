@@ -205,12 +205,67 @@ public class ReporteService {
         return resultado;
     }
 
-    private EstadoInmueblesResponse reporteEstadoInmuebles(){List<Inmueble> all=inmuebleRepository.findAll(); long total=all.size(),act=all.stream().filter(Inmueble::isActivo).count(),hab=all.stream().filter(Inmueble::isSeguimientoHabilitado).count();
-        var porGrupo=all.stream().collect(Collectors.groupingBy(i->i.getGrupo()==null?null:i.getGrupo().getId()));
-        List<EstadoInmueblesGrupoResponse> g=porGrupo.values().stream().map(v->{Inmueble r=v.get(0); long t=v.size(),a=v.stream().filter(Inmueble::isActivo).count(),h=v.stream().filter(Inmueble::isSeguimientoHabilitado).count(); return new EstadoInmueblesGrupoResponse(r.getGrupo()==null?null:r.getGrupo().getId(),r.getGrupo()==null?"Sin grupo":r.getGrupo().getNombre(),t,a,t-a,h,t-h);}).toList();
-        var porDist=all.stream().collect(Collectors.groupingBy(i->i.getDistrito()==null?null:i.getDistrito().getId()));
-        List<EstadoInmueblesDistritoResponse> d=porDist.values().stream().map(v->{Inmueble r=v.get(0); long t=v.size(),a=v.stream().filter(Inmueble::isActivo).count(),h=v.stream().filter(Inmueble::isSeguimientoHabilitado).count(); return new EstadoInmueblesDistritoResponse(r.getDistrito()==null?null:r.getDistrito().getId(),r.getDistrito()==null?"Sin distrito":r.getDistrito().getNombre(),t,a,t-a,h,t-h);}).toList();
-        return new EstadoInmueblesResponse(total,act,total-act,hab,total-hab,g,d);}    
+    private EstadoInmueblesResponse reporteEstadoInmuebles() {
+        int cuotasMoroso = cuotasMinimas();
+        List<Inmueble> inmuebles = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
+                .filter(Objects::nonNull)
+                .filter(i -> i.getId() != null)
+                .collect(Collectors.toMap(Inmueble::getId, i -> i, (a, b) -> a, LinkedHashMap::new))
+                .values()
+                .stream()
+                .toList();
+
+        Map<UUID, Object[]> deuda = deudaUltimaCarga();
+        List<EstadoInmueblesResponse.EstadoInmueblesItemResponse> items = new ArrayList<>();
+
+        long alDia = 0;
+        long deudores = 0;
+        long morosos = 0;
+        BigDecimal deudaTotal = BigDecimal.ZERO;
+
+        for (Inmueble inmueble : inmuebles) {
+            Object[] deudaInmueble = deuda.get(inmueble.getId());
+            int cuotasAdeudadas = deudaInmueble == null ? 0 : asIntegerOrZero(deudaInmueble[1]);
+            BigDecimal deudaInmuebleTotal = deudaInmueble == null ? BigDecimal.ZERO : asBigDecimalOrZero(deudaInmueble[2]);
+
+            String estado;
+            if (cuotasAdeudadas >= cuotasMoroso) {
+                estado = "Moroso";
+                morosos++;
+            } else if (cuotasAdeudadas > 0) {
+                estado = "Deudor";
+                deudores++;
+            } else {
+                estado = "Al día";
+                alDia++;
+            }
+
+            deudaTotal = deudaTotal.add(deudaInmuebleTotal);
+
+            items.add(new EstadoInmueblesResponse.EstadoInmueblesItemResponse(
+                    inmueble.getCuenta(),
+                    inmueble.getTitular(),
+                    grupoNombre(inmueble),
+                    distritoNombre(inmueble),
+                    estado,
+                    null,
+                    cuotasAdeudadas,
+                    deudaInmuebleTotal
+            ));
+        }
+
+        long totalInmuebles = inmuebles.size();
+        List<EstadoInmueblesResponse.EstadoInmueblesDistribucionResponse> distribucion = List.of(
+                new EstadoInmueblesResponse.EstadoInmueblesDistribucionResponse("AL_DIA", alDia, totalInmuebles == 0 ? 0 : alDia * 100d / totalInmuebles),
+                new EstadoInmueblesResponse.EstadoInmueblesDistribucionResponse("DEUDOR", deudores, totalInmuebles == 0 ? 0 : deudores * 100d / totalInmuebles),
+                new EstadoInmueblesResponse.EstadoInmueblesDistribucionResponse("MOROSO", morosos, totalInmuebles == 0 ? 0 : morosos * 100d / totalInmuebles)
+        );
+
+        EstadoInmueblesResponse.EstadoInmueblesTotalesResponse totales =
+                new EstadoInmueblesResponse.EstadoInmueblesTotalesResponse(totalInmuebles, alDia, deudores, morosos, deudaTotal);
+
+        return new EstadoInmueblesResponse(cuotasMoroso, totales, distribucion, items);
+    }
     private PageResponse<MovimientoReporteResponse> reporteHistorialMovimientos(LocalDate desde, LocalDate hasta,String action,String entityType,Pageable pageable){Specification<AuditLog> s=Specification.where(null); if(desde!=null){Instant i=desde.atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.greaterThanOrEqualTo(r.get("createdAt"),i));} if(hasta!=null){Instant i=hasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.lessThan(r.get("createdAt"),i));} if(action!=null&&!action.isBlank()) s=s.and((r,q,c)->c.equal(r.get("action"),action)); if(entityType!=null&&!entityType.isBlank()) s=s.and((r,q,c)->c.equal(r.get("entityType"),entityType));
         Page<MovimientoReporteResponse> m=auditLogRepository.findAll(s,pageable).map(a->new MovimientoReporteResponse(a.getCreatedAt()==null?null:a.getCreatedAt().atOffset(ZoneOffset.UTC),a.getAction(),a.getEntityType(),a.getEntityId(),a.getActorId(),"%s %s".formatted(a.getEntityType(),a.getAction()),a.getOldValues(),a.getNewValues())); return PageResponse.from(m);}    
     private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=cuotasMinimas(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}

@@ -36,7 +36,7 @@ export interface AccionRegistro {
   usuario: string;
 }
 
-export type EstadoInmueble = "Moroso" | "Con deuda" | "Al día";
+export type EstadoInmueble = "Moroso" | "Deudor" | "Al día";
 
 export interface InmuebleEstadoRow {
   cuenta: string;
