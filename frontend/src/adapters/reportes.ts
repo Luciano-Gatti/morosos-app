@@ -6,6 +6,7 @@ import type {
   MorosidadPorcentajeTotal,
   MorososPorDistritoRow,
   MorososPorGrupoRow,
+  AccionesRegularizacionViewModel,
 } from "@/types/reportes";
 
 const toNum = (v: unknown, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
@@ -67,7 +68,64 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
 }
 
 export function mapReporteAccionesRegularizacion(payload: any): AccionRegistro[] {
-  return mapReporteAccionesFechas(payload);
+  const vm = mapReporteAccionesRegularizacionDetallado(payload);
+  return vm.rows;
+}
+
+export function mapReporteAccionesRegularizacionDetallado(payload: any): AccionesRegularizacionViewModel {
+  const root = payload ?? {};
+  const porTipoRaw = root?.porTipo ?? [];
+  const planesRaw = root?.planesPago?.content ?? root?.planesDePago ?? [];
+  const compromisosRaw = root?.compromisos?.content ?? root?.compromisosDePago ?? [];
+  const regularizacionesRaw = root?.regularizaciones?.content ?? [];
+
+  const regularizaciones = (Array.isArray(regularizacionesRaw) ? regularizacionesRaw : []).map((r: any) => ({
+    id: String(r?.casoSeguimientoId ?? r?.inmuebleId ?? r?.cuenta ?? crypto.randomUUID?.() ?? Math.random()),
+    fecha: toDate(r?.fechaCierre ?? r?.fecha),
+    tipo: "Regularización" as const,
+    cuenta: toStr(r?.cuenta),
+    titular: toStr(r?.titular),
+    grupo: toStr(r?.grupoNombre ?? r?.grupo),
+    distrito: toStr(r?.distritoNombre ?? r?.distrito),
+    usuario: toStr(r?.actorId ?? r?.usuario ?? r?.responsable),
+  }));
+  const planes = (Array.isArray(planesRaw) ? planesRaw : []).map((r: any) => ({
+    fechaAlta: toDate(r?.fechaCierre ?? r?.fechaAlta),
+    cuenta: toStr(r?.cuenta),
+    titular: toStr(r?.titular),
+    grupo: toStr(r?.grupoNombre ?? r?.grupo),
+    cuotas: toNum(r?.cantidadCuotas ?? r?.cuotas),
+    montoTotal: toNum(r?.montoTotal),
+    proximoVencimiento: r?.fechaVencimientoPrimeraCuota ? toDate(r?.fechaVencimientoPrimeraCuota) : null,
+    vencimientoFinal: r?.fechaVencimientoFinal ? toDate(r?.fechaVencimientoFinal) : null,
+    estado: toStr(r?.estadoLabel ?? r?.estado),
+  }));
+  const compromisos = (Array.isArray(compromisosRaw) ? compromisosRaw : []).map((r: any) => ({
+    fecha: toDate(r?.fechaDesde ?? r?.fecha),
+    cuenta: toStr(r?.cuenta),
+    titular: toStr(r?.titular),
+    grupo: toStr(r?.grupoNombre ?? r?.grupo),
+    distrito: toStr(r?.distritoNombre ?? r?.distrito),
+    responsable: toStr(r?.actorId ?? r?.responsable ?? r?.usuario),
+  }));
+  const rows = [
+    ...regularizaciones,
+    ...planes.map((p) => ({ ...p, id: `${p.cuenta}-${p.fechaAlta.toISOString()}`, fecha: p.fechaAlta, tipo: "Plan de pago" as const, distrito: "", usuario: "" })),
+    ...compromisos.map((c) => ({ ...c, id: `${c.cuenta}-${c.fecha.toISOString()}`, tipo: "Compromiso de pago" as const, grupo: c.grupo, usuario: c.responsable })),
+  ] as AccionRegistro[];
+
+  const detallePorTipo = (Array.isArray(porTipoRaw) ? porTipoRaw : []).map((r: any) => ({
+    tipo: toStr(r?.tipoLabel ?? r?.tipo, "Regularización") as any,
+    cantidad: toNum(r?.cantidad),
+    porcentaje: toNum(r?.porcentaje),
+  }));
+
+  return {
+    rows,
+    detallePorTipo,
+    planesDePago: planes,
+    compromisosDePago: compromisos,
+  };
 }
 
 export function mapReporteEstadoInmuebles(payload: any): { rows: InmuebleEstadoRow[]; totales: { totalInmuebles:number; alDia:number; deudores:number; morosos:number; deudaTotal:number }; distribucion: { estado:string; cantidad:number; porcentaje:number }[]; parametroCuotasMoroso:number } {

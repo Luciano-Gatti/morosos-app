@@ -52,9 +52,9 @@ import {
 } from "recharts";
 import { conteoPorTipo, serieDiaria, TIPOS_NOTIFICACION, TIPOS_REGULARIZACION } from "@/lib/reportesUtils";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
-import type { AccionRegistro, AccionTipo, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
+import type { AccionRegistro, AccionTipo, AccionesRegularizacionViewModel, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";
-import { mapReporteAccionesFechas, mapReporteAccionesRegularizacion, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
+import { mapReporteAccionesFechas, mapReporteAccionesRegularizacionDetallado, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
 import { USE_API } from "@/lib/apiClient";
 
 /* ---------- Helpers ---------- */
@@ -105,7 +105,7 @@ function getReporteAccionesFechasViewModel(_desde: Date | null, _hasta: Date | n
   return emptyRowsViewModel<AccionRegistro>();
 }
 function getReporteAccionesRegularizacionViewModel(_desde: Date | null, _hasta: Date | null) {
-  return emptyRowsViewModel<AccionRegistro>();
+  return { rows: [] as AccionRegistro[], detallePorTipo: [], planesDePago: [], compromisosDePago: [] } as AccionesRegularizacionViewModel;
 }
 
 interface PlanPagoDetalle {
@@ -115,10 +115,11 @@ interface PlanPagoDetalle {
   grupo: string;
   cuotas: number;
   montoTotal: number;
-  proximoVencimiento: Date;
-  vencimientoFinal: Date;
+  proximoVencimiento: Date | null;
+  vencimientoFinal: Date | null;
   estado: string;
 }
+const fmtDateSafe = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 
 interface ReporteDef {
   id: ReporteId;
@@ -441,12 +442,12 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       })
       .then((payload) => {
         if (cancelled) return;
-        const vm = { rows: mapReporteAccionesRegularizacion(payload) };
+        const vm = mapReporteAccionesRegularizacionDetallado(payload);
         setAccionesRegularizacionState({ data: vm, loading: false, error: null, empty: vm.rows.length === 0, source: "api" });
       })
       .catch((e: any) => {
         if (cancelled) return;
-        setAccionesRegularizacionState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: emptyRowsViewModel<AccionRegistro>(), empty: true }));
+        setAccionesRegularizacionState((s) => ({ ...s, loading: false, error: e?.message ?? "No se pudo cargar el reporte.", source: "api", data: getReporteAccionesRegularizacionViewModel(desde, hasta), empty: true }));
         toast({ title: "Error al cargar reporte", description: "No fue posible obtener regularizaciones.", variant: "destructive" });
       });
     return () => {
@@ -620,7 +621,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
         {reporte.id === "morosos-grupo-distrito" && <ReporteMorososGrupoDistrito state={reporteState as ReporteDataState<ReturnType<typeof getReporteMorososViewModel>>} />}
         {reporte.id === "acciones-regularizacion" && (
           <ReporteAcciones
-            state={reporteState as ReporteDataState<ReturnType<typeof getReporteAccionesRegularizacionViewModel>>}
+            state={reporteState as ReporteDataState<AccionesRegularizacionViewModel>}
             tipos={TIPOS_REGULARIZACION}
             variante="regularizacion"
             desde={desde}
@@ -855,14 +856,17 @@ function ReporteAcciones({
   desde = null,
   hasta = null,
 }: {
-  state: ReporteDataState<{ rows: AccionRegistro[] }>;
+  state: ReporteDataState<AccionesRegularizacionViewModel | { rows: AccionRegistro[] }>;
   tipos: AccionTipo[];
   variante: "notificacion" | "regularizacion";
   desde?: Date | null;
   hasta?: Date | null;
 }) {
   const filtradas = useMemo(() => (state.data.rows ?? []).filter((r) => tipos.includes(r.tipo)), [state.data.rows, tipos]);
-  const conteos = useMemo(() => conteoPorTipo(filtradas, tipos), [filtradas, tipos]);
+  const conteosFallback = useMemo(() => conteoPorTipo(filtradas, tipos), [filtradas, tipos]);
+  const conteos = (state.data as AccionesRegularizacionViewModel)?.detallePorTipo?.length
+    ? (state.data as AccionesRegularizacionViewModel).detallePorTipo
+    : conteosFallback;
   const total = filtradas.length;
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
@@ -904,7 +908,7 @@ function ReporteAcciones({
           rows={conteos.map((c) => [
             c.tipo,
             numberFmt.format(c.cantidad),
-            total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
+            total === 0 ? pctFmt(0) : pctFmt(c.porcentaje ?? (c.cantidad / total) * 100),
           ])}
           alignRight={[1, 2]}
         />
@@ -917,11 +921,12 @@ function ReporteAcciones({
             descripcion="Inmuebles que regularizaron su situación en el período."
             acciones={filtradas.filter((a) => a.tipo === "Regularización")}
           />
-          <ReportePlanesDePagoDetalle desde={desde} hasta={hasta} />
+          <ReportePlanesDePagoDetalle planes={(state.data as AccionesRegularizacionViewModel).planesDePago ?? []} />
           <ReporteAccionesDetalle
             titulo="Compromisos de pago — detalle"
             descripcion="Compromisos de pago asumidos por los titulares en el período."
             acciones={filtradas.filter((a) => a.tipo === "Compromiso de pago")}
+            compromisos={(state.data as AccionesRegularizacionViewModel).compromisosDePago ?? []}
           />
         </>
       )}
@@ -941,6 +946,7 @@ function ReporteAccionesDetalle({
   titulo: string;
   descripcion?: string;
   acciones: AccionRegistro[];
+  compromisos?: { fecha: Date; cuenta: string; titular: string; grupo: string; distrito: string; responsable: string }[];
 }) {
   const PAGE = 15;
   const [page, setPage] = useState(1);
@@ -964,14 +970,9 @@ function ReporteAccionesDetalle({
         <>
           <DataTable
             head={["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"]}
-            rows={slice.map((a) => [
-              dateFmt.format(a.fecha),
-              a.cuenta,
-              a.titular,
-              a.grupo,
-              a.distrito,
-              a.usuario,
-            ])}
+            rows={(compromisos && compromisos.length > 0 ? compromisos.slice((safePage - 1) * PAGE, safePage * PAGE).map((c) => [
+              dateFmt.format(c.fecha), c.cuenta, c.titular, c.grupo, c.distrito, c.responsable,
+            ]) : slice.map((a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, a.usuario]))}
           />
           <Paginador
             page={safePage}
@@ -990,14 +991,7 @@ function ReporteAccionesDetalle({
    Detalle de planes de pago (subtabla del reporte de regularización)
    ============================================================ */
 
-function ReportePlanesDePagoDetalle({
-  desde: _desde,
-  hasta: _hasta,
-}: {
-  desde: Date | null;
-  hasta: Date | null;
-}) {
-  const planes = useMemo<PlanPagoDetalle[]>(() => [], []);
+function ReportePlanesDePagoDetalle({ planes }: { planes: PlanPagoDetalle[] }) {
   const PAGE = 15;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(planes.length / PAGE));
@@ -1043,8 +1037,8 @@ function ReportePlanesDePagoDetalle({
               p.grupo,
               numberFmt.format(p.cuotas),
               moneyFmt.format(p.montoTotal),
-              dateFmt.format(p.proximoVencimiento),
-              dateFmt.format(p.vencimientoFinal),
+              fmtDateSafe(p.proximoVencimiento),
+              fmtDateSafe(p.vencimientoFinal),
               p.estado,
             ])}
             alignRight={[4, 5]}
@@ -1656,25 +1650,12 @@ async function runExport(
   if (reporte.id === "acciones-regularizacion") {
     const tipos = TIPOS_REGULARIZACION;
     const filtradas = (reporteState?.data?.rows as AccionRegistro[] | undefined) ?? [];
-    const conteos = conteoPorTipo(filtradas, tipos);
+    const conteos = (reporteState?.data?.detallePorTipo?.length ? reporteState.data.detallePorTipo : conteoPorTipo(filtradas, tipos));
     const total = filtradas.length;
     const head = ["Tipo de acción", "Cantidad", "% del total"];
     const body = conteos.map((c) => [c.tipo, c.cantidad, total === 0 ? "—" : pctFmt((c.cantidad / total) * 100)]);
     const chartId = "rep-acciones-regularizacion-chart";
-    const planes = filtradas.filter((a) => a.tipo === "Plan de pago").map((a) => ({
-      fechaAlta: a.fecha,
-      cuenta: a.cuenta,
-      titular: a.titular,
-      grupo: a.grupo,
-      distrito: a.distrito,
-      cuotas: 0,
-      montoCuota: 0,
-      montoTotal: 0,
-      proximoVencimiento: a.fecha,
-      vencimientoFinal: a.fecha,
-      estado: "Sin detalle",
-      responsable: a.usuario,
-    }));
+    const planes = reporteState?.data?.planesDePago ?? [];
     const regularizaciones = filtradas.filter((a) => a.tipo === "Regularización");
     const compromisos = filtradas.filter((a) => a.tipo === "Compromiso de pago");
     const detalleAccionHead = ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Responsable"];
@@ -1688,23 +1669,20 @@ async function runExport(
         a.usuario,
       ]);
     const planesHead = [
-      "Fecha alta", "Cuenta", "Titular", "Grupo", "Distrito",
-      "Cuotas", "Monto cuota", "Monto total",
-      "Próx. vencimiento", "Vto. final", "Estado", "Responsable",
+      "Fecha alta", "Cuenta", "Titular", "Grupo",
+      "Cuotas", "Monto total",
+      "Próx. vencimiento", "Vto. final", "Estado",
     ];
     const planesBody = planes.map((p) => [
       dateFmt.format(p.fechaAlta),
       p.cuenta,
       p.titular,
       p.grupo,
-      p.distrito,
       p.cuotas,
-      p.montoCuota,
       p.montoTotal,
-      dateFmt.format(p.proximoVencimiento),
-      dateFmt.format(p.vencimientoFinal),
+      fmtDateSafe(p.proximoVencimiento),
+      fmtDateSafe(p.vencimientoFinal),
       p.estado,
-      p.responsable,
     ]);
     if (kind === "pdf") {
       const extraTables: NonNullable<Parameters<typeof exportarReportePdf>[0]["extraTables"]> = [];
@@ -1726,8 +1704,8 @@ async function runExport(
             p.grupo,
             p.cuotas,
             moneyFmt.format(p.montoTotal),
-            dateFmt.format(p.proximoVencimiento),
-            dateFmt.format(p.vencimientoFinal),
+            fmtDateSafe(p.proximoVencimiento),
+            fmtDateSafe(p.vencimientoFinal),
             p.estado,
           ]),
           columnStyles: { 4: { halign: "right" }, 5: { halign: "right" } },
