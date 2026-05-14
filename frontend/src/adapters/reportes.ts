@@ -70,10 +70,10 @@ export function mapReporteAccionesRegularizacion(payload: any): AccionRegistro[]
   return mapReporteAccionesFechas(payload);
 }
 
-export function mapReporteEstadoInmuebles(payload: any): InmuebleEstadoRow[] {
+export function mapReporteEstadoInmuebles(payload: any): { rows: InmuebleEstadoRow[]; totales: { totalInmuebles:number; alDia:number; deudores:number; morosos:number; deudaTotal:number }; distribucion: { estado:string; cantidad:number; porcentaje:number }[]; parametroCuotasMoroso:number } {
   const root = payload ?? {};
-  const rows = root?.filas ?? root?.rows ?? root?.content ?? root ?? [];
-  return (Array.isArray(rows) ? rows : []).map((r: any) => ({
+  const rows = root?.inmuebles ?? root?.filas ?? root?.rows ?? root?.content ?? root ?? [];
+  const mappedRows = (Array.isArray(rows) ? rows : []).map((r: any) => ({
     cuenta: toStr(r.cuenta),
     titular: toStr(r.titular),
     grupo: toStr(r.grupoNombre ?? r.grupo),
@@ -83,6 +83,24 @@ export function mapReporteEstadoInmuebles(payload: any): InmuebleEstadoRow[] {
     estado: toStr(r.estado) as EstadoInmueble,
     etapa: toStr(r.etapa ?? r.etapaNombre),
   }));
+  const t = root?.totales ?? {};
+  const distribucionRaw = root?.distribucion ?? [];
+  return {
+    rows: mappedRows,
+    parametroCuotasMoroso: toNum(root?.parametroCuotasMoroso),
+    totales: {
+      totalInmuebles: toNum(t?.totalInmuebles, mappedRows.length),
+      alDia: toNum(t?.alDia),
+      deudores: toNum(t?.deudores),
+      morosos: toNum(t?.morosos),
+      deudaTotal: toNum(t?.deudaTotal),
+    },
+    distribucion: (Array.isArray(distribucionRaw) ? distribucionRaw : []).map((d: any) => ({
+      estado: toStr(d?.estado),
+      cantidad: toNum(d?.cantidad),
+      porcentaje: toNum(d?.porcentaje),
+    })),
+  };
 }
 
 export function mapReportePorcentajesMorosidad(payload: any): MorosidadPorcentajeTotal {
