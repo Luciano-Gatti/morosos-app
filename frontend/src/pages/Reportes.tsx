@@ -1073,19 +1073,30 @@ function ReporteEstadoInmuebles({
 }) {
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
-  if (state.empty) return <div className="text-sm text-muted-foreground">No hay datos cargados para este reporte.</div>;
-  const rows = state.data.rows;
-  const totales = state.data?.totales ?? { totalInmuebles: 0, alDia: 0, deudores: 0, morosos: 0, deudaTotal: 0 };
-  const morosos = totales.morosos;
-  const deudores = totales.deudores;
-  const alDia = totales.alDia;
-  const totalDeuda = totales.deudaTotal;
-  const totalInmuebles = totales.totalInmuebles;
-  const distribucion = state.data.distribucion.length > 0 ? state.data.distribucion : [
-    { estado: "AL_DIA", cantidad: alDia, porcentaje: totalInmuebles === 0 ? 0 : (alDia * 100) / totalInmuebles },
-    { estado: "DEUDOR", cantidad: deudores, porcentaje: totalInmuebles === 0 ? 0 : (deudores * 100) / totalInmuebles },
-    { estado: "MOROSO", cantidad: morosos, porcentaje: totalInmuebles === 0 ? 0 : (morosos * 100) / totalInmuebles },
-  ];
+  const reporte = state.data ?? null;
+  const hasTotales = !!reporte?.totales;
+  const rows = Array.isArray(reporte?.rows) ? reporte.rows : [];
+  const distribucionBase = Array.isArray(reporte?.distribucion) ? reporte.distribucion : [];
+
+  if (state.empty || (!hasTotales && rows.length === 0 && distribucionBase.length === 0)) {
+    return <div className="text-sm text-muted-foreground">No hay datos cargados para este reporte.</div>;
+  }
+
+  const totales = reporte?.totales ?? { totalInmuebles: 0, alDia: 0, deudores: 0, morosos: 0, deudaTotal: 0 };
+  const totalInmuebles = Number(totales.totalInmuebles ?? 0);
+  const alDia = Number(totales.alDia ?? 0);
+  const deudores = Number(totales.deudores ?? 0);
+  const morosos = Number(totales.morosos ?? 0);
+  const totalDeuda = Number(totales.deudaTotal ?? 0);
+  const distribucion = distribucionBase.length > 0
+    ? distribucionBase
+    : (hasTotales
+      ? [
+          { estado: "AL_DIA", cantidad: alDia, porcentaje: totalInmuebles === 0 ? 0 : (alDia * 100) / totalInmuebles },
+          { estado: "DEUDOR", cantidad: deudores, porcentaje: totalInmuebles === 0 ? 0 : (deudores * 100) / totalInmuebles },
+          { estado: "MOROSO", cantidad: morosos, porcentaje: totalInmuebles === 0 ? 0 : (morosos * 100) / totalInmuebles },
+        ]
+      : []);
   const chartData = distribucion.map((d) => ({
     key: d.estado,
     name: d.estado === "AL_DIA" ? "Al día" : d.estado === "DEUDOR" ? "Deudores" : "Morosos",
@@ -1112,37 +1123,51 @@ function ReporteEstadoInmuebles({
       />
 
       <ChartBox id="rep-estado-chart" title="Distribución de inmuebles por estado" height={220}>
-        <PieChart>
-          <Pie
-            data={chartData}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={45}
-            outerRadius={80}
-            paddingAngle={2}
-          />
-          <Tooltip formatter={(value: number, _n, p: any) => `${numberFmt.format(Number(value))} (${pctFmt(Number(p?.payload?.pct ?? 0))})`} />
-          <Legend formatter={(value: string, e: any) => `${value} — ${numberFmt.format(Number(e?.payload?.value ?? 0))} (${pctFmt(Number(e?.payload?.pct ?? 0))})`} />
-        </PieChart>
+        {chartData.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            No hay datos para graficar.
+          </div>
+        ) : (
+          <PieChart>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={45}
+              outerRadius={80}
+              paddingAngle={2}
+            />
+            <Tooltip formatter={(value: number, _n, p: any) => `${numberFmt.format(Number(value))} (${pctFmt(Number(p?.payload?.pct ?? 0))})`} />
+            <Legend formatter={(value: string, e: any) => `${value} — ${numberFmt.format(Number(e?.payload?.value ?? 0))} (${pctFmt(Number(e?.payload?.pct ?? 0))})`} />
+          </PieChart>
+        )}
       </ChartBox>
 
       <div>
         <SectionTitle>Listado completo del padrón</SectionTitle>
-        <DataTable
-          head={["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"]}
-          rows={slice.map((r) => [
-            r.cuenta,
-            r.titular,
-            r.grupo,
-            r.distrito,
-            r.estado,
-            r.etapa,
-            r.cuotasAdeudadas === 0 ? "—" : numberFmt.format(r.cuotasAdeudadas),
-            r.montoAdeudado === 0 ? "—" : moneyFmt.format(r.montoAdeudado),
-          ])}
-          alignRight={[6, 7]}
-        />
-        <Paginador page={page} totalPages={totalPages} setPage={setPage} total={rows.length} pageSize={PAGE} />
+        {rows.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            No hay inmuebles para mostrar.
+          </div>
+        ) : (
+          <>
+            <DataTable
+              head={["N° cuenta", "Titular", "Grupo", "Distrito", "Estado", "Etapa", "Cuotas", "Deuda"]}
+              rows={slice.map((r) => [
+                r.cuenta,
+                r.titular,
+                r.grupo,
+                r.distrito,
+                r.estado,
+                r.etapa,
+                r.cuotasAdeudadas === 0 ? "—" : numberFmt.format(r.cuotasAdeudadas),
+                r.montoAdeudado === 0 ? "—" : moneyFmt.format(r.montoAdeudado),
+              ])}
+              alignRight={[6, 7]}
+            />
+            <Paginador page={page} totalPages={totalPages} setPage={setPage} total={rows.length} pageSize={PAGE} />
+          </>
+        )}
       </div>
     </div>
   );
