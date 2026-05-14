@@ -811,7 +811,7 @@ function ReporteMorososGrupoDistrito({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
-          <SectionTitle>Por grupo</SectionTitle>
+          <SectionTitle>Por grupo y distrito</SectionTitle>
           <DataTable
             head={["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
             rows={grupos.map((g) => [

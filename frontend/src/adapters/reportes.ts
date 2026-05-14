@@ -19,17 +19,21 @@ export function mapReporteMorosos(payload: any): {
   parametroCuotasMoroso: number;
 } {
   const root = payload ?? {};
-  const gruposRaw = root.grupos ?? root.porGrupo ?? root.filas ?? root.content ?? [];
+  const gruposRaw = root.porDistritoGrupo ?? root.grupos ?? root.porGrupo ?? root.filas ?? root.content ?? [];
   const distritosRaw = root.distritos ?? root.porDistrito ?? [];
   const grupos: MorososPorGrupoRow[] = (Array.isArray(gruposRaw) ? gruposRaw : []).map((r: any) => ({
     grupo: toStr(r.grupo ?? r.grupoNombre),
     distrito: toStr(r.distrito ?? r.distritoNombre),
     etiqueta: toStr(r.etiqueta, `${toStr(r.grupo ?? r.grupoNombre)} — ${toStr(r.distrito ?? r.distritoNombre)}`),
-    totalInmuebles: toNum(r.totalInmuebles ?? r.padron),
+    totalInmuebles: toNum(r.totalInmuebles ?? r.totalPadron ?? r.padron),
     deudores: toNum(r.deudores),
     morosos: toNum(r.morosos),
     porcentaje: toNum(r.porcentaje ?? r.porcentajeMorosidad),
-  }));
+  })).sort((a, b) => {
+    const grupoCmp = a.grupo.localeCompare(b.grupo, "es", { sensitivity: "base" });
+    if (grupoCmp !== 0) return grupoCmp;
+    return a.distrito.localeCompare(b.distrito, "es", { sensitivity: "base" });
+  });
   const distritos: MorososPorDistritoRow[] = (Array.isArray(distritosRaw) ? distritosRaw : []).map((r: any) => ({
     distrito: toStr(r.distrito ?? r.distritoNombre),
     totalInmuebles: toNum(r.totalInmuebles ?? r.padron),
