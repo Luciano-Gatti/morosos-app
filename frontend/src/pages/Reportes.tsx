@@ -316,7 +316,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     source: "api",
   });
   const [estadoInmueblesState, setEstadoInmueblesState] = useState<ReporteDataState<ReturnType<typeof getReporteEstadoInmueblesViewModel>>>({
-    data: getReporteEstadoInmueblesViewModel(),
+    data: getReporteHistorialMovimientosViewModel(),
     loading: false,
     error: null,
     empty: false,
