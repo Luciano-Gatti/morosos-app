@@ -88,6 +88,7 @@ const emptyMorososViewModel = () => ({
   grupos: [],
   distritos: [],
   total: { totalInmuebles: 0, deudores: 0, morosos: 0, alDia: 0, porcentajeMorosidad: 0 },
+  parametroCuotasMoroso: 0,
 });
 const emptyRowsViewModel = <T,>() => ({ rows: [] as T[] });
 
@@ -755,7 +756,7 @@ function ReporteMorososGrupoDistrito({
   if (state.error) {
     return <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-8 text-center text-[12.5px] text-destructive">{state.error}</div>;
   }
-  const { grupos, distritos, total } = state.data;
+  const { grupos, distritos, total, parametroCuotasMoroso } = state.data;
   if (state.empty) {
     return <div className="rounded-md border border-border bg-surface-muted/30 px-4 py-8 text-center text-[12.5px] text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
   }
@@ -771,6 +772,13 @@ function ReporteMorososGrupoDistrito({
           { label: "% morosidad", value: pctFmt(total.porcentajeMorosidad), tone: "primary" },
         ]}
       />
+
+
+      <div className="rounded-md border border-border bg-surface-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <div>Moroso: inmuebles con {parametroCuotasMoroso} o más cuotas adeudadas.</div>
+        <div>Deudor: inmuebles con entre 1 y {Math.max(parametroCuotasMoroso - 1, 0)} cuotas adeudadas.</div>
+        <div>Al día: inmuebles con 0 cuotas adeudadas.</div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartBox id="rep-grupos-chart" title="Morosos por grupo">
@@ -803,7 +811,7 @@ function ReporteMorososGrupoDistrito({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
-          <SectionTitle>Por grupo</SectionTitle>
+          <SectionTitle>Por grupo y distrito</SectionTitle>
           <DataTable
             head={["Grupo", "Distrito", "Padrón", "Deudores", "Morosos", "% Morosidad"]}
             rows={grupos.map((g) => [
