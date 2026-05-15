@@ -223,14 +223,14 @@ export default function HistorialSeguimiento() {
             valor={ultimoRegistro.estado ?? "No informado"}
             sub={`Responsable: ${ultimoRegistro.responsable ?? "No informado"}`}
             icon={
-              ultimoRegistro.estado === "Activo"
+              ultimoRegistro.estado === "Iniciado"
                 ? PlayCircle
                 : ultimoRegistro.estado === "Pausado"
                   ? PauseCircle
                   : CircleDashed
             }
             tone={
-              ultimoRegistro.estado === "Activo"
+              ultimoRegistro.estado === "Iniciado"
                 ? "active"
                 : ultimoRegistro.estado === "Pausado"
                   ? "warn"
@@ -417,12 +417,6 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
-        <span>
-          <span className="font-medium uppercase tracking-wider text-muted-foreground/80">
-            Motivo apertura:
-          </span>{" "}
-          <span className="text-foreground">{proceso.motivoApertura}</span>
-        </span>
         {proceso.motivoCierre && <CierrePill cierre={proceso.motivoCierre} />}
       </div>
     </div>
@@ -598,6 +592,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
     "Intimación": "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
     "Aviso de corte": "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-400",
     "Corte": "border-destructive/20 bg-destructive/10 text-destructive",
+    "Sin etapa asignada": "border-border bg-muted text-muted-foreground",
   };
   return (
     <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] font-medium", cls[etapa])}>
@@ -609,7 +604,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
 function EstadoPill({ estado }: { estado: EstadoProceso }) {
   const map: Record<EstadoProceso, { cls: string; Icon: typeof PlayCircle }> = {
     "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
-    "Activo": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
+    "Iniciado": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
     "Pausado": { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle },
     "Cerrado": { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck },
   };

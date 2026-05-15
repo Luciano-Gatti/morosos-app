@@ -71,7 +71,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
 
   const toEstadoRegistro = (estado: string) => {
     const e = estado.toUpperCase();
-    if (e === "ABIERTO") return "Activo";
+    if (e === "ABIERTO" || e === "INICIADO") return "Iniciado";
     if (e === "PAUSADO") return "Pausado";
     if (e === "CERRADO") return "Cerrado";
     return "No iniciado";
@@ -79,8 +79,8 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
 
   const casos = casosRaw.map((c: any) => ({
     casoId: s(c?.id ?? c?.casoId, ""),
-    estado: s(c?.estado, "abierto"),
-    etapaActual: s(c?.etapaActual ?? c?.etapaNombre),
+    estado: s(c?.estado, "NO_INICIADO"),
+    etapaActual: s(c?.etapaActual ?? c?.etapaNombre, "Sin etapa asignada"),
     fechaInicio: s(c?.fechaInicio),
     fechaUltimoMovimiento: s(c?.fechaUltimoMovimiento),
     observacion: s(c?.observacion, ""),
@@ -91,7 +91,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     casoId: s(e?.casoId),
     tipoEvento: s(e?.tipoEvento ?? e?.tipoAccion ?? e?.tipo, "evento"),
     tipoEventoLabel: s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento"),
-    etapaOrigen: s(e?.etapaOrigen, "No informado"),
+    etapaOrigen: s(e?.etapaOrigen, "Sin etapa asignada"),
     etapaDestino: s(e?.etapaDestino ?? e?.etapaNombre ?? e?.etapa, "Sin etapa asignada"),
     fechaEvento: s(e?.fechaEvento ?? e?.fecha),
     observacion: s(e?.observacion ?? e?.descripcion ?? e?.detalle, "No informado"),
@@ -141,10 +141,10 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         fecha: s(c?.fechaInicio),
         hora: "00:00",
         etapa: s(c?.etapaActual ?? c?.etapaNombre, "Sin etapa asignada"),
-        estado: toEstadoRegistro(s(c?.estado, "ABIERTO")),
+        estado: toEstadoRegistro(s(c?.estado, "NO_INICIADO")),
         responsable: "No informado",
         tipoAccion: "Apertura",
-        motivo: "Apertura de proceso",
+        motivo: "Inicio de proceso",
         observaciones: s(c?.observacion, "No informado"),
         numeroProceso: casoId,
         metadata: null,
@@ -154,16 +154,40 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
 
     return {
       id: casoId,
-      estado: s(c?.estado, "abierto").toLowerCase() === "cerrado" ? "cerrado" : "abierto",
+      estado: s(c?.estado, "NO_INICIADO").toUpperCase() === "CERRADO" ? "cerrado" : "abierto",
       fechaInicio: s(c?.fechaInicio, "No informado"),
       fechaFin: cierre?.fechaCierre ?? null,
-      motivoApertura: s(c?.observacion, "No informado"),
       motivoCierre: cierre?.motivoNombre ?? null,
       registros: eventosCaso,
       cierre,
       compromisos: compromisos.filter((x) => x.casoId === casoId),
     } as const;
   });
+
+  if (procesos.length === 0) {
+    procesos.push({
+      id: "NO_INICIADO",
+      estado: "abierto",
+      fechaInicio: "No informado",
+      fechaFin: null,
+      motivoCierre: null,
+      cierre: null,
+      compromisos: [],
+      registros: [{
+        id: "no-iniciado",
+        fecha: "No informado",
+        hora: "00:00",
+        etapa: "Sin etapa asignada",
+        estado: "No iniciado",
+        responsable: "Sistema",
+        tipoAccion: "Sin seguimiento iniciado",
+        motivo: "Sin seguimiento iniciado",
+        observaciones: "El inmueble aún no tiene un proceso de seguimiento iniciado.",
+        numeroProceso: "NO_INICIADO",
+        metadata: null,
+      }],
+    } as any);
+  }
 
   return {
     inmueble: {

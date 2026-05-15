@@ -29,7 +29,6 @@ export interface ProcesoSeguimiento {
   fechaInicio: string;
   fechaFin: string | null;
   estado: "abierto" | "cerrado";
-  motivoApertura: string;
   motivoCierre: CierreProceso;
   registros: RegistroHistorial[];
 }
