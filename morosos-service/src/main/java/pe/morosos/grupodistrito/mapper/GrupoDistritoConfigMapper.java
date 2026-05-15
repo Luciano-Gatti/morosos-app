@@ -36,6 +36,7 @@ public class GrupoDistritoConfigMapper {
                 entity.getDistrito().getCodigo(),
                 entity.getDistrito().getNombre(),
                 entity.isSeguimientoHabilitado(),
+                0L,
                 entity.getCreatedBy(),
                 entity.getCreatedAt(),
                 entity.getUpdatedBy(),

@@ -12,6 +12,7 @@ public record GrupoDistritoConfigResponse(
         String distritoCodigo,
         String distritoNombre,
         boolean seguimientoHabilitado,
+        long inmuebles,
         String createdBy,
         Instant createdAt,
         String updatedBy,
