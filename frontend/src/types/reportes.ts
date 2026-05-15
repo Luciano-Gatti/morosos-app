@@ -34,6 +34,20 @@ export interface AccionRegistro {
   grupo: string;
   distrito: string;
   usuario: string;
+  observacion?: string | null;
+  montoPagado?: number | null;
+  montoComprometido?: number | null;
+  fechaDesde?: Date | null;
+  fechaHasta?: Date | null;
+  estado?: string | null;
+  fechaAlta?: Date | null;
+  montoTotalPlan?: number | null;
+  cantidadCuotas?: number | null;
+  valorCuota?: number | null;
+  cuotasPagadas?: number | null;
+  saldoPendiente?: number | null;
+  proximoVencimiento?: Date | null;
+  vencimientoFinal?: Date | null;
 }
 
 export interface RegularizacionPlanDetalle {

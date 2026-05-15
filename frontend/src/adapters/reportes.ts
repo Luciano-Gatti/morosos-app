@@ -54,7 +54,17 @@ export function mapReporteMorosos(payload: any): {
 
 export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
   const root = payload ?? {};
-  const rows = root?.detalle ?? root?.content ?? root?.rows ?? root ?? [];
+  const detailRows = Array.isArray(root?.detalle) ? root.detalle : [];
+  const groupedRows = [
+    ...(Array.isArray(root?.avisosDeuda) ? root.avisosDeuda : []),
+    ...(Array.isArray(root?.intimaciones) ? root.intimaciones : []),
+    ...(Array.isArray(root?.avisosCorte) ? root.avisosCorte : []),
+    ...(Array.isArray(root?.cortes) ? root.cortes : []),
+    ...(Array.isArray(root?.regularizaciones) ? root.regularizaciones : []),
+    ...(Array.isArray(root?.planesDePago) ? root.planesDePago : []),
+    ...(Array.isArray(root?.compromisosDePago) ? root.compromisosDePago : []),
+  ];
+  const rows = detailRows.length > 0 ? detailRows : (root?.content ?? root?.rows ?? groupedRows);
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
     id: String(r.id ?? r.accionId ?? ""),
     fecha: toDate(r.fecha ?? r.fechaAccion),
@@ -64,6 +74,20 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     grupo: toStr(r.grupoNombre ?? r.grupo),
     distrito: toStr(r.distritoNombre ?? r.distrito),
     usuario: toStr(r.actorId ?? r.usuario ?? r.actor),
+    observacion: r.observacion ?? r.observaciones ?? null,
+    montoPagado: Number.isFinite(Number(r.montoPagado)) ? Number(r.montoPagado) : null,
+    montoComprometido: Number.isFinite(Number(r.montoComprometido)) ? Number(r.montoComprometido) : null,
+    fechaDesde: r.fechaDesde ? toDate(r.fechaDesde) : null,
+    fechaHasta: r.fechaHasta ? toDate(r.fechaHasta) : null,
+    estado: r.estadoLabel ?? r.estado ?? null,
+    fechaAlta: r.fechaAlta ? toDate(r.fechaAlta) : null,
+    montoTotalPlan: Number.isFinite(Number(r.montoTotalPlan ?? r.montoTotal)) ? Number(r.montoTotalPlan ?? r.montoTotal) : null,
+    cantidadCuotas: Number.isFinite(Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas)) ? Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas) : null,
+    valorCuota: Number.isFinite(Number(r.valorCuota)) ? Number(r.valorCuota) : null,
+    cuotasPagadas: Number.isFinite(Number(r.cuotasPagadas)) ? Number(r.cuotasPagadas) : null,
+    saldoPendiente: Number.isFinite(Number(r.saldoPendiente)) ? Number(r.saldoPendiente) : null,
+    proximoVencimiento: r.proximoVencimiento ? toDate(r.proximoVencimiento) : null,
+    vencimientoFinal: r.vencimientoFinal ? toDate(r.vencimientoFinal) : null,
   }));
 }
 

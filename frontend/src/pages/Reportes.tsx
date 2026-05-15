@@ -119,6 +119,8 @@ interface PlanPagoDetalle {
   estado: string;
 }
 const fmtDateSafe = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
+const fmtTextSafe = (value: string | null | undefined) => value && value.trim() ? value : "—";
+const fmtMoneySafe = (value: number | null | undefined) => Number.isFinite(value) ? moneyFmt.format(value as number) : "—";
 
 interface ReporteDef {
   id: ReporteId;
@@ -1214,12 +1216,6 @@ function ReporteAccionesFechas({
     [conteos, tiposSeleccionados],
   );
 
-  const PAGE = 25;
-  const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE));
-  const safePage = Math.min(page, totalPages);
-  const slice = filtradas.slice((safePage - 1) * PAGE, safePage * PAGE);
-
   const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
   const tipoTop = [...conteos].sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—";
   const total = filtradas.length;
@@ -1332,41 +1328,31 @@ function ReporteAccionesFechas({
       </div>
 
       <div>
-        <SectionTitle>Resumen por tipo</SectionTitle>
-        <DataTable
-          head={["Tipo de acción", "Cantidad", "% del total"]}
-          rows={conteosVisibles.map((c) => [
-            c.tipo,
-            numberFmt.format(c.cantidad),
-            total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
-          ])}
-          alignRight={[1, 2]}
-          emptyMessage="No hay acciones registradas para los filtros seleccionados."
-        />
-      </div>
-
-      <div>
         <SectionTitle>Detalle de acciones en el período</SectionTitle>
-        <DataTable
-          head={["Fecha", "Cuenta", "Titular", "Tipo", "Grupo", "Distrito", "Usuario"]}
-          rows={slice.map((a) => [
-            dateFmt.format(a.fecha),
-            a.cuenta,
-            a.titular,
-            a.tipo,
-            a.grupo,
-            a.distrito,
-            a.usuario,
-          ])}
-          emptyMessage="No hay acciones registradas para el período seleccionado."
-        />
-        <Paginador
-          page={safePage}
-          totalPages={totalPages}
-          setPage={setPage}
-          total={filtradas.length}
-          pageSize={PAGE}
-        />
+        {tiposSeleccionados.length === 0 && (
+          <div className="rounded-md border border-dashed border-border bg-surface-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            Seleccioná al menos un tipo de acción para ver el detalle.
+          </div>
+        )}
+        {tiposSeleccionados.map((tipo) => {
+          const rowsTipo = filtradas.filter((a) => a.tipo === tipo);
+          const config: Record<AccionTipo, { title: string; head: string[]; buildRow: (a: AccionRegistro) => (string | number)[]; alignRight?: number[] }> = {
+            "Aviso de deuda": { title: "Avisos de deuda — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
+            "Intimación": { title: "Intimaciones — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
+            "Aviso de corte": { title: "Avisos de corte — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
+            "Corte": { title: "Cortes — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
+            "Regularización": { title: "Regularizaciones — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Monto pagado", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtMoneySafe(a.montoPagado), fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)], alignRight: [5] },
+            "Plan de pago": { title: "Planes de pago — detalle", head: ["Fecha alta", "Cuenta", "Titular", "Grupo", "Distrito", "Monto total del plan", "Cantidad total de cuotas", "Valor cuota", "Cuotas pagadas", "Monto pagado", "Saldo pendiente", "Próximo vencimiento", "Vencimiento final", "Estado", "Usuario/Responsable"], buildRow: (a) => [fmtDateSafe(a.fechaAlta ?? a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtMoneySafe(a.montoTotalPlan), a.cantidadCuotas ?? "—", fmtMoneySafe(a.valorCuota), a.cuotasPagadas ?? "—", fmtMoneySafe(a.montoPagado), fmtMoneySafe(a.saldoPendiente), fmtDateSafe(a.proximoVencimiento), fmtDateSafe(a.vencimientoFinal), fmtTextSafe(a.estado), fmtTextSafe(a.usuario)], alignRight: [5, 6, 7, 8, 9, 10] },
+            "Compromiso de pago": { title: "Compromisos de pago — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Monto comprometido", "Fecha desde", "Fecha hasta", "Estado", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtMoneySafe(a.montoComprometido), fmtDateSafe(a.fechaDesde), fmtDateSafe(a.fechaHasta), fmtTextSafe(a.estado), fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)], alignRight: [5] },
+          };
+          const tableConfig = config[tipo];
+          return (
+            <div key={tipo} className="mt-4">
+              <SectionTitle>{tableConfig.title}</SectionTitle>
+              <DataTable head={tableConfig.head} rows={rowsTipo.map(tableConfig.buildRow)} alignRight={tableConfig.alignRight} emptyMessage="No hay registros para esta acción en el período seleccionado." />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
