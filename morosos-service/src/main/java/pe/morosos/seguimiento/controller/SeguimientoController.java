@@ -94,7 +94,9 @@ public class SeguimientoController {
         ProcesoCierreService.PlanPagoData planPagoData = request.planPago() == null
                 ? null
                 : new ProcesoCierreService.PlanPagoData(
-                request.planPago().cantidadCuotas(),
+                request.planPago().montoTotalPlan(),
+                request.planPago().cantidadTotalCuotas(),
+                request.planPago().cantidadCuotasQuePagaAhora(),
                 request.planPago().fechaVencimientoPrimeraCuota()
         );
         ProcesoCierreService.CambioParametroData cambioParametroData = request.cambioParametro() == null
@@ -119,7 +121,9 @@ public class SeguimientoController {
         ProcesoCierreService.PlanPagoData planPagoData = request.planPago() == null
                 ? null
                 : new ProcesoCierreService.PlanPagoData(
-                request.planPago().cantidadCuotas(),
+                request.planPago().montoTotalPlan(),
+                request.planPago().cantidadTotalCuotas(),
+                request.planPago().cantidadCuotasQuePagaAhora(),
                 request.planPago().fechaVencimientoPrimeraCuota()
         );
         ProcesoCierreService.CambioParametroData cambioParametroData = request.cambioParametro() == null

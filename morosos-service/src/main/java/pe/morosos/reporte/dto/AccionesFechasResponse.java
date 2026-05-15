@@ -7,5 +7,8 @@ public record AccionesFechasResponse(
         AccionesFechasResumenResponse resumen,
         List<AccionesFechasPorTipoResponse> porTipo,
         List<AccionesFechasSerieDiariaResponse> serieDiaria,
-        PageResponse<AccionesFechasDetalleResponse> detalle
+        PageResponse<AccionesFechasDetalleResponse> detalle,
+        List<AccionesRegularizacionItemRegularizacionResponse> detalleRegularizaciones,
+        List<AccionesRegularizacionItemPlanPagoResponse> detallePlanesDePago,
+        List<AccionesRegularizacionItemCompromisoResponse> detalleCompromisosDePago
 ) {}

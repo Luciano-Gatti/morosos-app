@@ -332,7 +332,7 @@ public class ReporteService {
                     new AccionesFechasResumenResponse(0, 0, 0, null),
                     List.of(),
                     List.of(),
-                    new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0));
+                    new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0), List.of(), List.of(), List.of());
         }
 
         Map<String, Long> porTipoMap = mapped.stream().collect(Collectors.groupingBy(AccionesFechasDetalleResponse::tipoAccion, LinkedHashMap::new, Collectors.counting()));
@@ -355,7 +355,8 @@ public class ReporteService {
         int to = Math.min(from + pageable.getPageSize(), mapped.size());
         int totalPages = pageable.getPageSize() == 0 ? 1 : (int) Math.ceil((double) mapped.size() / pageable.getPageSize());
         PageResponse<AccionesFechasDetalleResponse> detalle = new PageResponse<>(mapped.subList(from, to), pageable.getPageNumber(), pageable.getPageSize(), mapped.size(), totalPages);
-        return new AccionesFechasResponse(resumen, porTipo, serie, detalle);
+        AccionesRegularizacionResponse extra = reporteAccionesRegularizacion(fechaDesde, fechaHasta, grupoId, distritoId, Pageable.unpaged());
+        return new AccionesFechasResponse(resumen, porTipo, serie, detalle, extra.regularizaciones().content(), extra.planesPago().content(), extra.compromisos().content());
     }
 
     private AccionesFechasDetalleResponse toDetalleAccionesFecha(Object[] r) {
