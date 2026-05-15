@@ -400,11 +400,11 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public CasoSeguimiento cerrar(UUID casoId, String motivoCodigo, String observacion, ProcesoCierreService.PlanPagoData planPago,
+    public CasoSeguimiento cerrar(UUID casoId, String motivoCodigo, String observacion, java.math.BigDecimal montoAbonado, ProcesoCierreService.PlanPagoData planPago,
                                   ProcesoCierreService.CambioParametroData cambioParametro) {
         CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
         MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
-        procesoCierreService.crearCierre(caso, motivo, observacion, planPago, cambioParametro);
+        procesoCierreService.crearCierre(caso, motivo, observacion, montoAbonado, planPago, cambioParametro);
         caso.setEstado(CasoSeguimientoEstado.CERRADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
         casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "CERRAR_PROCESO", null, null, null, null, null);
@@ -412,13 +412,13 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public BulkActionResultResponse cerrarBulk(List<UUID> casoIds, String motivoCodigo, String observacion,
+    public BulkActionResultResponse cerrarBulk(List<UUID> casoIds, String motivoCodigo, String observacion, java.math.BigDecimal montoAbonado,
                                                ProcesoCierreService.PlanPagoData planPago,
                                                ProcesoCierreService.CambioParametroData cambioParametro) {
         BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
         for (UUID casoId : casoIds) {
             try {
-                cerrar(casoId, motivoCodigo, observacion, planPago, cambioParametro);
+                cerrar(casoId, motivoCodigo, observacion, montoAbonado, planPago, cambioParametro);
                 result.aplicado(casoId, "Proceso cerrado");
             } catch (Exception ex) {
                 result.error(casoId, ex.getMessage());

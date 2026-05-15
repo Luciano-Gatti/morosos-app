@@ -111,6 +111,7 @@ public class SeguimientoController {
                 request.casoSeguimientoId(),
                 request.motivoCodigo(),
                 request.observacion(),
+                request.montoAbonado(),
                 planPagoData,
                 cambioParametroData
         ));
@@ -137,6 +138,7 @@ public class SeguimientoController {
                 request.casoSeguimientoIds(),
                 request.motivoCodigo(),
                 request.observacion(),
+                request.montoAbonado(),
                 planPagoData,
                 cambioParametroData
         );

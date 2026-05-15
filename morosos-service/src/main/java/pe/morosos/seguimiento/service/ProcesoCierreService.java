@@ -23,11 +23,12 @@ public class ProcesoCierreService {
     public record CambioParametroData(String parametro, String valorAnterior, String valorNuevo) {}
 
     public ProcesoCierre crearCierre(CasoSeguimiento caso, MotivoCierre motivo, String observacion,
-                                     PlanPagoData planPago, CambioParametroData cambioParametro) {
+                                     java.math.BigDecimal montoAbonado, PlanPagoData planPago, CambioParametroData cambioParametro) {
         ProcesoCierre cierre = new ProcesoCierre();
         cierre.setCasoSeguimiento(caso);
         cierre.setMotivoCierre(motivo);
         cierre.setObservacion(observacion);
+        cierre.setMontoAbonado(montoAbonado);
         cierre.setFechaCierre(Instant.now());
         cierre.setCreatedAt(Instant.now());
         cierre.setCreatedBy(null);
