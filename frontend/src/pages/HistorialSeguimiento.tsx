@@ -148,7 +148,7 @@ export default function HistorialSeguimiento() {
   const procesos = historial?.procesos ?? [];
   const observacionesLibres = historial?.observacionesLibres ?? [];
   const procesoActual = procesos.find((p) => p.estado === "abierto") ?? procesos[procesos.length - 1] ?? null;
-  const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "-", fecha: "-", estado: "-", responsable: "-" };
+  const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "Sin etapa asignada", fecha: "No informado", estado: "No informado", responsable: "No informado" };
 
   const totalRegistros = procesos.reduce((s, p) => s + p.registros.length, 0);
   const totalProcesos = procesos.length;
@@ -213,15 +213,15 @@ export default function HistorialSeguimiento() {
           />
           <ResumenCard
             label="Etapa actual"
-            valor={ultimoRegistro.etapa}
-            sub={`Última actualización: ${ultimoRegistro.fecha}`}
+            valor={ultimoRegistro.etapa ?? "Sin etapa asignada"}
+            sub={`Última actualización: ${ultimoRegistro.fecha ?? "No informado"}`}
             icon={ListOrdered}
             tone="neutral"
           />
           <ResumenCard
             label="Estado"
-            valor={ultimoRegistro.estado}
-            sub={`Responsable: ${ultimoRegistro.responsable}`}
+            valor={ultimoRegistro.estado ?? "No informado"}
+            sub={`Responsable: ${ultimoRegistro.responsable ?? "No informado"}`}
             icon={
               ultimoRegistro.estado === "Activo"
                 ? PlayCircle
