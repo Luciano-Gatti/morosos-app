@@ -646,13 +646,31 @@ function CierrePill({ cierre }: { cierre: NonNullable<CierreProceso> }) {
   );
 }
 
-function EtapaIcon({ etapa }: { etapa: EtapaSeguimiento }) {
-  const map: Record<EtapaSeguimiento, { Icon: typeof FileText; color: string }> = {
-    "Aviso de deuda": { Icon: FileText, color: "text-muted-foreground" },
-    "Intimación": { Icon: StickyNote, color: "text-amber-600 dark:text-amber-400" },
-    "Aviso de corte": { Icon: AlertCircle, color: "text-orange-600 dark:text-orange-400" },
-    "Corte": { Icon: Lock, color: "text-destructive" },
+const normalizeEtapaKey = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === "-") return "DEFAULT";
+
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+};
+
+function EtapaIcon({ etapa }: { etapa?: string | null }) {
+  const map: Record<string, { Icon: typeof FileText; color: string; label: string }> = {
+    AVISO_DE_DEUDA: { Icon: FileText, color: "text-muted-foreground", label: "Aviso de deuda" },
+    INTIMACION: { Icon: StickyNote, color: "text-amber-600 dark:text-amber-400", label: "Intimación" },
+    AVISO_DE_CORTE: { Icon: AlertCircle, color: "text-orange-600 dark:text-orange-400", label: "Aviso de corte" },
+    CORTE: { Icon: Lock, color: "text-destructive", label: "Corte" },
+    DEFAULT: { Icon: FileText, color: "text-muted-foreground", label: "Sin etapa asignada" },
   };
-  const { Icon, color } = map[etapa];
-  return <Icon className={cn("h-4 w-4", color)} />;
+
+  const etapaKey = normalizeEtapaKey(etapa);
+  const config = map[etapaKey] ?? map.DEFAULT;
+  const { Icon, color, label } = config;
+  const title = etapa?.trim() ? etapa : label;
+
+  return <Icon className={cn("h-4 w-4", color)} title={title} aria-label={title} />;
 }
