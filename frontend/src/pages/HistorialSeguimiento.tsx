@@ -214,7 +214,7 @@ export default function HistorialSeguimiento() {
           <ResumenCard
             label="Etapa actual"
             valor={ultimoRegistro.etapa ?? "Sin etapa asignada"}
-            sub={`Última actualización: ${ultimoRegistro.fecha ?? "No informado"}`}
+            sub={`Última actualización: ${formatFechaHora(ultimoRegistro.fecha)}`}
             icon={ListOrdered}
             tone="neutral"
           />
@@ -310,7 +310,7 @@ export default function HistorialSeguimiento() {
                   <span className="text-[11.5px] text-muted-foreground">{obs.cargo}</span>
                   <span className="ml-auto inline-flex items-center gap-1 text-[11.5px] tabular text-muted-foreground">
                     <Calendar className="h-3 w-3" />
-                    {obs.fecha}
+                    {formatFechaHora(obs.fecha)}
                   </span>
                 </header>
                 <p className="max-w-[78ch] font-serif text-[15px] leading-relaxed text-foreground">
@@ -352,6 +352,46 @@ function DataField({
 }
 
 type Tone = "active" | "warn" | "neutral" | "closed";
+
+
+const formatFechaHora = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const formatFecha = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatHora = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
 
 function ResumenCard({
   label,
@@ -407,11 +447,11 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
         </span>
         <span className="text-[12px] text-muted-foreground">
           Inicio:{" "}
-          <span className="tabular text-foreground">{proceso.fechaInicio}</span>
+          <span className="tabular text-foreground">{formatFechaHora(proceso.fechaInicio)}</span>
           {proceso.fechaFin && (
             <>
               {"  ·  "}Cierre:{" "}
-              <span className="tabular text-foreground">{proceso.fechaFin}</span>
+              <span className="tabular text-foreground">{formatFechaHora(proceso.fechaFin)}</span>
             </>
           )}
         </span>
@@ -465,7 +505,7 @@ function TimelineItem({
           {esUltimo && registro.cierre && <CierrePill cierre={registro.cierre} />}
           <span className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] tabular text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            {registro.fecha} · {registro.hora}
+            {formatFechaHora(registro.fecha)}
           </span>
         </div>
 
@@ -488,10 +528,10 @@ function TimelineItem({
             </span>
             <span className="text-foreground">
               Desde:{" "}
-              <span className="tabular font-medium">{registro.compromisoPago.fechaDesde}</span>
+              <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaDesde)}</span>
             </span>
             <span className="text-foreground">
-              Hasta: <span className="tabular font-medium">{registro.compromisoPago.fechaHasta}</span>
+              Hasta: <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaHasta)}</span>
             </span>
             <span className="ml-auto text-muted-foreground">{registro.compromisoPago.observacion}</span>
           </div>
@@ -532,8 +572,8 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             {proceso.registros.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
-                  <div className="font-medium">{r.fecha}</div>
-                  <div className="text-[11.5px] text-muted-foreground">{r.hora} hs</div>
+                  <div className="font-medium">{formatFecha(r.fecha)}</div>
+                  <div className="text-[11.5px] text-muted-foreground">{formatHora(r.fecha)}</div>
                 </td>
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">{r.numeroProceso}</td>
                 <td className="px-4 py-3">
@@ -553,7 +593,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                   {r.compromisoPago ? (
                     <div className="space-y-0.5">
                       <div className="tabular font-medium text-foreground">
-                        {r.compromisoPago.fechaDesde} – {r.compromisoPago.fechaHasta}
+                        {formatFecha(r.compromisoPago.fechaDesde)} – {formatFecha(r.compromisoPago.fechaHasta)}
                       </div>
                       <div className="text-[11.5px] text-muted-foreground tabular">
                         {r.compromisoPago.observacion}
