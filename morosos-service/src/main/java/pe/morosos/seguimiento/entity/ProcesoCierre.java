@@ -1,6 +1,7 @@
 package pe.morosos.seguimiento.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
@@ -15,6 +16,7 @@ public class ProcesoCierre {
  @ManyToOne(fetch=FetchType.LAZY, optional=false) @JoinColumn(name="motivo_cierre_id", nullable=false) private MotivoCierre motivoCierre;
  @Column(name="fecha_cierre", nullable=false) private Instant fechaCierre;
  @Column(name="observacion", columnDefinition="text") private String observacion;
+ @Column(name="monto_abonado", precision = 14, scale = 2) private BigDecimal montoAbonado;
  @Column(name="created_by") private UUID createdBy;
  @Column(name="created_at", nullable=false) private Instant createdAt;
 }

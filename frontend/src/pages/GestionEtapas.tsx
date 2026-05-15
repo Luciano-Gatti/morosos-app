@@ -133,6 +133,7 @@ export type CerrarProcesoPayload = {
   casoSeguimientoId: string;
   motivoCodigo: string;
   observacion?: string;
+  montoAbonado?: number;
   planPago?: {
     montoTotalPlan: number;
     cantidadTotalCuotas: number;
@@ -1347,14 +1348,6 @@ function ConfirmarEtapaDialog({
                   Se aplicará la operación al conjunto seleccionado.
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
-                </div>
               </div>
             </div>
             <div className="text-right">
@@ -1486,7 +1479,7 @@ function CerrarProcesoDialog({
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
   const [observacion, setObservacion] = useState("");
-  const [montoComprometido, setMontoComprometido] = useState("");
+  const [montoAbonado, setMontoAbonado] = useState("");
 
   // Regularización
   const [fechaReg, setFechaReg] = useState<Date | undefined>(today);
@@ -1507,11 +1500,18 @@ function CerrarProcesoDialog({
   const cuotasValidas = Number.isFinite(cuotasNum) && cuotasNum > 0 && cuotasNum <= 120;
   const pagaAhoraValido = Number.isFinite(cuotasPagaAhoraNum) && cuotasPagaAhoraNum >= 0 && cuotasPagaAhoraNum <= cuotasNum;
   const montoValido = Number.isFinite(montoTotalNum) && montoTotalNum > 0;
+  const montoAbonadoNum = Number(montoAbonado);
+  const montoAbonadoValido = montoAbonado.trim() === "" || (Number.isFinite(montoAbonadoNum) && montoAbonadoNum > 0);
+  const planCalculoValido = cuotasValidas && pagaAhoraValido && montoValido;
+  const valorCuotaCalculado = planCalculoValido ? montoTotalNum / cuotasNum : null;
+  const montoPagaAhoraCalculado = planCalculoValido ? valorCuotaCalculado * cuotasPagaAhoraNum : null;
+  const cuotasPendientesCalculadas = planCalculoValido ? cuotasNum - cuotasPagaAhoraNum : null;
+  const saldoPendienteCalculado = planCalculoValido ? montoTotalNum - montoPagaAhoraCalculado : null;
 
   const puedeConfirmar = (() => {
     if (isApiWithoutMotivos) return false;
     if (!motivo) return false;
-    if (motivo === "REGULARIZACION") return !!fechaReg;
+    if (motivo === "REGULARIZACION") return !!fechaReg && montoAbonadoValido;
     if (motivo === "PLAN_DE_PAGO") return !!fechaPlan && !!fechaPrimera && cuotasValidas && pagaAhoraValido && montoValido;
     if (motivo === "CAMBIO_PARAMETRO") return parametro.trim() && valorAnterior.trim() && valorNuevo.trim();
     if (motivo === "OTRO" || motivo === "JUDICIALIZACION")
@@ -1525,11 +1525,14 @@ function CerrarProcesoDialog({
       motivoCodigo: motivo,
       observacion: observacion.trim() || undefined,
     };
+    if (motivo === "REGULARIZACION" && montoAbonado.trim() !== "") {
+      payload.montoAbonado = montoAbonadoNum;
+    }
     if (motivo === "PLAN_DE_PAGO" && fechaPrimera) {
-      const valorCuota = montoTotalNum / cuotasNum;
-      const montoPagaAhora = valorCuota * cuotasPagaAhoraNum;
-      const saldoPendiente = montoTotalNum - montoPagaAhora;
-      const cuotasPendientes = cuotasNum - cuotasPagaAhoraNum;
+      const valorCuota = valorCuotaCalculado!;
+      const montoPagaAhora = montoPagaAhoraCalculado!;
+      const saldoPendiente = saldoPendienteCalculado!;
+      const cuotasPendientes = cuotasPendientesCalculadas!;
       const ok = window.confirm(`Monto total del plan: $${Math.round(montoTotalNum).toLocaleString("es-AR")}\nCantidad total de cuotas: ${cuotasNum}\nValor de cada cuota: $${Math.round(valorCuota).toLocaleString("es-AR")}\nCuotas que paga ahora: ${cuotasPagaAhoraNum}\nMonto a pagar ahora: $${Math.round(montoPagaAhora).toLocaleString("es-AR")}\nCuotas pendientes: ${cuotasPendientes}\nSaldo pendiente: $${Math.round(saldoPendiente).toLocaleString("es-AR")}`);
       if (!ok) return;
       payload.planPago = { montoTotalPlan: montoTotalNum, cantidadTotalCuotas: cuotasNum, cantidadCuotasQuePagaAhora: cuotasPagaAhoraNum, fechaVencimientoPrimeraCuota: format(fechaPrimera, "yyyy-MM-dd") };
@@ -1570,15 +1573,6 @@ function CerrarProcesoDialog({
                 </div>
                 <div className="text-[13px] text-foreground">
                   Se cerrará el proceso de cada inmueble seleccionado.
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
                 </div>
               </div>
             </div>
@@ -1653,6 +1647,10 @@ function CerrarProcesoDialog({
                   </PopoverContent>
                 </Popover>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-[12px] font-medium">Monto abonado</Label>
+                <Input type="number" min={0.01} value={montoAbonado} onChange={(e) => setMontoAbonado(e.target.value)} className="h-9 text-[13px]" />
+              </div>
               <ObservacionField
                 value={observacion}
                 onChange={setObservacion}
@@ -1701,23 +1699,14 @@ function CerrarProcesoDialog({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">
-                    Cantidad de cuotas <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={120}
-                    value={cuotas}
-                    onChange={(e) => setCuotas(e.target.value)}
-                    className="h-9 text-[13px]"
-                    placeholder="Ej. 6"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
                   <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
                   <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">
+                    Cantidad total de cuotas <span className="text-destructive">*</span>
+                  </Label>
+                  <Input type="number" min={1} max={120} value={cuotas} onChange={(e) => setCuotas(e.target.value)} className="h-9 text-[13px]" placeholder="Ej. 6" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
@@ -1770,6 +1759,20 @@ function CerrarProcesoDialog({
                 onChange={setObservacion}
                 required={false}
               />
+              <div className="rounded-md border border-border bg-background px-3 py-2 text-[12px]">
+                {planCalculoValido ? (
+                  <div className="space-y-1">
+                    <p className="font-medium">Resumen del plan:</p>
+                    <p>Valor de cada cuota: ${valorCuotaCalculado?.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</p>
+                    <p>Cuotas que paga ahora: {cuotasPagaAhoraNum}</p>
+                    <p>Monto a pagar ahora: ${montoPagaAhoraCalculado?.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</p>
+                    <p>Cuotas pendientes: {cuotasPendientesCalculadas}</p>
+                    <p>Saldo pendiente: ${saldoPendienteCalculado?.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</p>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Completá los datos del plan para ver el cálculo.</p>
+                )}
+              </div>
 
               <div className="flex items-start gap-2 rounded-md border border-border bg-background px-3 py-2 text-[11.5px] text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

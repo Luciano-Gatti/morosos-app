@@ -8,11 +8,13 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 public record CerrarProcesosBulkRequest(
         @NotEmpty List<@NotNull UUID> casoSeguimientoIds,
         @NotBlank String motivoCodigo,
         String observacion,
+        BigDecimal montoAbonado,
         @Valid PlanPagoCierreRequest planPago,
         @Valid CambioParametroCierreRequest cambioParametro
 ) {
