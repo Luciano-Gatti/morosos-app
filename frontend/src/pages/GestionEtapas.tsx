@@ -134,7 +134,9 @@ export type CerrarProcesoPayload = {
   motivoCodigo: string;
   observacion?: string;
   planPago?: {
-    cantidadCuotas: number;
+    montoTotalPlan: number;
+    cantidadTotalCuotas: number;
+    cantidadCuotasQuePagaAhora: number;
     fechaVencimientoPrimeraCuota: string;
   };
   cambioParametro?: {
@@ -1344,6 +1346,15 @@ function ConfirmarEtapaDialog({
                 <div className="text-[13px] text-foreground">
                   Se aplicará la operación al conjunto seleccionado.
                 </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
+                </div>
               </div>
             </div>
             <div className="text-right">
@@ -1485,17 +1496,23 @@ function CerrarProcesoDialog({
   const [fechaPlan, setFechaPlan] = useState<Date | undefined>(today);
   const [openFechaPlan, setOpenFechaPlan] = useState(false);
   const [cuotas, setCuotas] = useState<string>("6");
+  const [montoTotalPlan, setMontoTotalPlan] = useState<string>("0");
+  const [cuotasPagaAhora, setCuotasPagaAhora] = useState<string>("0");
   const [fechaPrimera, setFechaPrimera] = useState<Date | undefined>(today);
   const [openFechaPrimera, setOpenFechaPrimera] = useState(false);
 
   const cuotasNum = parseInt(cuotas, 10);
+  const cuotasPagaAhoraNum = parseInt(cuotasPagaAhora, 10);
+  const montoTotalNum = Number(montoTotalPlan);
   const cuotasValidas = Number.isFinite(cuotasNum) && cuotasNum > 0 && cuotasNum <= 120;
+  const pagaAhoraValido = Number.isFinite(cuotasPagaAhoraNum) && cuotasPagaAhoraNum >= 0 && cuotasPagaAhoraNum <= cuotasNum;
+  const montoValido = Number.isFinite(montoTotalNum) && montoTotalNum > 0;
 
   const puedeConfirmar = (() => {
     if (isApiWithoutMotivos) return false;
     if (!motivo) return false;
     if (motivo === "REGULARIZACION") return !!fechaReg;
-    if (motivo === "PLAN_DE_PAGO") return !!fechaPlan && !!fechaPrimera && cuotasValidas;
+    if (motivo === "PLAN_DE_PAGO") return !!fechaPlan && !!fechaPrimera && cuotasValidas && pagaAhoraValido && montoValido;
     if (motivo === "CAMBIO_PARAMETRO") return parametro.trim() && valorAnterior.trim() && valorNuevo.trim();
     if (motivo === "OTRO" || motivo === "JUDICIALIZACION")
       return observacion.trim().length > 0;
@@ -1509,7 +1526,13 @@ function CerrarProcesoDialog({
       observacion: observacion.trim() || undefined,
     };
     if (motivo === "PLAN_DE_PAGO" && fechaPrimera) {
-      payload.planPago = { cantidadCuotas: cuotasNum, fechaVencimientoPrimeraCuota: format(fechaPrimera, "yyyy-MM-dd") };
+      const valorCuota = montoTotalNum / cuotasNum;
+      const montoPagaAhora = valorCuota * cuotasPagaAhoraNum;
+      const saldoPendiente = montoTotalNum - montoPagaAhora;
+      const cuotasPendientes = cuotasNum - cuotasPagaAhoraNum;
+      const ok = window.confirm(`Monto total del plan: $${Math.round(montoTotalNum).toLocaleString("es-AR")}\nCantidad total de cuotas: ${cuotasNum}\nValor de cada cuota: $${Math.round(valorCuota).toLocaleString("es-AR")}\nCuotas que paga ahora: ${cuotasPagaAhoraNum}\nMonto a pagar ahora: $${Math.round(montoPagaAhora).toLocaleString("es-AR")}\nCuotas pendientes: ${cuotasPendientes}\nSaldo pendiente: $${Math.round(saldoPendiente).toLocaleString("es-AR")}`);
+      if (!ok) return;
+      payload.planPago = { montoTotalPlan: montoTotalNum, cantidadTotalCuotas: cuotasNum, cantidadCuotasQuePagaAhora: cuotasPagaAhoraNum, fechaVencimientoPrimeraCuota: format(fechaPrimera, "yyyy-MM-dd") };
     }
     if (motivo === "CAMBIO_PARAMETRO") {
       payload.cambioParametro = { parametro: parametro.trim(), valorAnterior: valorAnterior.trim(), valorNuevo: valorNuevo.trim() };
@@ -1547,6 +1570,15 @@ function CerrarProcesoDialog({
                 </div>
                 <div className="text-[13px] text-foreground">
                   Se cerrará el proceso de cada inmueble seleccionado.
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
                 </div>
               </div>
             </div>
@@ -1681,6 +1713,15 @@ function CerrarProcesoDialog({
                     className="h-9 text-[13px]"
                     placeholder="Ej. 6"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
                 </div>
               </div>
 
@@ -1892,6 +1933,15 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
                 </div>
                 <div className="text-[13px] text-foreground">
                   Se registrará un compromiso por cada inmueble seleccionado.
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
                 </div>
               </div>
             </div>
@@ -2188,6 +2238,15 @@ function MoverEtapaDialog({
                 </div>
                 <div className="text-[13px] text-foreground">
                   Se aplicará la operación al conjunto seleccionado.
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
                 </div>
               </div>
             </div>

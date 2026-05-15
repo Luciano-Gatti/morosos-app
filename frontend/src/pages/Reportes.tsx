@@ -76,7 +76,6 @@ const ORGANISMO = "AOSC — Administración de Obras Sanitarias";
 
 type ReporteId =
   | "morosos-grupo-distrito"
-  | "acciones-regularizacion"
   | "estado-inmuebles"
   | "acciones-fechas"
   | "historial-movimientos";
@@ -136,13 +135,6 @@ const REPORTES: ReporteDef[] = [
     descripcion: "Distribución actual de inmuebles morosos.",
     icono: Building2,
     conFechas: false,
-  },
-  {
-    id: "acciones-regularizacion",
-    titulo: "Regularizaciones y planes",
-    descripcion: "Regularizaciones, planes de pago y compromisos.",
-    icono: HandCoins,
-    conFechas: true,
   },
   {
     id: "estado-inmuebles",
