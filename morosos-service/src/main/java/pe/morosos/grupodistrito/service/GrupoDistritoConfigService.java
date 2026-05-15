@@ -32,7 +32,7 @@ public class GrupoDistritoConfigService {
 
     @Transactional(readOnly = true)
     public List<GrupoDistritoConfigResponse> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(this::toResponseWithInmuebles).toList();
     }
 
     @Transactional
@@ -57,7 +57,7 @@ public class GrupoDistritoConfigService {
         if (prevSeguimiento != saved.isSeguimientoHabilitado()) {
             auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_SEGUIMIENTO_ACTUALIZADO", null, null, "/api/v1/grupo-distrito/config", null, null);
         }
-        return mapper.toResponse(saved);
+        return toResponseWithInmuebles(saved);
     }
 
     @Transactional
@@ -76,7 +76,7 @@ public class GrupoDistritoConfigService {
         }
         GrupoDistritoConfig saved = repository.save(entity);
         auditService.log("GRUPO_DISTRITO_CONFIG", saved.getId(), "GRUPO_DISTRITO_ASOCIADO", null, null, "/api/v1/grupo-distrito/config", null, null);
-        return mapper.toResponse(saved);
+        return toResponseWithInmuebles(saved);
     }
 
     @Transactional
@@ -89,6 +89,27 @@ public class GrupoDistritoConfigService {
         }
         repository.delete(config);
         auditService.log("GRUPO_DISTRITO_CONFIG", id, "GRUPO_DISTRITO_DESASOCIADO", null, null, "/api/v1/grupo-distrito/config", null, null);
+    }
+
+
+    private GrupoDistritoConfigResponse toResponseWithInmuebles(GrupoDistritoConfig entity) {
+        GrupoDistritoConfigResponse base = mapper.toResponse(entity);
+        long inmuebles = inmuebleRepository.countByGrupoIdAndDistritoId(entity.getGrupo().getId(), entity.getDistrito().getId());
+        return new GrupoDistritoConfigResponse(
+                base.id(),
+                base.grupoId(),
+                base.grupoCodigo(),
+                base.grupoNombre(),
+                base.distritoId(),
+                base.distritoCodigo(),
+                base.distritoNombre(),
+                base.seguimientoHabilitado(),
+                inmuebles,
+                base.createdBy(),
+                base.createdAt(),
+                base.updatedBy(),
+                base.updatedAt()
+        );
     }
 
     private void validateActivos(Grupo grupo, Distrito distrito) {
