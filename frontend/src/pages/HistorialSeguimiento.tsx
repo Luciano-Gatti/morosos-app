@@ -451,6 +451,8 @@ function TimelineItem({
   registro: RegistroHistorial;
   esUltimo: boolean;
 }) {
+  const observacion = getObservacionVisible(registro.observaciones);
+
   return (
     <li className="relative flex gap-4 pb-6 last:pb-0">
       <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
@@ -469,17 +471,13 @@ function TimelineItem({
 
         <div className="mt-2 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
           <span className="font-medium uppercase tracking-wider text-muted-foreground">
-            Acción
-          </span>
-          <span className="text-foreground">{registro.tipoAccion ?? "Evento"}</span>
-          <span className="font-medium uppercase tracking-wider text-muted-foreground">
             Responsable
           </span>
           <span className="text-foreground">{registro.responsable}</span>
         </div>
 
         <p className="mt-2 max-w-[72ch] rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[13px] leading-relaxed text-foreground">
-          {registro.observaciones}
+          {observacion ?? "No se dejaron asentadas observaciones para esta etapa."}
         </p>
 
         {registro.compromisoPago && (
@@ -501,6 +499,15 @@ function TimelineItem({
       </div>
     </li>
   );
+}
+
+
+function getObservacionVisible(observaciones?: string | null) {
+  if (!observaciones) return null;
+  const valor = observaciones.trim();
+  if (!valor) return null;
+  if (valor.toLowerCase() === "no informado") return null;
+  return valor;
 }
 
 function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
