@@ -1201,11 +1201,12 @@ function ReporteAccionesFechas({
   const seleccionarTodos = () => setTiposSeleccionados(ALL_TIPOS);
   const limpiarTodos = () => setTiposSeleccionados([]);
 
+  const rowsBase = state.data.rows ?? [];
   const filtradas = useMemo(() => {
-    const base = state.data.rows ?? [];
+    const base = rowsBase;
     if (tiposSeleccionados.length === 0) return [];
     return base.filter((a) => tiposSeleccionados.includes(a.tipo));
-  }, [state.data.rows, tiposSeleccionados]);
+  }, [rowsBase, tiposSeleccionados]);
   const serie = useMemo(() => serieDiaria(filtradas), [filtradas]);
   const conteos = useMemo(() => conteoPorTipo(filtradas, ALL_TIPOS), [filtradas, ALL_TIPOS]);
   const conteosVisibles = useMemo(
@@ -1225,7 +1226,6 @@ function ReporteAccionesFechas({
 
   if (state.loading) return <div className="text-sm text-muted-foreground">Cargando reporte…</div>;
   if (state.error) return <div className="text-sm text-destructive">{state.error}</div>;
-  if (state.empty) return <div className="text-sm text-muted-foreground">No hay acciones para el período seleccionado.</div>;
 
   return (
     <div className="space-y-5">
@@ -1289,33 +1289,45 @@ function ReporteAccionesFechas({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartBox id="rep-acciones-fechas-chart" title="Acciones por día">
-          <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-            <XAxis dataKey="fechaLabel" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="total"
-              stroke="hsl(215 65% 32%)"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
+          {serie.length > 0 ? (
+            <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+              <XAxis dataKey="fechaLabel" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="total"
+                stroke="hsl(215 65% 32%)"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              No hay datos para graficar.
+            </div>
+          )}
         </ChartBox>
 
         <ChartBox id="rep-acciones-fechas-tipo-chart" title="Acciones por tipo">
-          <BarChart data={conteosVisibles} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-            <XAxis dataKey="tipo" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
-              {conteosVisibles.map((c, i) => (
-                <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
-              ))}
-            </Bar>
-          </BarChart>
+          {conteosVisibles.length > 0 ? (
+            <BarChart data={conteosVisibles} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+              <XAxis dataKey="tipo" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar dataKey="cantidad" radius={[3, 3, 0, 0]}>
+                {conteosVisibles.map((c, i) => (
+                  <Cell key={i} fill={COLORS_TIPO[c.tipo] ?? COLORS_BAR[i % COLORS_BAR.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              No hay datos para graficar.
+            </div>
+          )}
         </ChartBox>
       </div>
 
@@ -1329,6 +1341,7 @@ function ReporteAccionesFechas({
             total === 0 ? "—" : pctFmt((c.cantidad / total) * 100),
           ])}
           alignRight={[1, 2]}
+          emptyMessage="No hay acciones registradas para los filtros seleccionados."
         />
       </div>
 
@@ -1345,6 +1358,7 @@ function ReporteAccionesFechas({
             a.distrito,
             a.usuario,
           ])}
+          emptyMessage="No hay acciones registradas para el período seleccionado."
         />
         <Paginador
           page={safePage}
@@ -1494,10 +1508,12 @@ function DataTable({
   head,
   rows,
   alignRight = [],
+  emptyMessage = "Sin registros para el período/filtros seleccionados.",
 }: {
   head: string[];
   rows: (string | number)[][];
   alignRight?: number[];
+  emptyMessage?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -1524,7 +1540,7 @@ function DataTable({
                 colSpan={head.length}
                 className="h-24 text-center text-[13px] text-muted-foreground"
               >
-                Sin registros para el período/filtros seleccionados.
+                {emptyMessage}
               </TableCell>
             </TableRow>
           )}
