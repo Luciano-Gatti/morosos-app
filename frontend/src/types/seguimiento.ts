@@ -5,7 +5,7 @@ export const etapasSeguimiento = [
   "Corte",
   "Sin etapa asignada",
 ] as const;
-export type EtapaSeguimiento = (typeof etapasSeguimiento)[number];
+export type EtapaSeguimiento = string;
 
 export const estadosProceso = ["No iniciado", "Iniciado", "Pausado", "Cerrado"] as const;
 export type EstadoProceso = (typeof estadosProceso)[number];

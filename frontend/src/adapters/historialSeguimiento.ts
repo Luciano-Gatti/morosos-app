@@ -69,11 +69,13 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
   const cierresRaw = Array.isArray(input?.cierres) ? input.cierres : [];
   const compromisosRaw = Array.isArray(input?.compromisos) ? input.compromisos : [];
 
-  const toEstadoRegistro = (estado: string) => {
-    const e = estado.toUpperCase();
-    if (e === "ABIERTO" || e === "INICIADO") return "Iniciado";
+  const toEstadoEtapa = (tipoEvento: string, estadoCaso: string, isUltimo: boolean) => {
+    if (tipoEvento === "CIERRE_PROCESO") return "Cerrado";
+    if (!isUltimo) return "Cerrado";
+    const e = estadoCaso.toUpperCase();
     if (e === "PAUSADO") return "Pausado";
     if (e === "CERRADO") return "Cerrado";
+    if (e === "ABIERTO" || e === "INICIADO") return "Iniciado";
     return "No iniciado";
   };
 
@@ -120,19 +122,22 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
 
   const procesos = casosRaw.map((c: any, ci: number) => {
     const casoId = s(c?.id ?? c?.casoId, `caso-${ci}`);
-    const eventosCaso = eventos.filter((e) => e.casoId === casoId).map((mapped) => {
+    const eventosCasoRaw = eventos.filter((e) => e.casoId === casoId);
+    const eventosCaso = eventosCasoRaw.map((mapped, idx) => {
+      const tipoEvento = s(mapped.tipoEvento, "").toUpperCase();
+      const isUltimo = idx === eventosCasoRaw.length - 1;
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
         etapa: mapped.etapaDestino,
-        estado: toEstadoRegistro(s(c?.estado, "ABIERTO")),
+        estado: toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
         responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
-        motivo: mapped.tipoEventoLabel,
         observaciones: mapped.observacion,
         numeroProceso: casoId,
         hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
         metadata: mapped.metadata,
+        cierre: tipoEvento === "CIERRE_PROCESO" ? (cierres.find((x) => x.casoId === casoId)?.motivoNombre ?? null) : null,
       };
     });
     if (eventosCaso.length === 0) {
@@ -141,10 +146,9 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         fecha: s(c?.fechaInicio),
         hora: "00:00",
         etapa: s(c?.etapaActual ?? c?.etapaNombre, "Sin etapa asignada"),
-        estado: toEstadoRegistro(s(c?.estado, "NO_INICIADO")),
+        estado: "No iniciado",
         responsable: "No informado",
-        tipoAccion: "Apertura",
-        motivo: "Inicio de proceso",
+        tipoAccion: "Sin seguimiento iniciado",
         observaciones: s(c?.observacion, "No informado"),
         numeroProceso: casoId,
         metadata: null,
@@ -181,7 +185,6 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         estado: "No iniciado",
         responsable: "Sistema",
         tipoAccion: "Sin seguimiento iniciado",
-        motivo: "Sin seguimiento iniciado",
         observaciones: "El inmueble aún no tiene un proceso de seguimiento iniciado.",
         numeroProceso: "NO_INICIADO",
         metadata: null,

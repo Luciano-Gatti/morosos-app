@@ -469,10 +469,9 @@ function TimelineItem({
 
         <div className="mt-2 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
           <span className="font-medium uppercase tracking-wider text-muted-foreground">
-            Motivo
+            Acción
           </span>
-          <span className="text-foreground">{registro.motivo}</span>
-
+          <span className="text-foreground">{registro.tipoAccion ?? "Evento"}</span>
           <span className="font-medium uppercase tracking-wider text-muted-foreground">
             Responsable
           </span>
@@ -516,7 +515,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
               <Th className="w-[130px]">Proceso</Th>
               <Th className="w-[140px]">Etapa</Th>
               <Th className="w-[120px]">Estado</Th>
-              <Th className="w-[180px]">Motivo</Th>
+              <Th className="w-[180px]">Acción</Th>
               <Th>Observaciones</Th>
               <Th className="w-[200px]">Compromiso de pago</Th>
               <Th className="w-[160px]">Cierre</Th>
@@ -536,7 +535,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                 <td className="px-4 py-3">
                   <EstadoPill estado={r.estado} />
                 </td>
-                <td className="px-4 py-3 text-[12.5px] text-foreground">{r.motivo}</td>
+                <td className="px-4 py-3 text-[12.5px] text-foreground">{r.tipoAccion ?? "Evento"}</td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">
                   <p className="max-w-[48ch] leading-relaxed">{r.observaciones}</p>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
@@ -587,7 +586,7 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 }
 
 function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
-  const cls: Record<EtapaSeguimiento, string> = {
+  const cls: Record<string, string> = {
     "Aviso de deuda": "border-border bg-muted text-foreground",
     "Intimación": "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
     "Aviso de corte": "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-400",
@@ -595,7 +594,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
     "Sin etapa asignada": "border-border bg-muted text-muted-foreground",
   };
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] font-medium", cls[etapa])}>
+    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] font-medium", cls[etapa] ?? "border-border bg-muted text-foreground")}>
       {etapa}
     </span>
   );
@@ -618,25 +617,12 @@ function EstadoPill({ estado }: { estado: EstadoProceso }) {
 }
 
 function CierrePill({ cierre }: { cierre: NonNullable<CierreProceso> }) {
-  const map: Record<NonNullable<CierreProceso>, { cls: string; Icon: typeof CircleCheck }> = {
-    "Regularización total": {
-      cls: "border-status-closed/20 bg-status-closed-soft text-status-closed",
-      Icon: CircleCheck,
-    },
-    "Plan de pago acordado": {
-      cls: "border-status-active/20 bg-status-active-soft text-status-active",
-      Icon: HandCoins,
-    },
-    "Cierre administrativo": {
-      cls: "border-border bg-muted text-muted-foreground",
-      Icon: Lock,
-    },
-  };
-  const { cls, Icon } = map[cierre];
+  const cls = "border-status-closed/20 bg-status-closed-soft text-status-closed";
+  const Icon = CircleCheck;
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11.5px] font-medium", cls)}>
       <Icon className="h-3 w-3" />
-      {cierre}
+      Motivo de cierre: {cierre}
     </span>
   );
 }
