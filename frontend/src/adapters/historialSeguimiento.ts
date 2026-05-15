@@ -65,6 +65,17 @@ const b = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
 export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string): HistorialSeguimientoViewModel {
   const inmuebleRaw = input?.inmueble ?? input?.inmuebleResumen ?? {};
   const casosRaw = Array.isArray(input?.casos) ? input.casos : [];
+  const eventosRaw = Array.isArray(input?.eventos) ? input.eventos : [];
+  const cierresRaw = Array.isArray(input?.cierres) ? input.cierres : [];
+  const compromisosRaw = Array.isArray(input?.compromisos) ? input.compromisos : [];
+
+  const toEstadoRegistro = (estado: string) => {
+    const e = estado.toUpperCase();
+    if (e === "ABIERTO") return "Activo";
+    if (e === "PAUSADO") return "Pausado";
+    if (e === "CERRADO") return "Cerrado";
+    return "No iniciado";
+  };
 
   const casos = casosRaw.map((c: any) => ({
     casoId: s(c?.id ?? c?.casoId, ""),
@@ -75,68 +86,79 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     observacion: s(c?.observacion, ""),
   }));
 
-  const eventos: HistorialSeguimientoViewModel["eventos"] = [];
-  const cierres: HistorialSeguimientoViewModel["cierres"] = [];
-  const compromisos: HistorialSeguimientoViewModel["compromisos"] = [];
+  const eventos: HistorialSeguimientoViewModel["eventos"] = eventosRaw.map((e: any, i: number) => ({
+    eventoId: s(e?.id ?? e?.eventoId, `evt-${i}`),
+    casoId: s(e?.casoId),
+    tipoEvento: s(e?.tipoEvento ?? e?.tipoAccion ?? e?.tipo, "evento"),
+    tipoEventoLabel: s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento"),
+    etapaOrigen: s(e?.etapaOrigen, "No informado"),
+    etapaDestino: s(e?.etapaDestino ?? e?.etapaNombre ?? e?.etapa, "Sin etapa asignada"),
+    fechaEvento: s(e?.fechaEvento ?? e?.fecha),
+    observacion: s(e?.observacion ?? e?.descripcion ?? e?.detalle, "No informado"),
+    metadata: (e?.metadata ?? null) as Record<string, unknown> | null,
+  }));
+  const cierres: HistorialSeguimientoViewModel["cierres"] = cierresRaw.map((c: any, i: number) => ({
+    cierreId: s(c?.id ?? c?.cierreId, `cierre-${i}`),
+    casoId: s(c?.casoId),
+    motivoCodigo: s(c?.motivoCodigo, ""),
+    motivoNombre: s(c?.motivoNombre ?? c?.motivoDescripcion, "No informado"),
+    fechaCierre: s(c?.fechaCierre),
+    observacion: s(c?.observacion, "No informado"),
+    planPago: (c?.planPago ?? null) as Record<string, unknown> | null,
+    cambioParametro: (c?.cambioParametro ?? null) as Record<string, unknown> | null,
+  }));
+  const compromisos: HistorialSeguimientoViewModel["compromisos"] = compromisosRaw.map((cp: any, i: number) => ({
+    compromisoId: s(cp?.id ?? cp?.compromisoId, `comp-${i}`),
+    casoId: s(cp?.casoId),
+    fechaDesde: s(cp?.fechaDesde),
+    fechaHasta: s(cp?.fechaHasta),
+    montoComprometido: n(cp?.montoComprometido),
+    estado: s(cp?.estado),
+    estadoLabel: s(cp?.estadoLabel ?? cp?.estado),
+    observacion: s(cp?.observacion, "No informado"),
+  }));
 
   const procesos = casosRaw.map((c: any, ci: number) => {
     const casoId = s(c?.id ?? c?.casoId, `caso-${ci}`);
-    const eventosCaso = (Array.isArray(c?.eventos) ? c.eventos : []).map((e: any, ei: number) => {
-      const mapped = {
-        eventoId: s(e?.id, `${casoId}-evt-${ei}`),
-        casoId,
-        tipoEvento: s(e?.tipoAccion ?? e?.tipo, "evento"),
-        tipoEventoLabel: s(e?.tipoAccionLabel ?? e?.tipoLabel ?? e?.tipoAccion ?? e?.tipo, "Evento"),
-        etapaOrigen: s(e?.etapaOrigen),
-        etapaDestino: s(e?.etapaDestino ?? e?.etapaNombre ?? e?.etapa, "Sin etapa"),
-        fechaEvento: s(e?.fechaEvento ?? e?.fecha),
-        observacion: s(e?.descripcion ?? e?.detalle ?? e?.observacion, ""),
-        metadata: (e?.metadata ?? null) as Record<string, unknown> | null,
-      };
-      eventos.push(mapped);
+    const eventosCaso = eventos.filter((e) => e.casoId === casoId).map((mapped) => {
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
         etapa: mapped.etapaDestino,
-        estado: s(c?.estado, "Activo"),
-        responsable: s(e?.actorNombre ?? e?.actorId, "Sistema"),
+        estado: toEstadoRegistro(s(c?.estado, "ABIERTO")),
+        responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
-        descripcion: mapped.observacion,
+        motivo: mapped.tipoEventoLabel,
+        observaciones: mapped.observacion,
+        numeroProceso: casoId,
+        hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
         metadata: mapped.metadata,
       };
     });
-
-    (Array.isArray(c?.compromisos) ? c.compromisos : []).forEach((cp: any, cpi: number) => {
-      compromisos.push({
-        compromisoId: s(cp?.id, `${casoId}-comp-${cpi}`),
-        casoId,
-        fechaDesde: s(cp?.fechaDesde),
-        fechaHasta: s(cp?.fechaHasta),
-        montoComprometido: n(cp?.montoComprometido),
-        estado: s(cp?.estado),
-        estadoLabel: s(cp?.estadoLabel ?? cp?.estado),
-        observacion: s(cp?.observacion, ""),
+    if (eventosCaso.length === 0) {
+      eventosCaso.push({
+        id: `${casoId}-apertura`,
+        fecha: s(c?.fechaInicio),
+        hora: "00:00",
+        etapa: s(c?.etapaActual ?? c?.etapaNombre, "Sin etapa asignada"),
+        estado: toEstadoRegistro(s(c?.estado, "ABIERTO")),
+        responsable: "No informado",
+        tipoAccion: "Apertura",
+        motivo: "Apertura de proceso",
+        observaciones: s(c?.observacion, "No informado"),
+        numeroProceso: casoId,
+        metadata: null,
       });
-    });
-
-    const cierreRaw = c?.cierre ?? null;
-    const cierre = cierreRaw
-      ? {
-          cierreId: s(cierreRaw?.id, `${casoId}-cierre`),
-          casoId,
-          motivoCodigo: s(cierreRaw?.motivoCodigo, ""),
-          motivoNombre: s(cierreRaw?.motivoNombre ?? cierreRaw?.motivoDescripcion),
-          fechaCierre: s(cierreRaw?.fechaCierre),
-          observacion: s(cierreRaw?.observacion, ""),
-          planPago: (cierreRaw?.planPago ?? null) as Record<string, unknown> | null,
-          cambioParametro: (cierreRaw?.cambioParametro ?? null) as Record<string, unknown> | null,
-        }
-      : null;
-    if (cierre) cierres.push(cierre);
+    }
+    const cierre = cierres.find((x) => x.casoId === casoId) ?? null;
 
     return {
       id: casoId,
       estado: s(c?.estado, "abierto").toLowerCase() === "cerrado" ? "cerrado" : "abierto",
+      fechaInicio: s(c?.fechaInicio, "No informado"),
+      fechaFin: cierre?.fechaCierre ?? null,
+      motivoApertura: s(c?.observacion, "No informado"),
+      motivoCierre: cierre?.motivoNombre ?? null,
       registros: eventosCaso,
       cierre,
       compromisos: compromisos.filter((x) => x.casoId === casoId),
