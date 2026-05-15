@@ -3,10 +3,11 @@ export const etapasSeguimiento = [
   "Intimación",
   "Aviso de corte",
   "Corte",
+  "Sin etapa asignada",
 ] as const;
 export type EtapaSeguimiento = (typeof etapasSeguimiento)[number];
 
-export const estadosProceso = ["No iniciado", "Activo", "Pausado", "Cerrado"] as const;
+export const estadosProceso = ["No iniciado", "Iniciado", "Pausado", "Cerrado"] as const;
 export type EstadoProceso = (typeof estadosProceso)[number];
 
 export interface InmuebleMoroso {
