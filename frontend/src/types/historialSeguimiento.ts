@@ -1,10 +1,6 @@
 import type { EstadoProceso, EtapaSeguimiento } from "@/types/seguimiento";
 
-export type CierreProceso =
-  | "Regularización total"
-  | "Plan de pago acordado"
-  | "Cierre administrativo"
-  | null;
+export type CierreProceso = string | null;
 
 export interface RegistroHistorial {
   id: string;
@@ -13,7 +9,7 @@ export interface RegistroHistorial {
   numeroProceso: string;
   etapa: EtapaSeguimiento;
   estado: EstadoProceso;
-  motivo: string;
+  tipoAccion?: string;
   observaciones: string;
   compromisoPago?: {
     fechaDesde: string;
