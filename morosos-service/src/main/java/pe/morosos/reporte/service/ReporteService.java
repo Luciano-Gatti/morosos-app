@@ -535,6 +535,11 @@ public class ReporteService {
     }
 
     private <T> PageResponse<T> paginate(List<T> items, Pageable pageable) {
+        if (pageable == null || pageable.isUnpaged()) {
+            int total = items.size();
+            int totalPages = total == 0 ? 0 : 1;
+            return new PageResponse<>(items, 0, total, total, totalPages);
+        }
         if (items.isEmpty()) {
             return new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0);
         }
