@@ -199,7 +199,7 @@ export default function HistorialSeguimiento() {
         </section>
 
 
-        {!loading && !error && empty && (
+        {!loading && !error && empty && !sinProcesoIniciado && (
           <section className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             No hay historial registrado para este inmueble.
           </section>
