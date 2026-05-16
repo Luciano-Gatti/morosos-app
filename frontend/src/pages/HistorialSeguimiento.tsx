@@ -146,9 +146,11 @@ export default function HistorialSeguimiento() {
   }
 
   const procesos = historial?.procesos ?? [];
+  const hayProcesoIniciado = (historialVm?.casos ?? []).some((c) => c.estado.toUpperCase() !== "NO_INICIADO");
+  const sinProcesoIniciado = !hayProcesoIniciado;
   const observacionesLibres = historial?.observacionesLibres ?? [];
   const procesoActual = procesos.find((p) => p.estado === "abierto") ?? procesos[procesos.length - 1] ?? null;
-  const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "Sin etapa asignada", fecha: "No informado", estado: "No informado", responsable: "No informado" };
+  const ultimoRegistro = procesoActual?.registros?.[procesoActual.registros.length - 1] ?? { etapa: "—", fecha: null, estado: "No iniciado", responsable: "No informado" };
 
   const totalRegistros = procesos.reduce((s, p) => s + p.registros.length, 0);
   const totalProcesos = procesos.length;
@@ -206,14 +208,20 @@ export default function HistorialSeguimiento() {
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <ResumenCard
             label="Proceso actual"
-            valor={procesoActual?.id ?? "-"}
-            sub={procesoActual?.estado === "abierto" ? "En curso" : "Último cerrado"}
+            valor={sinProcesoIniciado ? "Sin proceso iniciado" : procesoActual?.id ?? "-"}
+            sub={
+              sinProcesoIniciado
+                ? "El inmueble aún no tiene un proceso de seguimiento iniciado."
+                : procesoActual?.estado === "abierto"
+                  ? "En curso"
+                  : "Último cerrado"
+            }
             icon={GitBranch}
-            tone={procesoActual?.estado === "abierto" ? "active" : "neutral"}
+            tone={sinProcesoIniciado ? "neutral" : procesoActual?.estado === "abierto" ? "active" : "neutral"}
           />
           <ResumenCard
             label="Etapa actual"
-            valor={ultimoRegistro.etapa ?? "Sin etapa asignada"}
+            valor={sinProcesoIniciado ? "—" : ultimoRegistro.etapa ?? "Sin etapa asignada"}
             sub={`Última actualización: ${formatFechaHora(ultimoRegistro.fecha)}`}
             icon={ListOrdered}
             tone="neutral"
@@ -271,18 +279,36 @@ export default function HistorialSeguimiento() {
         {/* Vista timeline */}
         {vista === "timeline" && (
           <div className="space-y-6">
-            {procesosOrdenados.map((proceso) => (
-              <ProcesoTimeline key={proceso.id} proceso={proceso} />
-            ))}
+            {sinProcesoIniciado ? (
+              <section className="rounded-md border border-border bg-surface p-8 text-center">
+                <h3 className="text-[14px] font-semibold text-foreground">Sin seguimiento iniciado</h3>
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                  El inmueble aún no tiene un proceso de seguimiento iniciado.
+                </p>
+              </section>
+            ) : (
+              procesosOrdenados.map((proceso) => (
+                <ProcesoTimeline key={proceso.id} proceso={proceso} />
+              ))
+            )}
           </div>
         )}
 
         {/* Vista tabla */}
         {vista === "tabla" && (
           <div className="space-y-6">
-            {procesosOrdenados.map((proceso) => (
-              <ProcesoTabla key={proceso.id} proceso={proceso} />
-            ))}
+            {sinProcesoIniciado ? (
+              <section className="rounded-md border border-border bg-surface p-8 text-center">
+                <h3 className="text-[14px] font-semibold text-foreground">Sin seguimiento iniciado</h3>
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                  El inmueble aún no tiene un proceso de seguimiento iniciado.
+                </p>
+              </section>
+            ) : (
+              procesosOrdenados.map((proceso) => (
+                <ProcesoTabla key={proceso.id} proceso={proceso} />
+              ))
+            )}
           </div>
         )}
 

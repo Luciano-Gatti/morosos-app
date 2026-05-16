@@ -168,30 +168,6 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     } as const;
   });
 
-  if (procesos.length === 0) {
-    procesos.push({
-      id: "NO_INICIADO",
-      estado: "abierto",
-      fechaInicio: "No informado",
-      fechaFin: null,
-      motivoCierre: null,
-      cierre: null,
-      compromisos: [],
-      registros: [{
-        id: "no-iniciado",
-        fecha: "No informado",
-        hora: "00:00",
-        etapa: "Sin etapa asignada",
-        estado: "No iniciado",
-        responsable: "Sistema",
-        tipoAccion: "Sin seguimiento iniciado",
-        observaciones: "El inmueble aún no tiene un proceso de seguimiento iniciado.",
-        numeroProceso: "NO_INICIADO",
-        metadata: null,
-      }],
-    } as any);
-  }
-
   return {
     inmueble: {
       inmuebleId: s(inmuebleRaw?.id ?? inmuebleRaw?.inmuebleId ?? fallbackInmuebleId, fallbackInmuebleId),
