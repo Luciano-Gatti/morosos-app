@@ -54,7 +54,9 @@ export function mapReporteMorosos(payload: any): {
 
 export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
   const root = payload ?? {};
-  const detailRows = Array.isArray(root?.detalle) ? root.detalle : [];
+  const detailRows = Array.isArray(root?.detalle?.content)
+    ? root.detalle.content
+    : (Array.isArray(root?.detalle) ? root.detalle : []);
   const groupedRows = [
     ...(Array.isArray(root?.avisosDeuda) ? root.avisosDeuda : []),
     ...(Array.isArray(root?.intimaciones) ? root.intimaciones : []),
@@ -68,7 +70,7 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
     id: String(r.id ?? r.accionId ?? ""),
     fecha: toDate(r.fecha ?? r.fechaAccion),
-    tipo: toStr(r.tipoAccion ?? r.tipo ?? r.tipoAccionLabel) as AccionTipo,
+    tipo: toStr(r.tipoAccionLabel ?? r.tipo ?? r.tipoAccion) as AccionTipo,
     cuenta: toStr(r.cuenta),
     titular: toStr(r.titular),
     grupo: toStr(r.grupoNombre ?? r.grupo),

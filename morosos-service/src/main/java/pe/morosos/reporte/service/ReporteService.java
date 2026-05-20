@@ -389,7 +389,11 @@ public class ReporteService {
     }
 
     private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaOrigenNombre, String etapaDestinoCodigo, String etapaDestinoNombre, String motivoCierreCodigo) {
-        if ("REPETICION_ETAPA".equals(tipoEvento)) return "REPETICION_ETAPA";
+        if ("REPETICION_ETAPA".equals(tipoEvento)) {
+            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
+            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
+            return "REPETICION_ETAPA";
+        }
         if ("OBSERVACION".equals(tipoEvento)) return "PAUSA";
         if ("CAMBIO_PARAMETRO".equals(tipoEvento)) return "REAPERTURA";
         if ("COMPROMISO_REGISTRADO".equals(tipoEvento)) return "COMPROMISO_PAGO";
@@ -399,15 +403,9 @@ public class ReporteService {
             return "CIERRE";
         }
         if ("AVANCE_ETAPA".equals(tipoEvento) || "INICIO_PROCESO".equals(tipoEvento)) {
-            String codigo = (etapaDestinoCodigo != null ? etapaDestinoCodigo : etapaOrigenCodigo);
-            String nombre = (etapaDestinoNombre != null ? etapaDestinoNombre : etapaOrigenNombre);
-            String c = codigo == null ? "" : codigo.toUpperCase(Locale.ROOT);
-            if (c.contains("AVISO_DEUDA")) return "AVISO_DEUDA";
-            if (c.contains("INTIMACION")) return "INTIMACION";
-            if (c.contains("AVISO_CORTE")) return "AVISO_CORTE";
-            if (c.contains("CORTE")) return "CORTE";
-            if (nombre != null && !nombre.isBlank()) return nombre.trim();
-            if (codigo != null && !codigo.isBlank()) return codigo.trim();
+            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
+            if (etapaDestinoCodigo != null && !etapaDestinoCodigo.isBlank()) return etapaDestinoCodigo.trim();
+            return "INICIO_PROCESO".equals(tipoEvento) ? "INICIO_PROCESO" : "AVANCE_ETAPA";
         }
         return tipoEvento;
     }
@@ -419,7 +417,9 @@ public class ReporteService {
             case "AVISO_CORTE" -> "Aviso de corte";
             case "CORTE" -> "Corte";
             case "REPETICION_ETAPA" -> "Repetición de etapa";
-            case "PAUSA" -> "Pausa";
+            case "INICIO_PROCESO" -> "Inicio de proceso";
+            case "AVANCE_ETAPA" -> "Avance de etapa";
+            case "PAUSA" -> "Pausa de proceso";
             case "REAPERTURA" -> "Reapertura";
             case "CIERRE" -> "Cierre";
             case "REGULARIZACION" -> "Regularización";
