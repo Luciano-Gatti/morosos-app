@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
@@ -52,6 +53,7 @@ public class SeguimientoService {
     @Transactional(readOnly = true)
     public Page<SeguimientoBandejaRowResponse> findBandeja(String query, UUID grupoId, UUID distritoId, UUID etapaId,
                                                            CasoSeguimientoEstado estado, Integer cuotasMin, Pageable pageable) {
+        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
         int umbralConfigurado = parametroRulesService.cuotasMinimasMorosidad();
         int minCuotas = cuotasMin == null ? umbralConfigurado : Math.max(cuotasMin, umbralConfigurado);
         Optional<pe.morosos.deuda.entity.CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
@@ -63,7 +65,7 @@ public class SeguimientoService {
         }
 
         Page<pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection> page =
-                cargaDeudaDetalleRepository.findBandejaPage(cargaId, query, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+                cargaDeudaDetalleRepository.findBandejaPage(cargaId, normalizedQuery, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
 
         return page.map(this::toRow);
     }

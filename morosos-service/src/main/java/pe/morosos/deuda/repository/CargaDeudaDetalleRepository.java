@@ -56,7 +56,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and (:etapaId is null or e.id = :etapaId)
               and (:estado is null or c.estado = :estado)
               and (
-                    :query is null or trim(:query) = '' or
+                    :query is null or
                     lower(i.cuenta) like lower(concat('%', :query, '%')) or
                     lower(i.titular) like lower(concat('%', :query, '%')) or
                     lower(i.direccion) like lower(concat('%', :query, '%'))
@@ -80,7 +80,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and (:etapaId is null or e.id = :etapaId)
               and (:estado is null or c.estado = :estado)
               and (
-                    :query is null or trim(:query) = '' or
+                    :query is null or
                     lower(i.cuenta) like lower(concat('%', :query, '%')) or
                     lower(i.titular) like lower(concat('%', :query, '%')) or
                     lower(i.direccion) like lower(concat('%', :query, '%'))
