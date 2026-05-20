@@ -10,7 +10,7 @@ export type SeguimientoRow = {
   cuotasAdeudadas: number;
   montoAdeudado: number;
   etapa: string | null;
-  estado: "No iniciado" | "Activo" | "Pausado" | "Cerrado";
+  estado: "No iniciado" | "Iniciado" | "Pausado" | "Cerrado";
   fechaProgramada: string | null;
   accionesDisponibles?: {
     puedeIniciar?: boolean;
@@ -25,7 +25,7 @@ export type SeguimientoRow = {
 
 export function mapEstadoCasoLabel(value: string): SeguimientoRow["estado"] {
   const v = (value ?? "").toUpperCase();
-  if (v === "ACTIVO") return "Activo";
+  if (v === "ABIERTO" || v === "INICIADO" || v === "ACTIVO") return "Iniciado";
   if (v === "PAUSADO") return "Pausado";
   if (v === "CERRADO") return "Cerrado";
   return "No iniciado";
@@ -34,7 +34,7 @@ export function mapEstadoCasoLabel(value: string): SeguimientoRow["estado"] {
 export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
   return {
     id: String(row.id ?? row.casoId ?? row.inmuebleId ?? ""),
-    casoId: String(row.casoId ?? row.id ?? ""),
+    casoId: row.casoId ? String(row.casoId) : "",
     inmuebleId: String(row.inmuebleId ?? row.idInmueble ?? ""),
     cuenta: String(row.cuenta ?? "-"),
     titular: row.titular ?? "-",

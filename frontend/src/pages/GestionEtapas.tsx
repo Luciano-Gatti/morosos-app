@@ -612,7 +612,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
                 {([
-                  { label: "Activo", value: "ABIERTO" },
+                  { label: "Iniciado", value: "ABIERTO" },
                   { label: "Pausado", value: "PAUSADO" },
                   { label: "Cerrado", value: "CERRADO" },
                 ] as const).map((e) => (
@@ -693,9 +693,9 @@ export default function GestionEtapas() {
                 </span>
               </div>
               <div>
-                Activos:{" "}
+                Iniciados:{" "}
                 <span className="tabular font-semibold text-foreground">
-                  {numberFmt.format(filtered.filter((m) => m.estado === "Activo").length)}
+                  {numberFmt.format(filtered.filter((m) => m.estado === "Iniciado").length)}
                 </span>
               </div>
               <div>
