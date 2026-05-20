@@ -265,7 +265,7 @@ public class DashboardService {
                 join pp.procesoCierre p
                 join p.casoSeguimiento c
                 join c.inmueble i
-                where pp.createdAt >= :inicio and pp.createdAt < :fin
+                where p.fechaCierre >= :inicio and p.fechaCierre < :fin
                   and (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                 """, Long.class)
