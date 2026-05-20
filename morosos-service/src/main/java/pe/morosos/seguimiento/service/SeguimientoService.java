@@ -64,17 +64,43 @@ public class SeguimientoService {
             return Page.empty(pageable);
         }
 
+        Pageable sanitizedPageable = sanitizeSort(pageable);
+
         Page<pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection> page;
         if (qNormalizada == null) {
             page = cargaDeudaDetalleRepository.findBandejaSinBusqueda(
-                    cargaId, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+                    cargaId, grupoId, distritoId, etapaId, estado, minCuotas, sanitizedPageable);
         } else {
             String searchPattern = "%" + qNormalizada + "%";
             page = cargaDeudaDetalleRepository.findBandejaConBusqueda(
-                    cargaId, searchPattern, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+                    cargaId, searchPattern, grupoId, distritoId, etapaId, estado, minCuotas, sanitizedPageable);
         }
 
         return page.map(this::toRow);
+    }
+
+
+    private Pageable sanitizeSort(Pageable pageable) {
+        Map<String, String> allowlist = Map.of(
+                "cuenta", "cuenta",
+                "titular", "titular",
+                "direccion", "direccion",
+                "grupoNombre", "grupoNombre",
+                "distritoNombre", "distritoNombre",
+                "cuotasAdeudadas", "cuotasAdeudadas",
+                "montoAdeudado", "montoAdeudado",
+                "etapaActualNombre", "etapaActualNombre",
+                "fechaUltimoMovimiento", "fechaUltimoMovimiento",
+                "estado", "estado"
+        );
+
+        Sort.Order selected = pageable.getSort().stream()
+                .filter(order -> allowlist.containsKey(order.getProperty()))
+                .findFirst()
+                .map(order -> order.withProperty(allowlist.get(order.getProperty())))
+                .orElse(Sort.Order.asc("cuenta"));
+
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(selected));
     }
 
     private SeguimientoBandejaRowResponse toRow(pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection row) {

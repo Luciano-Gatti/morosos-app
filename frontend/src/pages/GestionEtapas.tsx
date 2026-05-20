@@ -17,6 +17,9 @@ import {
   RotateCcw,
   PauseCircle,
   CheckCircle2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -103,6 +106,8 @@ const PAGE_SIZE = 15;
 type EtapaFiltro = "all" | "sin-etapa" | string;
 type EstadoBackend = "ABIERTO" | "PAUSADO" | "CERRADO";
 type EstadoFiltro = "all" | EstadoBackend;
+type SortDir = "asc" | "desc";
+type SortKey = "cuenta" | "titular" | "direccion" | "grupo" | "distrito" | "cuotas" | "montoAdeudado" | "etapaActual" | "fechaProgramada" | "estado";
 
 type AccionMasiva =
   | { kind: "enviar-etapa"; etapa: EtapaSeguimiento }
@@ -188,6 +193,8 @@ export default function GestionEtapas() {
   const [cuotasMin, setCuotasMin] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<SortKey>("cuenta");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [accion, setAccion] = useState<AccionMasiva | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -293,6 +300,19 @@ export default function GestionEtapas() {
           }),
         );
 
+      const sortFieldMap: Record<SortKey, string> = {
+        cuenta: "cuenta",
+        titular: "titular",
+        direccion: "direccion",
+        grupo: "grupoNombre",
+        distrito: "distritoNombre",
+        cuotas: "cuotasAdeudadas",
+        montoAdeudado: "montoAdeudado",
+        etapaActual: "etapaActualNombre",
+        fechaProgramada: "fechaUltimoMovimiento",
+        estado: "estado",
+      };
+
       const res = await seguimientoApi.getBandeja(normalizeFilterParams({
         query: query.trim() || undefined,
         grupoId: grupo === "all" ? undefined : grupo,
@@ -302,6 +322,7 @@ export default function GestionEtapas() {
         cuotasMin: cuotasMin ? Number(cuotasMin) : undefined,
         page: page - 1,
         size: PAGE_SIZE,
+        sort: `${sortFieldMap[sortKey]},${sortDir}`,
       }));
       const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
       setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
@@ -316,7 +337,17 @@ export default function GestionEtapas() {
 
   useEffect(() => {
     fetchBandeja();
-  }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page]);
+  }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page, sortKey, sortDir]);
+
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
 
   const filtered = rows as any[];
 
@@ -734,36 +765,16 @@ export default function GestionEtapas() {
                       aria-label="Seleccionar página"
                     />
                   </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    N° cuenta
-                  </TableHead>
-                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Titular
-                  </TableHead>
-                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Dirección
-                  </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Grupo
-                  </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Distrito
-                  </TableHead>
-                  <TableHead className="h-9 w-[80px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Cuotas
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Monto adeudado
-                  </TableHead>
-                  <TableHead className="h-9 w-[150px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Etapa actual
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Fecha programada
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Estado
-                  </TableHead>
+                  <SortableHead label="N° cuenta" k="cuenta" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Titular" k="titular" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                  <SortableHead label="Dirección" k="direccion" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                  <SortableHead label="Grupo" k="grupo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Distrito" k="distrito" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Cuotas" k="cuotas" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[80px] text-right" />
+                  <SortableHead label="Monto adeudado" k="montoAdeudado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px] text-right" />
+                  <SortableHead label="Etapa actual" k="etapaActual" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[150px]" />
+                  <SortableHead label="Fecha programada" k="fechaProgramada" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px]" />
+                  <SortableHead label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -838,6 +849,21 @@ export default function GestionEtapas() {
 }
 
 /* -------- Fila de inmueble -------- */
+
+interface SortableHeadProps {
+  label: string;
+  k: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onClick: (k: SortKey) => void;
+  className?: string;
+}
+
+function SortableHead({ label, k, sortKey, sortDir, onClick, className }: SortableHeadProps) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+  return <TableHead className={cn("h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground", className)}><button type="button" onClick={() => onClick(k)} className={cn("flex items-center gap-1.5 transition-colors hover:text-foreground", active && "text-foreground")}>{label}<Icon className={cn("h-3 w-3 opacity-60", active && "opacity-100")} /></button></TableHead>;
+}
 
 function InmuebleRow({
   m,
