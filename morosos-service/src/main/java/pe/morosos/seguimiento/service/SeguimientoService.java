@@ -53,7 +53,7 @@ public class SeguimientoService {
     @Transactional(readOnly = true)
     public Page<SeguimientoBandejaRowResponse> findBandeja(String query, UUID grupoId, UUID distritoId, UUID etapaId,
                                                            CasoSeguimientoEstado estado, Integer cuotasMin, Pageable pageable) {
-        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
+        String qNormalizada = StringUtils.hasText(query) ? query.trim().toLowerCase() : null;
         int umbralConfigurado = parametroRulesService.cuotasMinimasMorosidad();
         int minCuotas = cuotasMin == null ? umbralConfigurado : Math.max(cuotasMin, umbralConfigurado);
         Optional<pe.morosos.deuda.entity.CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
@@ -64,8 +64,15 @@ public class SeguimientoService {
             return Page.empty(pageable);
         }
 
-        Page<pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection> page =
-                cargaDeudaDetalleRepository.findBandejaPage(cargaId, normalizedQuery, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+        Page<pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection> page;
+        if (qNormalizada == null) {
+            page = cargaDeudaDetalleRepository.findBandejaSinBusqueda(
+                    cargaId, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+        } else {
+            String searchPattern = "%" + qNormalizada + "%";
+            page = cargaDeudaDetalleRepository.findBandejaConBusqueda(
+                    cargaId, searchPattern, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+        }
 
         return page.map(this::toRow);
     }
