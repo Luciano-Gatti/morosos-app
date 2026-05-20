@@ -61,7 +61,7 @@ public class DashboardService {
     private DashboardKpisResponse queryKpis(UUID cargaId, int minCuotas, UUID grupoId, UUID distritoId) {
         Object[] row = entityManager.createQuery("""
                 select count(i.id),
-                       coalesce(sum(case when d.id is not null then 1 else 0 end), 0),
+                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
                        coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
                        coalesce(sum(d.montoVencido), 0)
                 from Inmueble i
@@ -80,7 +80,7 @@ public class DashboardService {
         long deudores = ((Number) row[1]).longValue();
         long morosos = ((Number) row[2]).longValue();
         BigDecimal monto = decimalOrZero(row[3]);
-        long alDia = Math.max(0, total - deudores);
+        long alDia = Math.max(0, total - deudores - morosos);
         double porcentaje = total == 0 ? 0 : morosos * 100d / total;
         return new DashboardKpisResponse(total, alDia, deudores, morosos, porcentaje, monto);
     }
@@ -90,7 +90,7 @@ public class DashboardService {
         List<Object[]> rows = entityManager.createQuery("""
                 select dist.id, dist.nombre,
                        count(i.id),
-                       coalesce(sum(case when d.id is not null then 1 else 0 end), 0),
+                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
                        coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
                        coalesce(sum(d.montoVencido), 0)
                 from Inmueble i
@@ -117,7 +117,7 @@ public class DashboardService {
             long total = ((Number) r[2]).longValue();
             long deudores = ((Number) r[3]).longValue();
             long morosos = ((Number) r[4]).longValue();
-            long alDia = Math.max(0, total - deudores);
+            long alDia = Math.max(0, total - deudores - morosos);
             double porcentaje = total == 0 ? 0 : morosos * 100d / total;
             out.add(new DashboardDistritoResponse(
                     distId,

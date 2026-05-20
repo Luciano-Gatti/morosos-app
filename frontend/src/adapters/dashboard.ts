@@ -1,4 +1,5 @@
 import type { DashboardResumenDto } from "@/services/api/dashboardApi";
+import type { AccionClave } from "@/types/dashboard";
 
 export interface DashboardResumenViewModel {
   resumenMorosidad: {
@@ -37,6 +38,7 @@ export interface DashboardResumenViewModel {
 
 const asNumber = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const asString = (v: unknown, fallback = "-"): string => (typeof v === "string" && v.trim() ? v : fallback);
+const asAccion = (v: unknown): AccionClave => (v === "avisos_deuda" || v === "avisos_corte" || v === "intimaciones" || v === "cortes" ? v : "avisos_deuda");
 
 export function mapDashboardResumen(input: DashboardResumenDto): DashboardResumenViewModel {
   const kpisRaw = input?.kpis ?? {};
@@ -45,26 +47,49 @@ export function mapDashboardResumen(input: DashboardResumenDto): DashboardResume
   const deudores = asNumber((kpisRaw as any).deudores);
   const morosos = asNumber((kpisRaw as any).morosos);
 
-  const accionesMes = (Array.isArray(input?.accionesMes) ? input.accionesMes : []).map((a: any) => ({
-    clave: asString(a?.clave, "sin-clave"),
-    label: asString(a?.clave, "Sin clave"),
-    cantidad: asNumber(a?.cantidad),
-  }));
+  const accionesRaw: any = input?.accionesMes ?? {};
+  const accionesMes = [
+    { clave: "avisos_deuda", cantidad: asNumber(accionesRaw.avisosDeuda) },
+    { clave: "avisos_corte", cantidad: asNumber(accionesRaw.avisosCorte) },
+    { clave: "intimaciones", cantidad: asNumber(accionesRaw.intimaciones) },
+    { clave: "cortes", cantidad: asNumber(accionesRaw.cortes) },
+  ].map((a) => ({ clave: asAccion(a.clave), label: asString(a.clave), cantidad: a.cantidad }));
 
-  const distritosStats = (Array.isArray(input?.distritos) ? input.distritos : []).map((d: any, idx: number) => ({
-    distritoId: asString(d?.distritoId ?? d?.id, `d-${idx}`),
-    distritoNombre: asString(d?.distritoNombre ?? d?.nombre),
-    totalInmuebles: asNumber(d?.totalInmuebles),
-    alDia: asNumber(d?.alDia),
-    deudores: asNumber(d?.deudores),
-    morosos: asNumber(d?.morosos),
-    porcentajeMorosidad: asNumber(d?.porcentajeMorosidad),
-    montoTotalDeuda: asNumber(d?.montoTotalDeuda),
-    avisosDeuda: asNumber(d?.avisosDeuda),
-    avisosCorte: asNumber(d?.avisosCorte),
-    intimaciones: asNumber(d?.intimaciones),
-    cortes: asNumber(d?.cortes),
-  }));
+  const distritosStats = (Array.isArray(input?.distritos) ? input.distritos : []).map((d: any, idx: number) => {
+    const totalInmuebles = asNumber(d?.totalInmuebles ?? d?.usuarios ?? d?.totalPadron);
+    const deudores = asNumber(d?.deudores ?? d?.bajoUmbral);
+    const morosos = asNumber(d?.morosos ?? d?.enUmbral);
+    const alDiaRaw = d?.alDia ?? d?.sinDeuda;
+    const alDia = typeof alDiaRaw === "number" && Number.isFinite(alDiaRaw)
+      ? asNumber(alDiaRaw)
+      : Math.max(totalInmuebles - deudores - morosos, 0);
+    const porcentajeMorosidad = totalInmuebles > 0
+      ? asNumber(d?.porcentajeMorosidad) || (morosos / totalInmuebles) * 100
+      : 0;
+
+    return {
+      distrito: asString(d?.distritoNombre ?? d?.nombreDistrito ?? d?.distrito ?? d?.nombre, "Distrito sin nombre"),
+      usuarios: totalInmuebles,
+      deudores,
+      morosos,
+      acciones: {
+        avisos_deuda: asNumber(d?.avisosDeuda),
+        avisos_corte: asNumber(d?.avisosCorte),
+        intimaciones: asNumber(d?.intimaciones),
+        cortes: asNumber(d?.cortes),
+      },
+      distritoId: asString(d?.distritoId ?? d?.id, `d-${idx}`),
+      distritoNombre: asString(d?.distritoNombre ?? d?.nombreDistrito ?? d?.distrito ?? d?.nombre, "Distrito sin nombre"),
+      totalInmuebles,
+      alDia,
+      porcentajeMorosidad,
+      montoTotalDeuda: asNumber(d?.montoTotalDeuda),
+      avisosDeuda: asNumber(d?.avisosDeuda),
+      avisosCorte: asNumber(d?.avisosCorte),
+      intimaciones: asNumber(d?.intimaciones),
+      cortes: asNumber(d?.cortes),
+    };
+  });
 
   const ultimosMovimientos = (Array.isArray(input?.movimientos) ? input.movimientos : []).map((m: any) => ({
     fecha: asString(m?.fecha),
