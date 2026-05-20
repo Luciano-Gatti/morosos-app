@@ -1189,11 +1189,16 @@ function ReporteAccionesFechas({
 }: {
   state: ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>;
 }) {
-  const ALL_TIPOS: AccionTipo[] = useMemo(
-    () => [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION],
-    [],
-  );
+  const rowsBase = state.data.rows ?? [];
+  const ALL_TIPOS: AccionTipo[] = useMemo(() => {
+    const preferidos = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
+    const dinamicos = Array.from(new Set(rowsBase.map((r) => r.tipo).filter(Boolean)));
+    return Array.from(new Set([...preferidos, ...dinamicos]));
+  }, [rowsBase]);
   const [tiposSeleccionados, setTiposSeleccionados] = useState<AccionTipo[]>(ALL_TIPOS);
+  useEffect(() => {
+    setTiposSeleccionados((prev) => (prev.length === 0 ? ALL_TIPOS : prev.filter((t) => ALL_TIPOS.includes(t))));
+  }, [ALL_TIPOS]);
 
   const toggleTipo = (t: AccionTipo) => {
     setTiposSeleccionados((prev) =>
@@ -1203,7 +1208,6 @@ function ReporteAccionesFechas({
   const seleccionarTodos = () => setTiposSeleccionados(ALL_TIPOS);
   const limpiarTodos = () => setTiposSeleccionados([]);
 
-  const rowsBase = state.data.rows ?? [];
   const filtradas = useMemo(() => {
     const base = rowsBase;
     if (tiposSeleccionados.length === 0) return [];
@@ -1336,7 +1340,7 @@ function ReporteAccionesFechas({
         )}
         {tiposSeleccionados.map((tipo) => {
           const rowsTipo = filtradas.filter((a) => a.tipo === tipo);
-          const config: Record<AccionTipo, { title: string; head: string[]; buildRow: (a: AccionRegistro) => (string | number)[]; alignRight?: number[] }> = {
+          const config: Record<string, { title: string; head: string[]; buildRow: (a: AccionRegistro) => (string | number)[]; alignRight?: number[] }> = {
             "Aviso de deuda": { title: "Avisos de deuda — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
             "Intimación": { title: "Intimaciones — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
             "Aviso de corte": { title: "Avisos de corte — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
@@ -1345,7 +1349,11 @@ function ReporteAccionesFechas({
             "Plan de pago": { title: "Planes de pago — detalle", head: ["Fecha alta", "Cuenta", "Titular", "Grupo", "Distrito", "Monto total del plan", "Cantidad total de cuotas", "Valor cuota", "Cuotas pagadas", "Monto pagado", "Saldo pendiente", "Próximo vencimiento", "Vencimiento final", "Estado", "Usuario/Responsable"], buildRow: (a) => [fmtDateSafe(a.fechaAlta ?? a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtMoneySafe(a.montoTotalPlan), a.cantidadCuotas ?? "—", fmtMoneySafe(a.valorCuota), a.cuotasPagadas ?? "—", fmtMoneySafe(a.montoPagado), fmtMoneySafe(a.saldoPendiente), fmtDateSafe(a.proximoVencimiento), fmtDateSafe(a.vencimientoFinal), fmtTextSafe(a.estado), fmtTextSafe(a.usuario)], alignRight: [5, 6, 7, 8, 9, 10] },
             "Compromiso de pago": { title: "Compromisos de pago — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Monto comprometido", "Fecha desde", "Fecha hasta", "Estado", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtMoneySafe(a.montoComprometido), fmtDateSafe(a.fechaDesde), fmtDateSafe(a.fechaHasta), fmtTextSafe(a.estado), fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)], alignRight: [5] },
           };
-          const tableConfig = config[tipo];
+          const tableConfig = config[tipo] ?? {
+            title: `${tipo} — detalle`,
+            head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"],
+            buildRow: (a: AccionRegistro) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)],
+          };
           return (
             <div key={tipo} className="mt-4">
               <SectionTitle>{tableConfig.title}</SectionTitle>
