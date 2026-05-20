@@ -44,21 +44,13 @@ export function serieDiaria(rows: AccionRegistro[]): AccionesPorFechaRow[] {
         fechaISO: key,
         fechaLabel: r.fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
         total: 0,
-        porTipo: {
-          "Aviso de deuda": 0,
-          "Intimación": 0,
-          "Aviso de corte": 0,
-          "Corte": 0,
-          "Regularización": 0,
-          "Plan de pago": 0,
-          "Compromiso de pago": 0,
-        },
+        porTipo: {},
       };
       map.set(key, row);
     }
 
     row.total += 1;
-    row.porTipo[r.tipo] += 1;
+    row.porTipo[r.tipo] = (row.porTipo[r.tipo] ?? 0) + 1;
   });
 
   return Array.from(map.values()).sort((a, b) => a.fechaISO.localeCompare(b.fechaISO));

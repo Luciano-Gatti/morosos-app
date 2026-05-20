@@ -16,14 +16,7 @@ export interface MorososPorDistritoRow {
   porcentaje: number;
 }
 
-export type AccionTipo =
-  | "Aviso de deuda"
-  | "Intimación"
-  | "Aviso de corte"
-  | "Corte"
-  | "Regularización"
-  | "Plan de pago"
-  | "Compromiso de pago";
+export type AccionTipo = string;
 
 export interface AccionRegistro {
   id: string;
