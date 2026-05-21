@@ -71,6 +71,7 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     id: String(r.id ?? r.accionId ?? ""),
     fecha: toDate(r.fecha ?? r.fechaAccion),
     tipo: toStr(r.tipoAccionLabel ?? r.tipo ?? r.tipoAccion) as AccionTipo,
+    codigo: toStr(r.codigo ?? r.tipoAccionCodigo ?? r.tipoAccion ?? r.eventoTipo) || undefined,
     cuenta: toStr(r.cuenta),
     titular: toStr(r.titular),
     grupo: toStr(r.grupoNombre ?? r.grupo),

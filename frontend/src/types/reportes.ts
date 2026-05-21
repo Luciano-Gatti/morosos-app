@@ -22,6 +22,7 @@ export interface AccionRegistro {
   id: string;
   fecha: Date;
   tipo: AccionTipo;
+  codigo?: string;
   cuenta: string;
   titular: string;
   grupo: string;
