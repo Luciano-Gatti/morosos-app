@@ -575,13 +575,7 @@ function TimelineItem({
 
 function isRegistroCierre(registro: RegistroHistorial) {
   const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
-  const etapa = String(registro.etapa ?? "").trim().toUpperCase();
-
-  if (tipoEvento.includes("CIERRE") || tipoEvento.includes("REGULARIZACION") || tipoEvento.includes("PLAN_DE_PAGO")) {
-    return true;
-  }
-
-  return Boolean(registro.cierre) || (etapa === "SIN ETAPA ASIGNADA" && registro.estado === "Cerrado");
+  return tipoEvento.includes("CIERRE");
 }
 
 function CierreProcesoBloque({
@@ -593,8 +587,9 @@ function CierreProcesoBloque({
 }) {
   const motivoCierre = proceso.motivoCierre ?? cierreRegistro?.cierre ?? "No informado";
   const fechaCierre = proceso.fechaFin ?? cierreRegistro?.fecha ?? null;
-  const responsable = cierreRegistro?.responsable ?? "Sistema";
-  const observacion = getObservacionVisible(cierreRegistro?.observaciones) ?? "No informado";
+  const cierreDetalle = proceso.cierre as any;
+  const responsable = cierreDetalle?.responsableCierre ?? cierreRegistro?.responsable ?? "Sistema";
+  const observacion = getObservacionVisible(cierreDetalle?.observacionCierre ?? cierreRegistro?.observaciones) ?? "No informado";
 
   return (
     <div className="border-t border-border bg-surface-muted/20 px-5 py-4">
@@ -691,7 +686,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
       {proceso.estado === "cerrado" && (
         <div className="border-t border-border bg-surface-muted/20 px-4 py-3">
           <div className="text-[12px] font-medium text-foreground">
-            Motivo de cierre: <span className="font-semibold">{proceso.motivoCierre ?? "No informado"}</span>
+            Motivo de cierre: <span className="font-semibold">{proceso.motivoCierre ?? "Motivo de cierre no registrado"}</span>
             <span className="ml-3 text-muted-foreground">Fecha: {formatFechaHora(proceso.fechaFin)}</span>
           </div>
         </div>

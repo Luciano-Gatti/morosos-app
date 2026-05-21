@@ -350,9 +350,12 @@ public class SeguimientoService {
                 cierresResponse.add(new HistorialCierreResponse(
                         cierre.getId(),
                         caso == null ? null : caso.getId(),
-                        cierre.getMotivoCierre().getCodigo(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getId(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getCodigo(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getNombre(),
                         cierre.getFechaCierre(),
                         cierre.getObservacion(),
+                        cierre.getCreatedBy(),
                         planPago,
                         cambioParametro
                 ));
