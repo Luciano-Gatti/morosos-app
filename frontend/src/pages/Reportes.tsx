@@ -50,7 +50,7 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { conteoPorTipo, serieDiaria, TIPOS_NOTIFICACION, TIPOS_REGULARIZACION } from "@/lib/reportesUtils";
+import { conteoPorTipo, serieDiaria, TIPOS_REGULARIZACION } from "@/lib/reportesUtils";
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
 import type { AccionRegistro, AccionTipo, AccionesRegularizacionViewModel, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";
@@ -121,6 +121,42 @@ interface PlanPagoDetalle {
 const fmtDateSafe = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const fmtTextSafe = (value: string | null | undefined) => value && value.trim() ? value : "—";
 const fmtMoneySafe = (value: number | null | undefined) => Number.isFinite(value) ? moneyFmt.format(value as number) : "—";
+
+
+interface TipoAccionFiltro {
+  key: string;
+  label: string;
+  codigo?: string;
+}
+
+const normalizarTipoKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ");
+
+const crearTipoAccionFiltros = (rows: AccionRegistro[]): TipoAccionFiltro[] => {
+  const byKey = new Map<string, TipoAccionFiltro>();
+
+  rows.forEach((row) => {
+    const label = (row.tipo ?? "").trim();
+    if (!label) return;
+
+    const codigo = typeof (row as any).codigo === "string" && (row as any).codigo.trim()
+      ? (row as any).codigo.trim()
+      : undefined;
+    const key = codigo ? normalizarTipoKey(codigo) : normalizarTipoKey(label);
+    if (!key) return;
+
+    if (!byKey.has(key)) {
+      byKey.set(key, { key, label, codigo });
+    }
+  });
+
+  return Array.from(byKey.values());
+};
 
 interface ReporteDef {
   id: ReporteId;
@@ -1190,33 +1226,34 @@ function ReporteAccionesFechas({
   state: ReporteDataState<ReturnType<typeof getReporteAccionesFechasViewModel>>;
 }) {
   const rowsBase = state.data.rows ?? [];
-  const ALL_TIPOS: AccionTipo[] = useMemo(() => {
-    const preferidos = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
-    const dinamicos = Array.from(new Set(rowsBase.map((r) => r.tipo).filter(Boolean)));
-    return Array.from(new Set([...preferidos, ...dinamicos]));
-  }, [rowsBase]);
-  const [tiposSeleccionados, setTiposSeleccionados] = useState<AccionTipo[]>(ALL_TIPOS);
+  const tiposDisponibles = useMemo(() => crearTipoAccionFiltros(rowsBase), [rowsBase]);
+  const [tiposSeleccionados, setTiposSeleccionados] = useState<string[]>(() => tiposDisponibles.map((t) => t.key));
   useEffect(() => {
-    setTiposSeleccionados((prev) => (prev.length === 0 ? ALL_TIPOS : prev.filter((t) => ALL_TIPOS.includes(t))));
-  }, [ALL_TIPOS]);
+    setTiposSeleccionados((prev) => {
+      const keys = tiposDisponibles.map((t) => t.key);
+      if (keys.length === 0) return [];
+      if (prev.length === 0) return keys;
+      return prev.filter((k) => keys.includes(k));
+    });
+  }, [tiposDisponibles]);
 
-  const toggleTipo = (t: AccionTipo) => {
+  const toggleTipo = (key: string) => {
     setTiposSeleccionados((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key],
     );
   };
-  const seleccionarTodos = () => setTiposSeleccionados(ALL_TIPOS);
+  const seleccionarTodos = () => setTiposSeleccionados(tiposDisponibles.map((t) => t.key));
   const limpiarTodos = () => setTiposSeleccionados([]);
 
   const filtradas = useMemo(() => {
-    const base = rowsBase;
-    if (tiposSeleccionados.length === 0) return [];
-    return base.filter((a) => tiposSeleccionados.includes(a.tipo));
+    const selected = new Set(tiposSeleccionados);
+    if (selected.size === 0) return [];
+    return rowsBase.filter((a) => selected.has(normalizarTipoKey(a.tipo)));
   }, [rowsBase, tiposSeleccionados]);
   const serie = useMemo(() => serieDiaria(filtradas), [filtradas]);
-  const conteos = useMemo(() => conteoPorTipo(filtradas, ALL_TIPOS), [filtradas, ALL_TIPOS]);
+  const conteos = useMemo(() => conteoPorTipo(filtradas, tiposDisponibles.map((t) => t.label)), [filtradas, tiposDisponibles]);
   const conteosVisibles = useMemo(
-    () => conteos.filter((c) => tiposSeleccionados.includes(c.tipo)),
+    () => conteos.filter((c) => tiposSeleccionados.includes(normalizarTipoKey(c.tipo))),
     [conteos, tiposSeleccionados],
   );
 
@@ -1245,13 +1282,13 @@ function ReporteAccionesFechas({
             <Filter className="h-3.5 w-3.5" />
             Tipos
           </div>
-          {ALL_TIPOS.map((t) => {
-            const activo = tiposSeleccionados.includes(t);
+          {tiposDisponibles.map((t) => {
+            const activo = tiposSeleccionados.includes(t.key);
             return (
               <button
-                key={t}
+                key={t.key}
                 type="button"
-                onClick={() => toggleTipo(t)}
+                onClick={() => toggleTipo(t.key)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
                   activo
@@ -1263,10 +1300,13 @@ function ReporteAccionesFechas({
                   className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: COLORS_TIPO[t] ?? "#94a3b8", opacity: activo ? 1 : 0.4 }}
                 />
-                {t}
+                {t.label}
               </button>
             );
           })}
+          {tiposDisponibles.length === 0 && (
+            <span className="text-[12px] text-muted-foreground">No hay tipos de acción disponibles para el período seleccionado.</span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
@@ -1338,7 +1378,7 @@ function ReporteAccionesFechas({
             Seleccioná al menos un tipo de acción para ver el detalle.
           </div>
         )}
-        {tiposSeleccionados.map((tipo) => {
+        {tiposDisponibles.filter((t) => tiposSeleccionados.includes(t.key)).map(({ label: tipo }) => {
           const rowsTipo = filtradas.filter((a) => a.tipo === tipo);
           const config: Record<string, { title: string; head: string[]; buildRow: (a: AccionRegistro) => (string | number)[]; alignRight?: number[] }> = {
             "Aviso de deuda": { title: "Avisos de deuda — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
@@ -1837,8 +1877,8 @@ async function runExport(
 
   if (reporte.id === "acciones-fechas") {
     const filtradas = reporteState?.data?.rows ?? [];
-    const ALL_TIPOS: AccionTipo[] = [...TIPOS_NOTIFICACION, ...TIPOS_REGULARIZACION];
-    const conteos = conteoPorTipo(filtradas, ALL_TIPOS);
+    const tiposDinamicos = crearTipoAccionFiltros(filtradas).map((t) => t.label);
+    const conteos = conteoPorTipo(filtradas, tiposDinamicos);
     const total = filtradas.length;
     const usuariosUnicos = new Set(filtradas.map((a) => a.usuario)).size;
     const tipoTop = [...conteos].sort((a, b) => b.cantidad - a.cantidad)[0]?.tipo ?? "—";
