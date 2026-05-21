@@ -490,6 +490,9 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
 }
 
 function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
+  const registrosEtapa = proceso.registros.filter((registro) => !isRegistroCierre(registro));
+  const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -498,14 +501,15 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           aria-hidden
           className="absolute bottom-6 left-[34px] top-6 w-px bg-border"
         />
-        {proceso.registros.map((r, idx) => (
+        {registrosEtapa.map((r, idx) => (
           <TimelineItem
             key={r.id}
             registro={r}
-            esUltimo={idx === proceso.registros.length - 1}
+            esUltimo={idx === registrosEtapa.length - 1}
           />
         ))}
       </ol>
+      {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
   );
 }
@@ -568,6 +572,49 @@ function TimelineItem({
 }
 
 
+
+function isRegistroCierre(registro: RegistroHistorial) {
+  const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
+  const etapa = String(registro.etapa ?? "").trim().toUpperCase();
+
+  if (tipoEvento.includes("CIERRE") || tipoEvento.includes("REGULARIZACION") || tipoEvento.includes("PLAN_DE_PAGO")) {
+    return true;
+  }
+
+  return Boolean(registro.cierre) || (etapa === "SIN ETAPA ASIGNADA" && registro.estado === "Cerrado");
+}
+
+function CierreProcesoBloque({
+  proceso,
+  cierreRegistro,
+}: {
+  proceso: ProcesoSeguimiento;
+  cierreRegistro: RegistroHistorial | null;
+}) {
+  const motivoCierre = proceso.motivoCierre ?? cierreRegistro?.cierre ?? "No informado";
+  const fechaCierre = proceso.fechaFin ?? cierreRegistro?.fecha ?? null;
+  const responsable = cierreRegistro?.responsable ?? "Sistema";
+  const observacion = getObservacionVisible(cierreRegistro?.observaciones) ?? "No informado";
+
+  return (
+    <div className="border-t border-border bg-surface-muted/20 px-5 py-4">
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Cierre del proceso
+      </div>
+      <div className="grid gap-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Motivo de cierre</span>
+        <span className="text-foreground">{motivoCierre}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de cierre</span>
+        <span className="tabular text-foreground">{formatFechaHora(fechaCierre)}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
+        <span className="text-foreground">{responsable}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Observación</span>
+        <span className="text-foreground">{observacion}</span>
+      </div>
+    </div>
+  );
+}
+
 function getObservacionVisible(observaciones?: string | null) {
   if (!observaciones) return null;
   const valor = observaciones.trim();
@@ -595,7 +642,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {proceso.registros.map((r) => (
+            {proceso.registros.filter((r) => !isRegistroCierre(r)).map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>
@@ -641,6 +688,14 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
           </tbody>
         </table>
       </div>
+      {proceso.estado === "cerrado" && (
+        <div className="border-t border-border bg-surface-muted/20 px-4 py-3">
+          <div className="text-[12px] font-medium text-foreground">
+            Motivo de cierre: <span className="font-semibold">{proceso.motivoCierre ?? "No informado"}</span>
+            <span className="ml-3 text-muted-foreground">Fecha: {formatFechaHora(proceso.fechaFin)}</span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
