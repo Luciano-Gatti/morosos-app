@@ -1505,7 +1505,8 @@ function CerrarProcesoDialog({
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
   const [observacion, setObservacion] = useState("");
-  const [montoAbonado, setMontoAbonado] = useState("");
+  const montoSugeridoRegularizacion = seleccionados.length === 1 ? seleccionados[0].montoAdeudado.toString() : "";
+  const [montoAbonado, setMontoAbonado] = useState(montoSugeridoRegularizacion);
 
   // Regularización
   const [fechaReg, setFechaReg] = useState<Date | undefined>(today);
@@ -1527,7 +1528,7 @@ function CerrarProcesoDialog({
   const pagaAhoraValido = Number.isFinite(cuotasPagaAhoraNum) && cuotasPagaAhoraNum >= 0 && cuotasPagaAhoraNum <= cuotasNum;
   const montoValido = Number.isFinite(montoTotalNum) && montoTotalNum > 0;
   const montoAbonadoNum = Number(montoAbonado);
-  const montoAbonadoValido = montoAbonado.trim() === "" || (Number.isFinite(montoAbonadoNum) && montoAbonadoNum > 0);
+  const montoAbonadoValido = Number.isFinite(montoAbonadoNum) && montoAbonadoNum > 0;
   const planCalculoValido = cuotasValidas && pagaAhoraValido && montoValido;
   const valorCuotaCalculado = planCalculoValido ? montoTotalNum / cuotasNum : null;
   const montoPagaAhoraCalculado = planCalculoValido ? valorCuotaCalculado * cuotasPagaAhoraNum : null;
@@ -1551,7 +1552,7 @@ function CerrarProcesoDialog({
       motivoCodigo: motivo,
       observacion: observacion.trim() || undefined,
     };
-    if (motivo === "REGULARIZACION" && montoAbonado.trim() !== "") {
+    if (motivo === "REGULARIZACION") {
       payload.montoAbonado = montoAbonadoNum;
     }
     if (motivo === "PLAN_DE_PAGO" && fechaPrimera) {
@@ -1674,8 +1675,8 @@ function CerrarProcesoDialog({
                 </Popover>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[12px] font-medium">Monto abonado</Label>
-                <Input type="number" min={0.01} value={montoAbonado} onChange={(e) => setMontoAbonado(e.target.value)} className="h-9 text-[13px]" />
+                <Label className="text-[12px] font-medium">Monto abonado <span className="text-destructive">*</span></Label>
+                <Input type="number" min={0.01} step="0.01" value={montoAbonado} onChange={(e) => setMontoAbonado(e.target.value)} className="h-9 text-[13px]" placeholder="Ej. 150000" />
               </div>
               <ObservacionField
                 value={observacion}
