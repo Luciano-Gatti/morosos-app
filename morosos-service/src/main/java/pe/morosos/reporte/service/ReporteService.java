@@ -303,7 +303,7 @@ public class ReporteService {
                        d.id, d.nombre,
                        eo.id, eo.codigo, eo.nombre,
                        ed.id, ed.codigo, ed.nombre,
-                       e.createdBy, e.observacion, mc.codigo
+                       e.createdBy, e.observacion, mc.codigo, pp.cantidadCuotas, pp.cuotasPagadasIniciales, pp.montoTotalPlan, pp.montoPagadoInicial, pp.valorCuota
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -313,6 +313,7 @@ public class ReporteService {
                 left join e.etapaDestino ed
                 left join ProcesoCierre pc on pc.casoSeguimiento.id = c.id
                 left join pc.motivoCierre mc
+                left join ProcesoCierrePlanPago pp on pp.procesoCierre.id = pc.id
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
                   and (:grupoId is null or g.id = :grupoId)
                   and (:distritoId is null or d.id = :distritoId)
@@ -370,6 +371,18 @@ public class ReporteService {
         String etapaDestinoNombre = (String) r[15];
         String motivoCierreCodigo = (String) r[18];
         String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaOrigenNombre, etapaDestinoCodigo, etapaDestinoNombre, motivoCierreCodigo);
+        Integer cantidadCuotas = (Integer) r[19];
+        Integer cuotasPagadas = (Integer) r[20];
+        BigDecimal montoTotalPlan = (BigDecimal) r[21];
+        BigDecimal montoPagado = (BigDecimal) r[22];
+        BigDecimal valorCuota = (BigDecimal) r[23];
+        if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+            montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
+        }
+        Integer cuotasPendientes = (cantidadCuotas != null && cuotasPagadas != null) ? Math.max(cantidadCuotas - cuotasPagadas, 0) : null;
+        BigDecimal montoPendiente = (montoTotalPlan != null && montoPagado != null) ? montoTotalPlan.subtract(montoPagado) : null;
+        UUID actorId = (UUID) r[16];
+        String usuarioResponsable = actorId == null ? "Sistema" : actorId.toString();
         return new AccionesFechasDetalleResponse(
                 fecha.atOffset(ZoneOffset.UTC),
                 tipoAccion,
@@ -386,8 +399,13 @@ public class ReporteService {
                 (String) r[12],
                 (UUID) r[13],
                 (String) r[15],
-                (UUID) r[16],
-                (String) r[17]);
+                actorId,
+                (String) r[17],
+                cuotasPagadas,
+                montoPagado,
+                cuotasPendientes,
+                montoPendiente,
+                usuarioResponsable);
     }
 
     private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaOrigenNombre, String etapaDestinoCodigo, String etapaDestinoNombre, String motivoCierreCodigo) {
@@ -461,7 +479,7 @@ public class ReporteService {
 
         List<AccionesRegularizacionItemPlanPagoResponse> planes = entityManager.createQuery("""
                 select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre,
-                       pp.montoTotalPlan, pp.cantidadCuotas, pp.valorCuota, pp.cuotasPagadasIniciales, pp.montoPagadoInicial, pp.saldoPendiente, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
+                       pp.montoTotalPlan, pp.cantidadCuotas, pp.valorCuota, pp.cuotasPagadasIniciales, pp.montoPagadoInicial, pp.cuotasPendientes, pp.montoPendiente, pp.saldoPendiente, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -483,21 +501,27 @@ public class ReporteService {
                     Integer cuotasPagadas = (Integer) r[12];
                     BigDecimal montoTotalPlan = (BigDecimal) r[9];
                     BigDecimal montoPagado = (BigDecimal) r[13];
+                    Integer cuotasPendientes = (Integer) r[14];
+                    BigDecimal montoPendiente = (BigDecimal) r[15];
                     BigDecimal valorCuota = (BigDecimal) r[11];
                     if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
                         montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
                     }
-                    Integer cuotasPendientes = (cantidadCuotas != null && cuotasPagadas != null) ? Math.max(cantidadCuotas - cuotasPagadas, 0) : null;
-                    BigDecimal montoPendiente = (montoTotalPlan != null && montoPagado != null) ? montoTotalPlan.subtract(montoPagado) : null;
-                    UUID actorId = (UUID) r[16];
+                    if (cuotasPendientes == null && cantidadCuotas != null && cuotasPagadas != null) {
+                        cuotasPendientes = Math.max(cantidadCuotas - cuotasPagadas, 0);
+                    }
+                    if (montoPendiente == null && montoTotalPlan != null && montoPagado != null) {
+                        montoPendiente = montoTotalPlan.subtract(montoPagado);
+                    }
+                    UUID actorId = (UUID) r[18];
                     String usuarioResponsable = actorId == null ? "Sistema" : actorId.toString();
                     return new AccionesRegularizacionItemPlanPagoResponse(
                             ((Instant) r[0]).atOffset(ZoneOffset.UTC),
                             (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
                             (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
                             montoTotalPlan, cantidadCuotas, valorCuota, cuotasPagadas, montoPagado,
-                            cuotasPendientes, montoPendiente, (BigDecimal) r[14],
-                            (LocalDate) r[15], null, "ACTIVO", actorId, (String) r[17], usuarioResponsable);
+                            cuotasPendientes, montoPendiente, (BigDecimal) r[16],
+                            (LocalDate) r[17], null, "ACTIVO", actorId, (String) r[19], usuarioResponsable);
                 })
                 .toList();
 

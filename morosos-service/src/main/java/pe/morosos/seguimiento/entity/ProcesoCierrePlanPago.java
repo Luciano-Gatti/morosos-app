@@ -18,5 +18,7 @@ public class ProcesoCierrePlanPago {
  @Column(name="cuotas_pagadas_iniciales", nullable=false) private Integer cuotasPagadasIniciales;
  @Column(name="monto_pagado_inicial", nullable=false, precision = 14, scale = 2) private BigDecimal montoPagadoInicial;
  @Column(name="saldo_pendiente", nullable=false, precision = 14, scale = 2) private BigDecimal saldoPendiente;
+ @Column(name="cuotas_pendientes", nullable=false) private Integer cuotasPendientes;
+ @Column(name="monto_pendiente", nullable=false, precision = 14, scale = 2) private BigDecimal montoPendiente;
  @Column(name="fecha_vencimiento_primera_cuota", nullable=false) private LocalDate fechaVencimientoPrimeraCuota;
 }

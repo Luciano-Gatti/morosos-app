@@ -1,5 +1,6 @@
 package pe.morosos.reporte.dto;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -20,5 +21,10 @@ public record AccionesFechasDetalleResponse(
         UUID etapaDestinoId,
         String etapaDestino,
         UUID actorId,
-        String observacion
+        String observacion,
+        Integer cuotasPagadas,
+        BigDecimal montoPagado,
+        Integer cuotasPendientes,
+        BigDecimal montoPendiente,
+        String usuarioResponsable
 ) {}
