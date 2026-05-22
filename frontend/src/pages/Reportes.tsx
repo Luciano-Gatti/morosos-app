@@ -135,7 +135,8 @@ const normalizarTipoKey = (value: string) =>
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
 const crearTipoAccionFiltros = (rows: AccionRegistro[]): TipoAccionFiltro[] => {
   const byKey = new Map<string, TipoAccionFiltro>();
@@ -147,7 +148,7 @@ const crearTipoAccionFiltros = (rows: AccionRegistro[]): TipoAccionFiltro[] => {
     const codigo = typeof (row as any).codigo === "string" && (row as any).codigo.trim()
       ? (row as any).codigo.trim()
       : undefined;
-    const key = codigo ? normalizarTipoKey(codigo) : normalizarTipoKey(label);
+    const key = normalizarTipoKey(codigo ?? label);
     if (!key) return;
 
     if (!byKey.has(key)) {
@@ -1379,7 +1380,8 @@ function ReporteAccionesFechas({
           </div>
         )}
         {tiposDisponibles.filter((t) => tiposSeleccionados.includes(t.key)).map(({ label: tipo }) => {
-          const rowsTipo = filtradas.filter((a) => a.tipo === tipo);
+          const tipoKey = normalizarTipoKey(tipo);
+          const rowsTipo = filtradas.filter((a) => normalizarTipoKey(a.codigo ?? a.tipo) === tipoKey);
           const config: Record<string, { title: string; head: string[]; buildRow: (a: AccionRegistro) => (string | number)[]; alignRight?: number[] }> = {
             "Aviso de deuda": { title: "Avisos de deuda — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },
             "Intimación": { title: "Intimaciones — detalle", head: ["Fecha", "Cuenta", "Titular", "Grupo", "Distrito", "Usuario/Responsable", "Observación"], buildRow: (a) => [dateFmt.format(a.fecha), a.cuenta, a.titular, a.grupo, a.distrito, fmtTextSafe(a.usuario), fmtTextSafe(a.observacion)] },

@@ -436,7 +436,7 @@ public class ReporteService {
         Instant fin = (fechaHasta == null ? LocalDate.now(ZoneOffset.UTC) : fechaHasta.plusDays(1)).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AccionesRegularizacionItemRegularizacionResponse> regs = entityManager.createQuery("""
-                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre, p.createdBy, p.observacion
+                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre, p.montoAbonado, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -456,12 +456,12 @@ public class ReporteService {
                         ((Instant) r[0]).atOffset(ZoneOffset.UTC),
                         (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
                         (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
-                        (UUID) r[9], (String) r[10]))
+                        (BigDecimal) r[9], (UUID) r[10], (String) r[11]))
                 .toList();
 
         List<AccionesRegularizacionItemPlanPagoResponse> planes = entityManager.createQuery("""
                 select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre,
-                       pp.cantidadCuotas, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
+                       pp.montoTotalPlan, pp.cantidadCuotas, pp.valorCuota, pp.cuotasPagadasIniciales, pp.montoPagadoInicial, pp.saldoPendiente, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -482,7 +482,8 @@ public class ReporteService {
                         ((Instant) r[0]).atOffset(ZoneOffset.UTC),
                         (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
                         (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
-                        (Integer) r[9], (LocalDate) r[10], (UUID) r[11], (String) r[12]))
+                        (BigDecimal) r[9], (Integer) r[10], (BigDecimal) r[11], (Integer) r[12], (BigDecimal) r[13], (BigDecimal) r[14],
+                        (LocalDate) r[15], null, "ACTIVO", (UUID) r[16], (String) r[17]))
                 .toList();
 
         List<AccionesRegularizacionItemCompromisoResponse> compromisos = entityManager.createQuery("""

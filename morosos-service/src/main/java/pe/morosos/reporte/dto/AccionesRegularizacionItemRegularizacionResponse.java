@@ -1,6 +1,7 @@
 package pe.morosos.reporte.dto;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record AccionesRegularizacionItemRegularizacionResponse(
@@ -13,6 +14,7 @@ public record AccionesRegularizacionItemRegularizacionResponse(
         String grupoNombre,
         UUID distritoId,
         String distritoNombre,
+        BigDecimal montoPagado,
         UUID actorId,
         String observacion
 ) {}

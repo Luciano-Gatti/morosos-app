@@ -12,6 +12,10 @@ import type {
 const toNum = (v: unknown, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const toStr = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const toDate = (v: unknown) => (v ? new Date(v as string | number | Date) : new Date(0));
+const toUsuarioResponsable = (v: unknown) => {
+  const value = typeof v === "string" ? v.trim() : "";
+  return value ? value : "Sistema";
+};
 
 export function mapReporteMorosos(payload: any): {
   grupos: MorososPorGrupoRow[];
@@ -66,7 +70,7 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     ...(Array.isArray(root?.planesDePago) ? root.planesDePago : []),
     ...(Array.isArray(root?.compromisosDePago) ? root.compromisosDePago : []),
   ];
-  const rows = detailRows.length > 0 ? detailRows : (root?.content ?? root?.rows ?? groupedRows);
+  const rows = detailRows.length > 0 ? [...detailRows, ...groupedRows] : (root?.content ?? root?.rows ?? groupedRows);
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
     id: String(r.id ?? r.accionId ?? ""),
     fecha: toDate(r.fecha ?? r.fechaAccion),
@@ -76,21 +80,21 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     titular: toStr(r.titular),
     grupo: toStr(r.grupoNombre ?? r.grupo),
     distrito: toStr(r.distritoNombre ?? r.distrito),
-    usuario: toStr(r.actorId ?? r.usuario ?? r.actor),
+    usuario: toUsuarioResponsable(r.usuarioResponsable ?? r.actorId ?? r.usuario ?? r.actor),
     observacion: r.observacion ?? r.observaciones ?? null,
     montoPagado: Number.isFinite(Number(r.montoPagado)) ? Number(r.montoPagado) : null,
     montoComprometido: Number.isFinite(Number(r.montoComprometido)) ? Number(r.montoComprometido) : null,
     fechaDesde: r.fechaDesde ? toDate(r.fechaDesde) : null,
     fechaHasta: r.fechaHasta ? toDate(r.fechaHasta) : null,
     estado: r.estadoLabel ?? r.estado ?? null,
-    fechaAlta: r.fechaAlta ? toDate(r.fechaAlta) : null,
+    fechaAlta: r.fechaAlta ? toDate(r.fechaAlta) : (r.fecha ? toDate(r.fecha) : null),
     montoTotalPlan: Number.isFinite(Number(r.montoTotalPlan ?? r.montoTotal)) ? Number(r.montoTotalPlan ?? r.montoTotal) : null,
     cantidadCuotas: Number.isFinite(Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas)) ? Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas) : null,
     valorCuota: Number.isFinite(Number(r.valorCuota)) ? Number(r.valorCuota) : null,
-    cuotasPagadas: Number.isFinite(Number(r.cuotasPagadas)) ? Number(r.cuotasPagadas) : null,
+    cuotasPagadas: Number.isFinite(Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales)) ? Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales) : null,
     saldoPendiente: Number.isFinite(Number(r.saldoPendiente)) ? Number(r.saldoPendiente) : null,
-    proximoVencimiento: r.proximoVencimiento ? toDate(r.proximoVencimiento) : null,
-    vencimientoFinal: r.vencimientoFinal ? toDate(r.vencimientoFinal) : null,
+    proximoVencimiento: (r.proximoVencimiento ?? r.fechaVencimientoPrimeraCuota) ? toDate(r.proximoVencimiento ?? r.fechaVencimientoPrimeraCuota) : null,
+    vencimientoFinal: (r.vencimientoFinal ?? r.fechaVencimientoFinal) ? toDate(r.vencimientoFinal ?? r.fechaVencimientoFinal) : null,
   }));
 }
 
@@ -114,7 +118,9 @@ export function mapReporteAccionesRegularizacionDetallado(payload: any): Accione
     titular: toStr(r?.titular),
     grupo: toStr(r?.grupoNombre ?? r?.grupo),
     distrito: toStr(r?.distritoNombre ?? r?.distrito),
-    usuario: toStr(r?.actorId ?? r?.usuario ?? r?.responsable),
+    usuario: toUsuarioResponsable(r?.usuarioResponsable ?? r?.actorId ?? r?.usuario ?? r?.responsable),
+    montoPagado: Number.isFinite(Number(r?.montoPagado)) ? Number(r?.montoPagado) : null,
+    observacion: r?.observacion ?? null,
   }));
   const planes = (Array.isArray(planesRaw) ? planesRaw : []).map((r: any) => ({
     fechaAlta: toDate(r?.fechaCierre ?? r?.fechaAlta),
