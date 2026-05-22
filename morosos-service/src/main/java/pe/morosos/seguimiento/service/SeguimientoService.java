@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
+import pe.morosos.deuda.service.DeudaEfectivaService;
 import pe.morosos.seguimiento.dto.*;
 import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.service.AuditService;
@@ -47,6 +48,7 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
     private final InmuebleRepository inmuebleRepository;
     private final ParametroSeguimientoRulesService parametroRulesService;
+    private final DeudaEfectivaService deudaEfectivaService;
 
     
 
@@ -391,6 +393,10 @@ public class SeguimientoService {
         CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
         MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
         procesoCierreService.crearCierre(caso, motivo, observacion, montoAbonado, planPago, cambioParametro);
+        String codigoMotivo = motivo.getCodigo() == null ? "" : motivo.getCodigo().toUpperCase(java.util.Locale.ROOT);
+        if ("REGULARIZACION".equals(codigoMotivo) || "PLAN_DE_PAGO".equals(codigoMotivo)) {
+            deudaEfectivaService.resolverPorCierre(caso, codigoMotivo);
+        }
         caso.setEstado(CasoSeguimientoEstado.CERRADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
         casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "CERRAR_PROCESO", null, null, null, null, null);

@@ -32,8 +32,8 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 d.inmueble.grupo.nombre as grupoNombre,
                 d.inmueble.distrito.id as distritoId,
                 d.inmueble.distrito.nombre as distritoNombre,
-                d.cuotasVencidas as cuotasAdeudadas,
-                d.montoVencido as montoAdeudado,
+                coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) as cuotasAdeudadas,
+                coalesce(dea.montoAdeudado, d.montoVencido) as montoAdeudado,
                 c.id as casoId,
                 c.estado as estado,
                 e.id as etapaActualId,
@@ -43,6 +43,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             from CargaDeudaDetalle d
             join d.inmueble i
             join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
+            left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
             left join c.etapaActual e
@@ -50,7 +51,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and i.activo = true
               and i.seguimientoHabilitado = true
               and gdc.seguimientoHabilitado = true
-              and d.cuotasVencidas >= :minCuotas
+              and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
               and (:etapaId is null or e.id = :etapaId)
@@ -61,6 +62,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             from CargaDeudaDetalle d
             join d.inmueble i
             join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
+            left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
             left join c.etapaActual e
@@ -68,7 +70,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and i.activo = true
               and i.seguimientoHabilitado = true
               and gdc.seguimientoHabilitado = true
-              and d.cuotasVencidas >= :minCuotas
+              and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
               and (:etapaId is null or e.id = :etapaId)
@@ -93,8 +95,8 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 d.inmueble.grupo.nombre as grupoNombre,
                 d.inmueble.distrito.id as distritoId,
                 d.inmueble.distrito.nombre as distritoNombre,
-                d.cuotasVencidas as cuotasAdeudadas,
-                d.montoVencido as montoAdeudado,
+                coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) as cuotasAdeudadas,
+                coalesce(dea.montoAdeudado, d.montoVencido) as montoAdeudado,
                 c.id as casoId,
                 c.estado as estado,
                 e.id as etapaActualId,
@@ -104,6 +106,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             from CargaDeudaDetalle d
             join d.inmueble i
             join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
+            left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
             left join c.etapaActual e
@@ -111,7 +114,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and i.activo = true
               and i.seguimientoHabilitado = true
               and gdc.seguimientoHabilitado = true
-              and d.cuotasVencidas >= :minCuotas
+              and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
               and (:etapaId is null or e.id = :etapaId)
@@ -127,6 +130,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             from CargaDeudaDetalle d
             join d.inmueble i
             join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
+            left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
             left join c.etapaActual e
@@ -134,7 +138,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
               and i.activo = true
               and i.seguimientoHabilitado = true
               and gdc.seguimientoHabilitado = true
-              and d.cuotasVencidas >= :minCuotas
+              and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
               and (:etapaId is null or e.id = :etapaId)
