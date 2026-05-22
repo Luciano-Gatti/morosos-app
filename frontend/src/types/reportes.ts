@@ -40,6 +40,8 @@ export interface AccionRegistro {
   valorCuota?: number | null;
   cuotasPagadas?: number | null;
   saldoPendiente?: number | null;
+  cuotasPendientes?: number | null;
+  montoPendiente?: number | null;
   proximoVencimiento?: Date | null;
   vencimientoFinal?: Date | null;
 }
