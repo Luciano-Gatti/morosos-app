@@ -303,7 +303,7 @@ public class ReporteService {
                        d.id, d.nombre,
                        eo.id, eo.codigo, eo.nombre,
                        ed.id, ed.codigo, ed.nombre,
-                       e.createdBy, e.observacion, mc.codigo, pp.cantidadCuotas, pp.cuotasPagadasIniciales, pp.montoTotalPlan, pp.montoPagadoInicial, pp.valorCuota
+                       e.createdBy, e.observacion, mc.codigo, pc.montoAbonado, pp.cantidadCuotas, pp.cuotasPagadasIniciales, pp.montoTotalPlan, pp.montoPagadoInicial, pp.valorCuota
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -370,12 +370,16 @@ public class ReporteService {
         String etapaDestinoCodigo = (String) r[14];
         String etapaDestinoNombre = (String) r[15];
         String motivoCierreCodigo = (String) r[18];
+        BigDecimal montoAbonadoRegularizacion = (BigDecimal) r[19];
         String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaOrigenNombre, etapaDestinoCodigo, etapaDestinoNombre, motivoCierreCodigo);
-        Integer cantidadCuotas = (Integer) r[19];
-        Integer cuotasPagadas = (Integer) r[20];
-        BigDecimal montoTotalPlan = (BigDecimal) r[21];
-        BigDecimal montoPagado = (BigDecimal) r[22];
-        BigDecimal valorCuota = (BigDecimal) r[23];
+        Integer cantidadCuotas = (Integer) r[20];
+        Integer cuotasPagadas = (Integer) r[21];
+        BigDecimal montoTotalPlan = (BigDecimal) r[22];
+        BigDecimal montoPagado = (BigDecimal) r[23];
+        BigDecimal valorCuota = (BigDecimal) r[24];
+        if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) {
+            montoPagado = montoAbonadoRegularizacion;
+        }
         if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
             montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
         }
@@ -504,7 +508,10 @@ public class ReporteService {
                     Integer cuotasPendientes = (Integer) r[14];
                     BigDecimal montoPendiente = (BigDecimal) r[15];
                     BigDecimal valorCuota = (BigDecimal) r[11];
-                    if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+                    if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) {
+            montoPagado = montoAbonadoRegularizacion;
+        }
+        if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
                         montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
                     }
                     if (cuotasPendientes == null && cantidadCuotas != null && cuotasPagadas != null) {

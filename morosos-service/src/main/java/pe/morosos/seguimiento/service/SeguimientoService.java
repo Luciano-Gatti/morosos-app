@@ -392,8 +392,16 @@ public class SeguimientoService {
                                   ProcesoCierreService.CambioParametroData cambioParametro) {
         CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
         MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
-        procesoCierreService.crearCierre(caso, motivo, observacion, montoAbonado, planPago, cambioParametro);
         String codigoMotivo = motivo.getCodigo() == null ? "" : motivo.getCodigo().toUpperCase(java.util.Locale.ROOT);
+        if ("REGULARIZACION".equals(codigoMotivo)) {
+            if (montoAbonado == null) {
+                throw new pe.morosos.common.exception.ValidationException("REGULARIZACION requiere montoAbonado", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("montoAbonado", "Requerido")));
+            }
+            if (montoAbonado.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                throw new pe.morosos.common.exception.ValidationException("montoAbonado debe ser mayor a 0", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("montoAbonado", "Valor inválido")));
+            }
+        }
+        procesoCierreService.crearCierre(caso, motivo, observacion, montoAbonado, planPago, cambioParametro);
         if ("REGULARIZACION".equals(codigoMotivo) || "PLAN_DE_PAGO".equals(codigoMotivo)) {
             deudaEfectivaService.resolverPorCierre(caso, codigoMotivo);
         }
