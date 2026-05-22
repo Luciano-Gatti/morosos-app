@@ -80,7 +80,7 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     titular: toStr(r.titular),
     grupo: toStr(r.grupoNombre ?? r.grupo),
     distrito: toStr(r.distritoNombre ?? r.distrito),
-    usuario: toUsuarioResponsable(r.usuarioResponsable ?? r.actorId ?? r.usuario ?? r.actor),
+    usuario: toUsuarioResponsable(r.usuarioResponsable ?? r.createdBy ?? r.actorId ?? r.usuario ?? r.actor),
     observacion: r.observacion ?? r.observaciones ?? null,
     montoPagado: Number.isFinite(Number(r.montoPagado)) ? Number(r.montoPagado) : null,
     montoComprometido: Number.isFinite(Number(r.montoComprometido)) ? Number(r.montoComprometido) : null,
@@ -93,6 +93,8 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     valorCuota: Number.isFinite(Number(r.valorCuota)) ? Number(r.valorCuota) : null,
     cuotasPagadas: Number.isFinite(Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales)) ? Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales) : null,
     saldoPendiente: Number.isFinite(Number(r.saldoPendiente)) ? Number(r.saldoPendiente) : null,
+    cuotasPendientes: Number.isFinite(Number(r.cuotasPendientes)) ? Number(r.cuotasPendientes) : (Number.isFinite(Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas)) && Number.isFinite(Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales)) ? Number(r.cantidadCuotas ?? r.totalCuotas ?? r.cuotas) - Number(r.cuotasPagadas ?? r.cuotasPagadasIniciales) : null),
+    montoPendiente: Number.isFinite(Number(r.montoPendiente)) ? Number(r.montoPendiente) : (Number.isFinite(Number(r.montoTotalPlan ?? r.montoTotal)) && Number.isFinite(Number(r.montoPagado)) ? Number(r.montoTotalPlan ?? r.montoTotal) - Number(r.montoPagado) : null),
     proximoVencimiento: (r.proximoVencimiento ?? r.fechaVencimientoPrimeraCuota) ? toDate(r.proximoVencimiento ?? r.fechaVencimientoPrimeraCuota) : null,
     vencimientoFinal: (r.vencimientoFinal ?? r.fechaVencimientoFinal) ? toDate(r.vencimientoFinal ?? r.fechaVencimientoFinal) : null,
   }));

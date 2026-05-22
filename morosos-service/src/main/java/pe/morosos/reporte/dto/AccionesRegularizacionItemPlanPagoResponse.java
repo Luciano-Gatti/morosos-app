@@ -20,10 +20,13 @@ public record AccionesRegularizacionItemPlanPagoResponse(
         BigDecimal valorCuota,
         Integer cuotasPagadas,
         BigDecimal montoPagado,
+        Integer cuotasPendientes,
+        BigDecimal montoPendiente,
         BigDecimal saldoPendiente,
         LocalDate fechaVencimientoPrimeraCuota,
         LocalDate fechaVencimientoFinal,
         String estado,
         UUID actorId,
-        String observacion
+        String observacion,
+        String usuarioResponsable
 ) {}
