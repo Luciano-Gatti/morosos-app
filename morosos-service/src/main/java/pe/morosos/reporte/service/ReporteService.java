@@ -508,10 +508,7 @@ public class ReporteService {
                     Integer cuotasPendientes = (Integer) r[14];
                     BigDecimal montoPendiente = (BigDecimal) r[15];
                     BigDecimal valorCuota = (BigDecimal) r[11];
-                    if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) {
-            montoPagado = montoAbonadoRegularizacion;
-        }
-        if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+                    if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
                         montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
                     }
                     if (cuotasPendientes == null && cantidadCuotas != null && cuotasPagadas != null) {
