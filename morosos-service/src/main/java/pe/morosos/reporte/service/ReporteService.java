@@ -21,6 +21,7 @@ import pe.morosos.common.exception.ResourceNotFoundException;
 import pe.morosos.deuda.entity.CargaDeuda;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
+import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
@@ -40,6 +41,7 @@ public class ReporteService {
     private final InmuebleRepository inmuebleRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
     private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
+    private final DeudaEfectivaActualRepository deudaEfectivaActualRepository;
     private final ParametroSeguimientoRepository parametroSeguimientoRepository;
     private final AuditLogRepository auditLogRepository;
     private final EntityManager entityManager;
@@ -553,7 +555,7 @@ public class ReporteService {
         int totalPages = pageable.getPageSize() == 0 ? 1 : (int) Math.ceil((double) items.size() / pageable.getPageSize());
         return new PageResponse<>(items.subList(from, to), pageable.getPageNumber(), pageable.getPageSize(), items.size(), totalPages);
     }
-    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); if(c.isEmpty()) return Map.of(); return cargaDeudaDetalleRepository.findDeudaByCarga(c.get().getId()).stream().filter(v -> v != null && v.length > 0 && v[0] instanceof UUID).collect(Collectors.toMap(v->(UUID)v[0],v->v,(a,b)->a));}
+    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); Map<UUID,Object[]> base = c.map(carga -> cargaDeudaDetalleRepository.findDeudaByCarga(carga.getId()).stream().filter(v -> v != null && v.length > 0 && v[0] instanceof UUID).collect(Collectors.toMap(v->(UUID)v[0],v->v,(a,b)->a))).orElseGet(HashMap::new); deudaEfectivaActualRepository.findAll().forEach(d -> base.put(d.getInmueble().getId(), new Object[]{d.getInmueble().getId(), d.getCuotasAdeudadas(), d.getMontoAdeudado()})); return base;}
 
     private UUID grupoId(Inmueble i) {
         return i == null || i.getGrupo() == null ? null : i.getGrupo().getId();
