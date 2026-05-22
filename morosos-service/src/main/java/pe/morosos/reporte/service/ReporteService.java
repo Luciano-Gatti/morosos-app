@@ -478,12 +478,27 @@ public class ReporteService {
                 .setParameter("inicio", inicio).setParameter("fin", fin)
                 .setParameter("grupoId", grupoId).setParameter("distritoId", distritoId)
                 .getResultList().stream()
-                .map(r -> new AccionesRegularizacionItemPlanPagoResponse(
-                        ((Instant) r[0]).atOffset(ZoneOffset.UTC),
-                        (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
-                        (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
-                        (BigDecimal) r[9], (Integer) r[10], (BigDecimal) r[11], (Integer) r[12], (BigDecimal) r[13], (BigDecimal) r[14],
-                        (LocalDate) r[15], null, "ACTIVO", (UUID) r[16], (String) r[17]))
+                .map(r -> {
+                    Integer cantidadCuotas = (Integer) r[10];
+                    Integer cuotasPagadas = (Integer) r[12];
+                    BigDecimal montoTotalPlan = (BigDecimal) r[9];
+                    BigDecimal montoPagado = (BigDecimal) r[13];
+                    BigDecimal valorCuota = (BigDecimal) r[11];
+                    if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+                        montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
+                    }
+                    Integer cuotasPendientes = (cantidadCuotas != null && cuotasPagadas != null) ? Math.max(cantidadCuotas - cuotasPagadas, 0) : null;
+                    BigDecimal montoPendiente = (montoTotalPlan != null && montoPagado != null) ? montoTotalPlan.subtract(montoPagado) : null;
+                    UUID actorId = (UUID) r[16];
+                    String usuarioResponsable = actorId == null ? "Sistema" : actorId.toString();
+                    return new AccionesRegularizacionItemPlanPagoResponse(
+                            ((Instant) r[0]).atOffset(ZoneOffset.UTC),
+                            (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
+                            (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
+                            montoTotalPlan, cantidadCuotas, valorCuota, cuotasPagadas, montoPagado,
+                            cuotasPendientes, montoPendiente, (BigDecimal) r[14],
+                            (LocalDate) r[15], null, "ACTIVO", actorId, (String) r[17], usuarioResponsable);
+                })
                 .toList();
 
         List<AccionesRegularizacionItemCompromisoResponse> compromisos = entityManager.createQuery("""
