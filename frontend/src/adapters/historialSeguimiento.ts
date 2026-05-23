@@ -131,12 +131,18 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     const eventosCaso = eventosCasoRaw.map((mapped, idx) => {
       const tipoEvento = s(mapped.tipoEvento, "").toUpperCase();
       const isCierreEvento = tipoEvento === "CIERRE_PROCESO";
+      const isEventoEtapa =
+        tipoEvento === "INICIO_PROCESO" ||
+        tipoEvento === "AVANCE_ETAPA" ||
+        tipoEvento === "REPETICION_ETAPA";
+      const isPausaEvento = tipoEvento === "PAUSA_PROCESO" || tipoEvento === "COMPROMISO_REGISTRADO";
+      const isReanudarEvento = tipoEvento === "REANUDAR_PROCESO";
       const isUltimo = idx === eventosCasoRaw.length - 1;
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
-        etapa: isCierreEvento ? null : mapped.etapaDestino,
-        estado: isCierreEvento ? "Cerrado" : toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
+        etapa: isEventoEtapa ? mapped.etapaDestino : null,
+        estado: isCierreEvento ? "Cerrado" : isPausaEvento ? "Pausado" : isReanudarEvento ? "Iniciado" : toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
         responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
         observaciones: mapped.observacion,
