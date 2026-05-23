@@ -73,7 +73,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
 
   const toEstadoEtapa = (tipoEvento: string, estadoCaso: string, isUltimo: boolean) => {
     if (tipoEvento === "CIERRE_PROCESO") return "Cerrado";
-    if (!isUltimo) return "Cerrado";
+    if (!isUltimo) return "Iniciado";
     const e = estadoCaso.toUpperCase();
     if (e === "PAUSADO") return "Pausado";
     if (e === "CERRADO") return "Cerrado";
@@ -141,7 +141,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
-        etapa: isEventoEtapa ? mapped.etapaDestino : null,
+        etapa: isEventoEtapa ? mapped.etapaDestino : (mapped.etapaOrigen === "-" ? mapped.etapaDestino : mapped.etapaOrigen),
         estado: isCierreEvento ? "Cerrado" : isPausaEvento ? "Pausado" : isReanudarEvento ? "Iniciado" : toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
         responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
@@ -149,6 +149,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         numeroProceso: casoId,
         hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
         metadata: mapped.metadata,
+        esEventoProceso: !isEventoEtapa,
         cierre: null,
         esCierreEvento: isCierreEvento,
       };
@@ -171,6 +172,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       ? s(cierre.motivoCierreNombre || cierre.motivoCierreCodigo, "Motivo de cierre no registrado")
       : null;
 
+    const compromisoByCaso = compromisos.filter((x) => x.casoId === casoId);
     return {
       id: casoId,
       estado: s(c?.estado, "NO_INICIADO").toUpperCase() === "CERRADO" ? "cerrado" : "abierto",
@@ -179,7 +181,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       motivoCierre,
       registros: eventosCaso,
       cierre,
-      compromisos: compromisos.filter((x) => x.casoId === casoId),
+      compromisos: compromisoByCaso,
     } as const;
   });
 

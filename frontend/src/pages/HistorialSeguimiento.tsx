@@ -454,6 +454,7 @@ function ResumenCard({
 
 function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
   const abierto = proceso.estado === "abierto";
+  const pausado = proceso.registros.some((r: any) => String(r?.tipoAccion ?? "").toUpperCase().includes("PAUSA") || String(r?.tipoAccion ?? "").toUpperCase().includes("COMPROMISO"));
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/40 px-5 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -466,7 +467,7 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
           )}
         >
           {abierto ? <PlayCircle className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-          {abierto ? "Proceso abierto" : "Proceso cerrado"}
+          {abierto ? (pausado ? "Proceso pausado" : "Proceso abierto") : "Proceso cerrado"}
         </span>
         <span className="font-serif text-[16px] font-semibold tracking-tight text-foreground">
           {proceso.id}
@@ -490,7 +491,8 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
 }
 
 function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
-  const registrosEtapa = proceso.registros.filter((registro) => !isRegistroCierre(registro));
+  const registrosEtapa = proceso.registros.filter((registro: any) => !isRegistroCierre(registro) && !registro.esEventoProceso && !!registro.etapa);
+  const eventoPausa = [...proceso.registros].reverse().find((registro: any) => isRegistroPausa(registro)) ?? null;
   const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
 
   return (
@@ -509,6 +511,7 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           />
         ))}
       </ol>
+      {eventoPausa && <PausaProcesoBloque proceso={proceso} pausaRegistro={eventoPausa} />}
       {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
   );
@@ -577,6 +580,49 @@ function isRegistroCierre(registro: RegistroHistorial) {
   const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
   return tipoEvento.includes("CIERRE");
 }
+function isRegistroPausa(registro: RegistroHistorial) {
+  const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
+  return tipoEvento.includes("PAUSA") || tipoEvento.includes("COMPROMISO");
+}
+
+function PausaProcesoBloque({ proceso, pausaRegistro }: { proceso: ProcesoSeguimiento; pausaRegistro: RegistroHistorial }) {
+  const compromiso = (proceso as any).compromisos?.[0] ?? null;
+  const metadata = (pausaRegistro as any).metadata ?? {};
+  const monto = compromiso?.montoComprometido ?? metadata?.monto ?? null;
+  return (
+    <div className="border-t border-border bg-amber-500/5 px-5 py-4 dark:bg-amber-500/10">
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+        Proceso pausado
+      </div>
+      <div className="grid gap-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de pausa</span>
+        <span className="tabular text-foreground">{formatFechaHora(pausaRegistro.fecha)}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
+        <span className="text-foreground">{pausaRegistro.responsable ?? "Sistema"}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Observación</span>
+        <span className="text-foreground">{getObservacionVisible(pausaRegistro.observaciones) ?? "No informado"}</span>
+        {monto !== null && (
+          <>
+            <span className="font-medium uppercase tracking-wider text-muted-foreground">Monto comprometido</span>
+            <span className="text-foreground">{`$ ${monto}`}</span>
+          </>
+        )}
+        {(compromiso?.fechaDesde ?? metadata?.fechaDesde) && (
+          <>
+            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha desde</span>
+            <span className="text-foreground tabular">{formatFecha(String(compromiso?.fechaDesde ?? metadata?.fechaDesde))}</span>
+          </>
+        )}
+        {(compromiso?.fechaHasta ?? metadata?.fechaHasta) && (
+          <>
+            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha hasta</span>
+            <span className="text-foreground tabular">{formatFecha(String(compromiso?.fechaHasta ?? metadata?.fechaHasta))}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function CierreProcesoBloque({
   proceso,
@@ -637,7 +683,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {proceso.registros.filter((r) => !isRegistroCierre(r)).map((r) => (
+            {proceso.registros.filter((r: any) => !isRegistroCierre(r) && !r.esEventoProceso && !!r.etapa).map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>
