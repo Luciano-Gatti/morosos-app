@@ -2009,7 +2009,7 @@ onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, 
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
-          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
