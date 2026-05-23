@@ -49,6 +49,7 @@ export interface HistorialSeguimientoViewModel {
     estado: string;
     estadoLabel: string;
     observacion: string;
+    responsable: string;
   }>;
   procesos: Array<{
     id: string;
@@ -123,12 +124,34 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     estado: s(cp?.estado),
     estadoLabel: s(cp?.estadoLabel ?? cp?.estado),
     observacion: s(cp?.observacion, "No informado"),
+    responsable: s(cp?.responsable ?? cp?.responsableCompromiso ?? cp?.createdBy, "No informado"),
   }));
+
+
+  const diffDays = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTime());
+  const findCompromisoParaEvento = (tipoEvento: string, fechaEvento: string, items: HistorialSeguimientoViewModel["compromisos"]) => {
+    const tipo = tipoEvento.toUpperCase();
+    if (!["COMPROMISO_REGISTRADO", "PAUSA_PROCESO", "REANUDAR_PROCESO"].includes(tipo)) return null;
+    if (items.length === 0) return null;
+    const fecha = new Date(fechaEvento);
+    const validos = items.filter((cp) => {
+      const desde = new Date(`${cp.fechaDesde}T00:00:00`);
+      const hasta = new Date(`${cp.fechaHasta}T23:59:59`);
+      return !Number.isNaN(fecha.getTime()) && !Number.isNaN(desde.getTime()) && !Number.isNaN(hasta.getTime()) && fecha >= desde && fecha <= hasta;
+    });
+    const source = validos.length > 0 ? validos : items;
+    return [...source].sort((a, b) => {
+      const da = diffDays(new Date(`${a.fechaDesde}T00:00:00`), fecha);
+      const db = diffDays(new Date(`${b.fechaDesde}T00:00:00`), fecha);
+      return da - db;
+    })[0] ?? null;
+  };
 
   const procesos = casosRaw.map((c: any, ci: number) => {
     const casoId = s(c?.id ?? c?.casoId, `caso-${ci}`);
     const eventosCasoRaw = eventos.filter((e) => e.casoId === casoId);
     const cierre = cierres.find((x) => x.casoId === casoId) ?? null;
+    const compromisoByCaso = compromisos.filter((x) => x.casoId === casoId);
     const eventosCaso = eventosCasoRaw.map((mapped, idx) => {
       const tipoEvento = s(mapped.tipoEvento, "").toUpperCase();
       const isCierreEvento = tipoEvento === "CIERRE_PROCESO";
@@ -139,6 +162,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       const isPausaEvento = tipoEvento === "PAUSA_PROCESO" || tipoEvento === "COMPROMISO_REGISTRADO";
       const isReanudarEvento = tipoEvento === "REANUDAR_PROCESO";
       const isUltimo = idx === eventosCasoRaw.length - 1;
+      const compromisoEvento = findCompromisoParaEvento(tipoEvento, mapped.fechaEvento, compromisoByCaso);
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
@@ -151,7 +175,17 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
         metadata: mapped.metadata,
         esEventoProceso: !isEventoEtapa,
-        cierre: null,
+        cierre: isCierreEvento ? cierre : null,
+        compromisoPago: compromisoEvento ? {
+          id: compromisoEvento.compromisoId,
+          montoComprometido: compromisoEvento.montoComprometido,
+          fechaDesde: compromisoEvento.fechaDesde,
+          fechaHasta: compromisoEvento.fechaHasta,
+          estado: compromisoEvento.estado,
+          estadoLabel: compromisoEvento.estadoLabel,
+          observacion: compromisoEvento.observacion,
+          responsable: compromisoEvento.responsable,
+        } : null,
         esCierreEvento: isCierreEvento,
       };
     });
@@ -173,7 +207,6 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       ? s(cierre.motivoCierreNombre || cierre.motivoCierreCodigo, "Motivo de cierre no registrado")
       : null;
 
-    const compromisoByCaso = compromisos.filter((x) => x.casoId === casoId);
     const estadoActualProceso = s(c?.estado, "NO_INICIADO").toUpperCase();
     const estadoProceso =
       estadoActualProceso === "CERRADO"
