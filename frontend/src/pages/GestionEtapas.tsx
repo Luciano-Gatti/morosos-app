@@ -173,7 +173,8 @@ type CompromisoVigente = { id: string; fechaDesde: string; fechaHasta: string; m
 
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
-  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "pausar"; payload: Omit<BulkSeguimientoPayload, "ids"> & { motivoPausa: string } }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
   | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> & { compromisoId?: string } };
 
@@ -527,7 +528,7 @@ export default function GestionEtapas() {
         result = await seguimientoApi.repetir({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "pausar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion });
+        result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion, motivoPausa: data.payload.motivoPausa });
       } else if (data.kind === "reanudar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.reanudar({ casoIds, observacion: data.payload.observacion });
@@ -1206,12 +1207,11 @@ function AccionDialog({
   // Modal dedicado e institucional para mover a una etapa.
   if (accion && accion.kind === "enviar-etapa") {
     return (
-        <MoverEtapaDialog
-          accion={accion}
-          etapasOperativas={etapasOperativas}
-          seleccionados={seleccionados}
-          selectedActions={selectedActions}
-        motivosCierre={motivosCierre}
+      <MoverEtapaDialog
+        accion={accion}
+        etapasOperativas={etapasOperativas}
+        seleccionados={seleccionados}
+        selectedActions={selectedActions}
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
@@ -1230,6 +1230,9 @@ function AccionDialog({
         mutating={mutating}
       />
     );
+  }
+  if (accion && accion.kind === "pausar") {
+    return <PausarProcesoDialog onCancel={onCancel} onConfirm={onConfirm} mutating={mutating} />;
   }
 
   // Modal dedicado e institucional para compromiso de pago.
@@ -1508,6 +1511,52 @@ function ConfirmarEtapaDialog({
               Confirmar acción
             </Button>
           </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PausarProcesoDialog({
+  onCancel,
+  onConfirm,
+  mutating = false,
+}: {
+  onCancel: () => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
+}) {
+  const [motivoPausa, setMotivoPausa] = useState("");
+  const [observacion, setObservacion] = useState("");
+  const canConfirm = motivoPausa.trim().length > 0 && !mutating;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl">Pausar proceso</DialogTitle>
+          <DialogDescription className="text-[12.5px]">
+            El proceso quedará pausado en la etapa actual. No se podrán avanzar etapas hasta que se reanude.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Motivo de pausa <span className="text-destructive">*</span></Label>
+            <Input value={motivoPausa} onChange={(e) => setMotivoPausa(e.target.value)} maxLength={200} placeholder="Motivo de pausa" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Observación</Label>
+            <Textarea value={observacion} onChange={(e) => setObservacion(e.target.value)} rows={3} maxLength={500} placeholder="Observación opcional" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button
+            disabled={!canConfirm}
+            onClick={() => onConfirm({ kind: "pausar", payload: { motivoPausa: motivoPausa.trim(), observacion: observacion.trim() || undefined } })}
+          >
+            Confirmar pausa
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
