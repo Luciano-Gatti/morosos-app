@@ -169,11 +169,13 @@ type CatalogOption = {
   nombre: string;
 };
 
+type CompromisoVigente = { id: string; fechaDesde: string; fechaHasta: string; montoComprometido?: number; observacion?: string; estado?: string };
+
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
   | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
-  | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> };
+  | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> & { compromisoId?: string } };
 
 
 export default function GestionEtapas() {
@@ -199,6 +201,8 @@ export default function GestionEtapas() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [compromisoDialogLoading, setCompromisoDialogLoading] = useState(false);
+  const [compromisoVigente, setCompromisoVigente] = useState<CompromisoVigente | null>(null);
   const [rows, setRows] = useState<SeguimientoRow[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -471,6 +475,26 @@ export default function GestionEtapas() {
     setPage(1);
   };
 
+  const abrirDialogoCompromiso = async () => {
+    const selectedRows = rows.filter((r) => selected.has(r.id));
+    const casoId = selectedRows.length === 1 ? selectedRows[0].casoId : null;
+    setCompromisoVigente(null);
+    if (!USE_API || !casoId) {
+      setAccion({ kind: "compromiso" });
+      return;
+    }
+    try {
+      setCompromisoDialogLoading(true);
+      const vigente = await seguimientoApi.getCompromisoVigente(casoId);
+      setCompromisoVigente(vigente);
+    } catch (e) {
+      setCompromisoVigente(null);
+    } finally {
+      setCompromisoDialogLoading(false);
+      setAccion({ kind: "compromiso" });
+    }
+  };
+
   const confirmarAccion = async (data: AccionDialogConfirmPayload) => {
     const selectedRows = rows.filter((r) => selected.has(r.id));
     if (!USE_API) {
@@ -514,11 +538,15 @@ export default function GestionEtapas() {
           ...data.payload,
         });
       } else if (data.kind === "compromiso") {
-        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.registrarCompromisosBulk({
-          casoSeguimientoIds: casoIds,
-          ...data.payload,
-        });
+        if (data.payload.compromisoId && selectedRows.length === 1) {
+          result = await seguimientoApi.actualizarCompromiso(data.payload.compromisoId, data.payload);
+        } else {
+          const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+          result = await seguimientoApi.registrarCompromisosBulk({
+            casoSeguimientoIds: casoIds,
+            ...data.payload,
+          });
+        }
       }
       const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
       const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
@@ -749,7 +777,7 @@ export default function GestionEtapas() {
               etapasOperativas={etapasOperativas}
               selectedActions={selectedActions}
               onClear={clearSelection}
-              onAction={setAccion}
+              onAction={(a) => { if (a.kind === "compromiso") { void abrirDialogoCompromiso(); return; } setAccion(a); }}
             />
           )}
 
@@ -840,9 +868,11 @@ export default function GestionEtapas() {
         etapasOperativas={etapasOperativas}
         motivosCierre={motivosCierreApi}
         selectedActions={selectedActions}
-        onCancel={() => setAccion(null)}
+        onCancel={() => { setAccion(null); setCompromisoVigente(null); }}
         onConfirm={confirmarAccion}
         mutating={mutating}
+        compromisoVigente={compromisoVigente}
+        compromisoLoading={compromisoDialogLoading}
       />
     </>
   );
@@ -1154,6 +1184,8 @@ function AccionDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: AccionMasiva | null;
   seleccionados: InmuebleMoroso[];
@@ -1166,6 +1198,8 @@ function AccionDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const open = accion !== null;
 
@@ -1206,6 +1240,8 @@ function AccionDialog({
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
+        compromisoVigente={compromisoVigente}
+        loading={compromisoLoading}
       />
     );
   }
@@ -1287,6 +1323,8 @@ function ConfirmarEtapaDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
@@ -1294,6 +1332,8 @@ function ConfirmarEtapaDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
   const isSiguiente = accion.kind === "enviar-siguiente";
@@ -1361,6 +1401,7 @@ function ConfirmarEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft text-primary">
@@ -1483,12 +1524,16 @@ function CerrarProcesoDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   seleccionados: InmuebleMoroso[];
   motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1588,6 +1633,7 @@ function CerrarProcesoDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -1905,11 +1951,15 @@ function CompromisoPagoDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1922,6 +1972,14 @@ function CompromisoPagoDialog({
   const [hasta, setHasta] = useState<Date | undefined>(en30);
   const [observacion, setObservacion] = useState("");
   const [montoComprometido, setMontoComprometido] = useState("");
+
+  useEffect(() => {
+    if (!compromisoVigente) return;
+    setDesde(new Date(`${compromisoVigente.fechaDesde}T00:00:00`));
+    setHasta(new Date(`${compromisoVigente.fechaHasta}T00:00:00`));
+    setMontoComprometido(compromisoVigente.montoComprometido != null ? String(compromisoVigente.montoComprometido) : "");
+    setObservacion(compromisoVigente.observacion ?? "");
+  }, [compromisoVigente]);
   const [openDesde, setOpenDesde] = useState(false);
   const [openHasta, setOpenHasta] = useState(false);
 
@@ -1930,7 +1988,7 @@ function CompromisoPagoDialog({
 
   const handleConfirm = () => {
     if (!puedeConfirmar || !desde || !hasta) return;
-onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd"), fechaHasta: format(hasta, "yyyy-MM-dd"), montoComprometido: montoComprometido.trim() ? Number(montoComprometido) : undefined, observacion: observacion.trim() || undefined } });
+onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, fechaDesde: format(desde, "yyyy-MM-dd"), fechaHasta: format(hasta, "yyyy-MM-dd"), montoComprometido: montoComprometido.trim() ? Number(montoComprometido) : undefined, observacion: observacion.trim() || undefined } });
   };
 
   return (
@@ -1943,7 +2001,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
             Seguimiento de morosidad
           </div>
           <DialogTitle className="font-serif text-xl leading-tight">
-            Editar compromiso de pago
+            {compromisoVigente ? "Editar compromiso de pago" : "Registrar compromiso de pago"}
           </DialogTitle>
           <DialogDescription className="text-[12.5px]">
             Definí el período comprometido por el contribuyente. El proceso quedará pausado mientras esté vigente.
@@ -1951,6 +2009,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -2109,7 +2168,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
               Cancelar
             </Button>
             <Button onClick={handleConfirm} disabled={!puedeConfirmar || mutating} className="h-9">
-              Guardar compromiso
+              {compromisoVigente ? "Guardar cambios" : "Guardar compromiso"}
             </Button>
           </div>
         </DialogFooter>
@@ -2179,6 +2238,8 @@ function MoverEtapaDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
@@ -2190,6 +2251,8 @@ function MoverEtapaDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
   const { toast } = useToast();
@@ -2262,6 +2325,7 @@ function MoverEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
