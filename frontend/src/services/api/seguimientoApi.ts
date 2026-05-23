@@ -12,4 +12,6 @@ export const seguimientoApi = {
   cerrarBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar/bulk", body),
   registrarCompromiso: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
   registrarCompromisosBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos/bulk", body),
+  getCompromisoVigente: (casoId: string) => apiClient.get(`/api/v1/seguimiento/casos/${casoId}/compromiso-vigente`),
+  actualizarCompromiso: (compromisoId: string, body: unknown) => apiClient.put(`/api/v1/seguimiento/compromisos/${compromisoId}`, body),
 };
