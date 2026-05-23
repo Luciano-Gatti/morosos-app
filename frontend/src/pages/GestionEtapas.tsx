@@ -1404,7 +1404,7 @@ function ConfirmarEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
-          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft text-primary">
@@ -1682,7 +1682,7 @@ function CerrarProcesoDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
-          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -2317,12 +2317,12 @@ function MoverEtapaDialog({
 
   const etapaDestinoId = etapaDestino ? String(etapaDestino).trim() : "";
   const etapaDestinoValida = etapaDestinoId.length > 0;
-  const idxDestino = etapaIndex(etapaDestino);
+  const idxDestino = etapaIndexEnLista(etapaDestino, etapasOperativas);
   const idxPrimeraEtapa = etapasOperativas.length > 0 ? 0 : -1;
   const destinoEsPrimeraEtapa = idxDestino === idxPrimeraEtapa;
-  const enEtapaPosterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) > idxDestino).length;
-  const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) === idxDestino).length;
-  const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) < idxDestino).length;
+  const enEtapaPosterior = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) > idxDestino).length;
+  const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) === idxDestino).length;
+  const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) < idxDestino).length;
   const sinSeguimiento = seleccionados.filter((m) => !m.casoId).length;
   const casosConSeguimiento = seleccionados.filter((m) => !!m.casoId).length;
   const sinSeguimientoIniciables = destinoEsPrimeraEtapa ? sinSeguimiento : 0;
@@ -2374,7 +2374,7 @@ function MoverEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
-          {loading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
