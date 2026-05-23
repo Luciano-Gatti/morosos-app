@@ -5,18 +5,26 @@ import pe.morosos.seguimiento.dto.CompromisoPagoResponse;
 import pe.morosos.seguimiento.dto.HistorialCompromisoResponse;
 import pe.morosos.seguimiento.entity.CompromisoPago;
 
+import java.util.UUID;
+
 @Component
 public class CompromisoPagoMapper {
 
     public HistorialCompromisoResponse toHistorial(CompromisoPago compromiso) {
+        UUID casoId = null;
+        if (compromiso.getCasoSeguimiento() != null) {
+            casoId = compromiso.getCasoSeguimiento().getId();
+        }
+
         return new HistorialCompromisoResponse(
                 compromiso.getId(),
-                compromiso.getCasoSeguimiento().getId(),
+                casoId,
                 compromiso.getFechaDesde(),
                 compromiso.getFechaHasta(),
                 compromiso.getMontoComprometido(),
                 compromiso.getEstado().name(),
-                compromiso.getObservacion()
+                compromiso.getObservacion(),
+                compromiso.getCreatedBy()
         );
     }
 
