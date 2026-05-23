@@ -477,15 +477,15 @@ public class SeguimientoService {
     @Transactional(readOnly = true)
     public CompromisoPago obtenerCompromisoVigente(UUID casoId) {
         return compromisoPagoRepository.findTopByCasoSeguimientoIdAndEstadoOrderByFechaDesdeDesc(casoId, CompromisoPagoEstado.PENDIENTE)
-                .orElseThrow(() -> new pe.morosos.common.exception.NotFoundException("No existe compromiso vigente para el caso."));
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("No existe compromiso vigente para el caso."));
     }
 
     @Transactional
     public CompromisoPago actualizarCompromiso(UUID compromisoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
         CompromisoPago compromiso = compromisoPagoRepository.findById(compromisoId)
-                .orElseThrow(() -> new pe.morosos.common.exception.NotFoundException("Compromiso no encontrado."));
-        CasoSeguimiento caso = casoRepository.findById(compromiso.getCasoSeguimientoId())
-                .orElseThrow(() -> new pe.morosos.common.exception.NotFoundException("Caso no encontrado para el compromiso."));
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Compromiso no encontrado."));
+        CasoSeguimiento caso = casoRepository.findById(compromiso.getCasoSeguimiento().getId())
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Caso no encontrado para el compromiso."));
         if (caso.getEstado() != CasoSeguimientoEstado.PAUSADO) {
             throw new pe.morosos.common.exception.ValidationException("Solo se puede editar compromiso en casos pausados.", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("casoSeguimientoId", "El caso no está PAUSADO")));
         }
