@@ -83,7 +83,7 @@ public class SeguimientoController {
 
     @PostMapping("/pausar")
     public BulkActionResultResponse pausar(@Valid @RequestBody PausarCasoRequest request) {
-        return seguimientoService.pausar(request.casoIds(), request.observacion());
+        return seguimientoService.pausar(request.casoIds(), request.motivoPausa(), request.observacion());
     }
 
     @PostMapping("/reanudar")

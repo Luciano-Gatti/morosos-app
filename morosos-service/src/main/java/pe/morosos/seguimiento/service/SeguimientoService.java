@@ -265,14 +265,14 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public BulkActionResultResponse pausar(List<UUID> casoIds, String observacion) {
+    public BulkActionResultResponse pausar(List<UUID> casoIds, String motivoPausa, String observacion) {
         BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
         for (UUID id : casoIds) {
             try {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarPausar(caso);
                 caso.setEstado(CasoSeguimientoEstado.PAUSADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA")));
+                casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA", "motivoPausa", motivoPausa)));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "PAUSAR_CASO", null, null, null, null, null);
                 result.aplicado(id, "Caso pausado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
