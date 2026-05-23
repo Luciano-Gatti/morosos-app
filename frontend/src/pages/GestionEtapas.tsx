@@ -115,7 +115,7 @@ type AccionMasiva =
   | { kind: "repetir-etapa" }
   | { kind: "iniciar" }
   | { kind: "pausar" }
-  | { kind: "reabrir" }
+  | { kind: "reanudar" }
   | { kind: "cerrar" }
   | { kind: "compromiso" };
 
@@ -171,7 +171,7 @@ type CatalogOption = {
 
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
-  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
   | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> };
 
@@ -407,7 +407,7 @@ export default function GestionEtapas() {
     const canPausar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null);
     const canCerrar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null);
     const canCompromiso = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true;
-    const canReabrir = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
+    const canReanudar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
 
     return {
       hasAny,
@@ -417,7 +417,7 @@ export default function GestionEtapas() {
       canPausar,
       canCerrar,
       canCompromiso,
-      canReabrir,
+      canReanudar,
       hasBackendActions,
       missingBackendActions,
       reasons: {
@@ -447,7 +447,7 @@ export default function GestionEtapas() {
           : USE_API && motivosCierreApi.length === 0
             ? "No hay motivos de cierre activos configurados."
             : (USE_API ? reasonByApi(canCerrar) : (canCerrar ? null : "No hay casos válidos para esta acción.")),
-        reabrir: USE_API ? reasonByApi(canReabrir) : (!hasAny ? blockedNoSelection : canReabrir ? null : "No hay casos válidos para esta acción."),
+        reanudar: USE_API ? reasonByApi(canReanudar) : (!hasAny ? blockedNoSelection : canReanudar ? null : "No hay casos válidos para esta acción."),
         compromiso: USE_API ? reasonByApi(canCompromiso) : (!hasAny ? blockedNoSelection : null),
       },
     };
@@ -504,9 +504,9 @@ export default function GestionEtapas() {
       } else if (data.kind === "pausar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion });
-      } else if (data.kind === "reabrir") {
+      } else if (data.kind === "reanudar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.reabrir({ casoIds, observacion: data.payload.observacion });
+        result = await seguimientoApi.reanudar({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "cerrar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.cerrarBulk({
@@ -953,7 +953,7 @@ function SelectionBar({
     canPausar: boolean;
     canCerrar: boolean;
     canCompromiso: boolean;
-    canReabrir: boolean;
+    canReanudar: boolean;
     hasBackendActions: boolean;
     missingBackendActions: boolean;
     reasons: Record<string, string | null>;
@@ -1061,12 +1061,12 @@ function SelectionBar({
           size="sm"
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
-          onClick={() => onAction({ kind: "reabrir" })}
-          disabled={!selectedActions.canReabrir}
-          title={actionReason("reabrir")}
+          onClick={() => onAction({ kind: "reanudar" })}
+          disabled={!selectedActions.canReanudar}
+          title={actionReason("reanudar")}
         >
           <PlayCircle className="h-3.5 w-3.5" />
-          Reabrir proceso
+          Reanudar proceso
         </Button>
       )}
 
@@ -1081,7 +1081,7 @@ function SelectionBar({
         title={actionReason("compromiso")}
       >
         <HandCoins className="h-3.5 w-3.5" />
-        Compromiso de pago
+        {hasPausado ? "Editar compromiso" : "Compromiso de pago"}
       </Button>
     </div>
   );
@@ -2156,7 +2156,7 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
         titulo: "Repetir etapa actual",
         descripcion: "Se registrará una repetición operativa de la etapa actual del proceso.",
       };
-    case "reabrir":
+    case "reanudar":
       return {
         titulo: "Reanudar proceso",
         descripcion: "Se reanudará el caso pausado y volverá al flujo activo en la misma etapa.",

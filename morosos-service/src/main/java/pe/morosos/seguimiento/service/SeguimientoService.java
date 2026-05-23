@@ -142,7 +142,7 @@ public class SeguimientoService {
                 abierto,
                 abierto,
                 pausado,
-                abierto,
+                !cerrado,
                 !cerrado
         );
     }
@@ -281,16 +281,16 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public BulkActionResultResponse reabrir(List<UUID> casoIds, String observacion) {
+    public BulkActionResultResponse reanudar(List<UUID> casoIds, String observacion) {
         BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
         for (UUID id : casoIds) {
             try {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
-                motor.validarReabrir(caso);
+                motor.validarReanudar(caso);
                 caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
                 casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
-                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REABRIR_CASO", null, null, null, null, null);
-                result.aplicado(id, "Caso reabierto");
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REANUDAR_PROCESO", null, null, null, null, null);
+                result.aplicado(id, "Caso reanudado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
         }
         return result;
@@ -431,7 +431,18 @@ public class SeguimientoService {
     public CompromisoPago registrarCompromiso(UUID casoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
         CasoSeguimiento caso = motor.validarCasoOperable(casoId);
         motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
-        CompromisoPago c = compromisoPagoService.crear(caso, fechaDesde, fechaHasta, monto, observacion);
+        CompromisoPago c = compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(casoId).stream()
+                .filter(compromiso -> compromiso.getEstado() == CompromisoPagoEstado.PENDIENTE)
+                .findFirst()
+                .map(compromiso -> {
+                    compromiso.setFechaDesde(fechaDesde);
+                    compromiso.setFechaHasta(fechaHasta);
+                    compromiso.setMontoComprometido(monto);
+                    compromiso.setObservacion(observacion);
+                    compromiso.setUpdatedAt(Instant.now());
+                    return compromisoPagoRepository.save(compromiso);
+                })
+                .orElseGet(() -> compromisoPagoService.crear(caso, fechaDesde, fechaHasta, monto, observacion));
         java.util.Map<String, Object> meta = new java.util.HashMap<>();
         meta.put("fechaDesde", fechaDesde.toString());
         meta.put("fechaHasta", fechaHasta.toString());

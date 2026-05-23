@@ -26,7 +26,7 @@ import pe.morosos.seguimiento.dto.HistorialCasoResponse;
 import pe.morosos.seguimiento.dto.HistorialSeguimientoResponse;
 import pe.morosos.seguimiento.dto.IniciarSeguimientoRequest;
 import pe.morosos.seguimiento.dto.PausarCasoRequest;
-import pe.morosos.seguimiento.dto.ReabrirCasoRequest;
+import pe.morosos.seguimiento.dto.ReanudarCasoRequest;
 import pe.morosos.seguimiento.dto.RegistrarCompromisosBulkRequest;
 import pe.morosos.seguimiento.dto.RepetirEtapaRequest;
 import pe.morosos.seguimiento.dto.SeguimientoBandejaRowResponse;
@@ -84,9 +84,9 @@ public class SeguimientoController {
         return seguimientoService.pausar(request.casoIds(), request.observacion());
     }
 
-    @PostMapping("/reabrir")
-    public BulkActionResultResponse reabrir(@Valid @RequestBody ReabrirCasoRequest request) {
-        return seguimientoService.reabrir(request.casoIds(), request.observacion());
+    @PostMapping("/reanudar")
+    public BulkActionResultResponse reanudar(@Valid @RequestBody ReanudarCasoRequest request) {
+        return seguimientoService.reanudar(request.casoIds(), request.observacion());
     }
 
     @PostMapping("/cerrar")

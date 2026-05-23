@@ -85,9 +85,9 @@ public class MotorReglasSeguimiento {
         if (caso.getEstado() == CasoSeguimientoEstado.PAUSADO) throw new ConflictException("El caso ya está PAUSADO");
     }
 
-    public void validarReabrir(CasoSeguimiento caso) {
-        if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) throw new ConflictException("No se puede reabrir un caso CERRADO");
-        if (caso.getEstado() != CasoSeguimientoEstado.PAUSADO) throw new ConflictException("Solo se puede reabrir un caso PAUSADO");
+    public void validarReanudar(CasoSeguimiento caso) {
+        if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) throw new ConflictException("No se puede reanudar un caso CERRADO");
+        if (caso.getEstado() != CasoSeguimientoEstado.PAUSADO) throw new ConflictException("Solo se puede reanudar un caso PAUSADO");
     }
 
     public EtapaConfig validarAvanceEtapa(CasoSeguimiento caso) {
