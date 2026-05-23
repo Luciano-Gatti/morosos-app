@@ -61,11 +61,13 @@ public class DashboardService {
     private DashboardKpisResponse queryKpis(UUID cargaId, int minCuotas, UUID grupoId, UUID distritoId) {
         Object[] row = entityManager.createQuery("""
                 select count(i.id),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
-                       coalesce(sum(d.montoVencido), 0)
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) > 0
+                                          and coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) < :min then 1 else 0 end), 0),
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) >= :min then 1 else 0 end), 0),
+                       coalesce(sum(coalesce(de.montoAdeudado, d.montoVencido, 0)), 0)
                 from Inmueble i
                 left join CargaDeudaDetalle d on d.inmueble.id = i.id and d.cargaDeuda.id = :cargaId
+                left join DeudaEfectivaActual de on de.inmueble.id = i.id
                 where (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                   and i.activo = true
@@ -90,12 +92,14 @@ public class DashboardService {
         List<Object[]> rows = entityManager.createQuery("""
                 select dist.id, dist.nombre,
                        count(i.id),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
-                       coalesce(sum(d.montoVencido), 0)
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) > 0
+                                          and coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) < :min then 1 else 0 end), 0),
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) >= :min then 1 else 0 end), 0),
+                       coalesce(sum(coalesce(de.montoAdeudado, d.montoVencido, 0)), 0)
                 from Inmueble i
                 join i.distrito dist
                 left join CargaDeudaDetalle d on d.inmueble.id = i.id and d.cargaDeuda.id = :cargaId
+                left join DeudaEfectivaActual de on de.inmueble.id = i.id
                 where (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                   and i.activo = true
