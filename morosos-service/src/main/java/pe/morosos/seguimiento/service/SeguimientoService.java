@@ -390,7 +390,7 @@ public class SeguimientoService {
     @Transactional
     public CasoSeguimiento cerrar(UUID casoId, String motivoCodigo, String observacion, java.math.BigDecimal montoAbonado, ProcesoCierreService.PlanPagoData planPago,
                                   ProcesoCierreService.CambioParametroData cambioParametro) {
-        CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
+        CasoSeguimiento caso = motor.validarCasoCerrable(casoId);
         MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
         String codigoMotivo = motivo.getCodigo() == null ? "" : motivo.getCodigo().toUpperCase(java.util.Locale.ROOT);
         if ("REGULARIZACION".equals(codigoMotivo)) {
@@ -431,9 +431,12 @@ public class SeguimientoService {
     public CompromisoPago registrarCompromiso(UUID casoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
         CasoSeguimiento caso = motor.validarCasoOperable(casoId);
         motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
-        CompromisoPago c = compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(casoId).stream()
+        java.util.Optional<CompromisoPago> vigenteOpt = compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(casoId).stream()
                 .filter(compromiso -> compromiso.getEstado() == CompromisoPagoEstado.PENDIENTE)
-                .findFirst()
+                .findFirst();
+
+        boolean actualizaVigente = vigenteOpt.isPresent();
+        CompromisoPago c = vigenteOpt
                 .map(compromiso -> {
                     compromiso.setFechaDesde(fechaDesde);
                     compromiso.setFechaHasta(fechaHasta);
@@ -451,7 +454,7 @@ public class SeguimientoService {
         caso.setFechaUltimoMovimiento(Instant.now());
         caso.setUpdatedAt(Instant.now());
         casoRepository.save(caso);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.COMPROMISO_REGISTRADO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+        casoEventoService.crearEvento(caso, (actualizaVigente ? CasoEventoTipo.ACTUALIZAR_COMPROMISO : CasoEventoTipo.RENOVAR_COMPROMISO), caso.getEtapaActual(), caso.getEtapaActual(), observacion,
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
         return c;

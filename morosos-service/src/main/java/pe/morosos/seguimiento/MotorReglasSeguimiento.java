@@ -71,11 +71,11 @@ public class MotorReglasSeguimiento {
         return caso;
     }
 
-    public CasoSeguimiento validarCasoAbierto(UUID casoId) {
+    public CasoSeguimiento validarCasoCerrable(UUID casoId) {
         CasoSeguimiento caso = casoSeguimientoRepository.findById(casoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Caso de seguimiento no encontrado"));
-        if (caso.getEstado() != CasoSeguimientoEstado.ABIERTO) {
-            throw new ConflictException("El caso no está ABIERTO");
+        if (caso.getEstado() != CasoSeguimientoEstado.ABIERTO && caso.getEstado() != CasoSeguimientoEstado.PAUSADO) {
+            throw new ConflictException("El caso debe estar ABIERTO o PAUSADO para cerrar");
         }
         return caso;
     }
