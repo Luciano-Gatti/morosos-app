@@ -2389,14 +2389,6 @@ function MoverEtapaDialog({
                   Se aplicará la operación al conjunto seleccionado.
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
-                </div>
               </div>
             </div>
             <div className="text-right">
