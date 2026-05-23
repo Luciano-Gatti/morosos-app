@@ -371,7 +371,8 @@ public class SeguimientoService {
                             compromiso.getFechaHasta(),
                             compromiso.getMontoComprometido(),
                             compromiso.getEstado().name(),
-                            compromiso.getObservacion()
+                            compromiso.getObservacion(),
+                            compromiso.getCreatedBy()
                     )));
         }
 

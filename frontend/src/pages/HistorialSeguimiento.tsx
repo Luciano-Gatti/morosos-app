@@ -681,6 +681,28 @@ function getObservacionVisible(observaciones?: string | null) {
 }
 
 function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
+  const renderCompromisoResumen = (r: any) => {
+    if (!r.compromisoPago) return "—";
+    const parts: string[] = [];
+    if (typeof r.compromisoPago.montoComprometido === "number") parts.push(`Monto: ${currencyFormatter.format(r.compromisoPago.montoComprometido)}`);
+    if (r.compromisoPago.fechaDesde || r.compromisoPago.fechaHasta) parts.push(`Vigencia: ${formatFecha(r.compromisoPago.fechaDesde)} - ${formatFecha(r.compromisoPago.fechaHasta)}`);
+    if (r.compromisoPago.estadoLabel || r.compromisoPago.estado) parts.push(`Estado: ${r.compromisoPago.estadoLabel ?? r.compromisoPago.estado}`);
+    if (r.compromisoPago.observacion && r.compromisoPago.observacion !== "No informado") parts.push(`Obs.: ${r.compromisoPago.observacion}`);
+    if (r.compromisoPago.responsable && r.compromisoPago.responsable !== "No informado") parts.push(`Resp.: ${r.compromisoPago.responsable}`);
+    return parts.length > 0 ? parts.join(" · ") : "—";
+  };
+
+  const renderCierreResumen = (r: any) => {
+    if (!r.cierre) return "—";
+    const motivo = r.cierre?.motivoCierreCodigo || r.cierre?.motivoCierreNombre;
+    const parts: string[] = [];
+    if (motivo) parts.push(`Motivo: ${motivo}`);
+    if (r.cierre?.fechaCierre) parts.push(`Fecha: ${formatFechaHora(r.cierre.fechaCierre)}`);
+    if (r.cierre?.observacionCierre && r.cierre.observacionCierre !== "No informado") parts.push(`Obs.: ${r.cierre.observacionCierre}`);
+    if (r.cierre?.responsableCierre && r.cierre.responsableCierre !== "-") parts.push(`Resp.: ${r.cierre.responsableCierre}`);
+    return parts.length > 0 ? parts.join(" · ") : "—";
+  };
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -699,7 +721,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {proceso.registros.filter((r: any) => !isRegistroCierre(r) && !r.esEventoProceso && !!r.etapa).map((r) => (
+            {proceso.registros.filter((r: any) => !!r.etapa).map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>
@@ -720,25 +742,10 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                   </p>
                 </td>
                 <td className="px-4 py-3 text-[12.5px]">
-                  {r.compromisoPago ? (
-                    <div className="space-y-0.5">
-                      <div className="tabular font-medium text-foreground">
-                        {formatFecha(r.compromisoPago.fechaDesde)} – {formatFecha(r.compromisoPago.fechaHasta)}
-                      </div>
-                      <div className="text-[11.5px] text-muted-foreground tabular">
-                        {r.compromisoPago.observacion}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-[12px] italic text-muted-foreground">—</span>
-                  )}
+                  <span className={cn("text-[12.5px]", r.compromisoPago ? "text-foreground" : "italic text-muted-foreground")}>{renderCompromisoResumen(r)}</span>
                 </td>
                 <td className="px-4 py-3">
-                  {r.cierre ? (
-                    <CierrePill cierre={r.cierre} />
-                  ) : (
-                    <span className="text-[12px] italic text-muted-foreground">—</span>
-                  )}
+                  <span className={cn("text-[12.5px]", r.cierre ? "text-foreground" : "italic text-muted-foreground")}>{renderCierreResumen(r)}</span>
                 </td>
               </tr>
             ))}
