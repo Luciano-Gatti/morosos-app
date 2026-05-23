@@ -139,7 +139,7 @@ public class SeguimientoService {
         return new SeguimientoBandejaAccionesResponse(
                 false,
                 abierto && !esFinal,
-                !cerrado,
+                abierto,
                 abierto,
                 pausado,
                 abierto,
@@ -272,7 +272,7 @@ public class SeguimientoService {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarPausar(caso);
                 caso.setEstado(CasoSeguimientoEstado.PAUSADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA")));
+                casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA")));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "PAUSAR_CASO", null, null, null, null, null);
                 result.aplicado(id, "Caso pausado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -288,7 +288,7 @@ public class SeguimientoService {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarReabrir(caso);
                 caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REAPERTURA")));
+                casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REABRIR_CASO", null, null, null, null, null);
                 result.aplicado(id, "Caso reabierto");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -436,7 +436,11 @@ public class SeguimientoService {
         meta.put("fechaDesde", fechaDesde.toString());
         meta.put("fechaHasta", fechaHasta.toString());
         meta.put("monto", monto);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.COMPROMISO_REGISTRADO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+        caso.setEstado(CasoSeguimientoEstado.PAUSADO);
+        caso.setFechaUltimoMovimiento(Instant.now());
+        caso.setUpdatedAt(Instant.now());
+        casoRepository.save(caso);
+        casoEventoService.crearEvento(caso, CasoEventoTipo.COMPROMISO_REGISTRADO, caso.getEtapaActual(), null, observacion,
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
         return c;

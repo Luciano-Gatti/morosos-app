@@ -2144,12 +2144,27 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
     case "compromiso":
       return {
         titulo: "Registrar compromiso de pago",
-        descripcion: "Se registrará un compromiso operativo. No modifica el estado de etapa.",
+        descripcion: "Se registrará un compromiso de pago y el proceso quedará pausado en la etapa actual.",
+      };
+    case "pausar":
+      return {
+        titulo: "Pausar proceso",
+        descripcion: "El proceso y su etapa actual quedarán pausados hasta que se reanude el caso.",
+      };
+    case "repetir-etapa":
+      return {
+        titulo: "Repetir etapa actual",
+        descripcion: "Se registrará una repetición operativa de la etapa actual del proceso.",
       };
     case "reabrir":
       return {
-        titulo: "Reabrir proceso",
-        descripcion: "Se reabrirá el caso seleccionado y volverá al flujo activo de seguimiento.",
+        titulo: "Reanudar proceso",
+        descripcion: "Se reanudará el caso pausado y volverá al flujo activo en la misma etapa.",
+      };
+    default:
+      return {
+        titulo: "Acción no disponible",
+        descripcion: "La acción solicitada no tiene configuración en esta pantalla.",
       };
   }
 }
