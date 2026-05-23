@@ -31,6 +31,11 @@ export default function Dashboard() {
     () => new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date()),
     [],
   );
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 }),
+    [],
+  );
+  const integerFormatter = useMemo(() => new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }), []);
 
   return (
     <>
@@ -51,6 +56,25 @@ export default function Dashboard() {
 
         {!loading && !error && data && !isEmpty && (
           <div className="space-y-6">
+            <section aria-label="Actividad del mes" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs text-muted-foreground">Regularizaciones y planes</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{integerFormatter.format(data.actividadMes.regularizacionesYPlanes)}</p>
+              </article>
+              <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs text-muted-foreground">Compromisos de pago</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{integerFormatter.format(data.actividadMes.compromisosPago)}</p>
+              </article>
+              <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs text-muted-foreground">Monto recaudado</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{currencyFormatter.format(data.actividadMes.montoRecaudado)}</p>
+              </article>
+              <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs text-muted-foreground">Deuda vigente</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{currencyFormatter.format(data.actividadMes.deudaVigente)}</p>
+              </article>
+            </section>
+
             <section aria-label="Estado general de inmuebles" className="rounded-lg border border-border bg-card p-4 shadow-sm">
               <EstadoInmueblesPieChart
                 titulo="Estado general de inmuebles"

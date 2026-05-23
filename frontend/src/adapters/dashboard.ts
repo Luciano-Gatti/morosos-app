@@ -2,6 +2,12 @@ import type { DashboardResumenDto } from "@/services/api/dashboardApi";
 import type { AccionClave } from "@/types/dashboard";
 
 export interface DashboardResumenViewModel {
+  actividadMes: {
+    regularizacionesYPlanes: number;
+    compromisosPago: number;
+    montoRecaudado: number;
+    deudaVigente: number;
+  };
   resumenMorosidad: {
     totalInmuebles: number;
     alDia: number;
@@ -102,6 +108,12 @@ export function mapDashboardResumen(input: DashboardResumenDto): DashboardResume
   }));
 
   return {
+    actividadMes: {
+      regularizacionesYPlanes: asNumber((input?.actividadMes as any)?.regularizacionesYPlanes),
+      compromisosPago: asNumber((input?.actividadMes as any)?.compromisosPago),
+      montoRecaudado: asNumber((input?.actividadMes as any)?.montoRecaudado),
+      deudaVigente: asNumber((input?.actividadMes as any)?.deudaVigente ?? (kpisRaw as any).montoTotalDeuda),
+    },
     resumenMorosidad: {
       totalInmuebles,
       alDia,
