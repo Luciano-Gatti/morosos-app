@@ -52,7 +52,8 @@ export interface HistorialSeguimientoViewModel {
   }>;
   procesos: Array<{
     id: string;
-    estado: "abierto" | "cerrado";
+    estado: "abierto" | "pausado" | "cerrado";
+    estadoActualProceso: "NO_INICIADO" | "INICIADO" | "PAUSADO" | "CERRADO";
     registros: Array<any>;
     cierre: any;
     compromisos: any[];
@@ -173,9 +174,17 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
       : null;
 
     const compromisoByCaso = compromisos.filter((x) => x.casoId === casoId);
+    const estadoActualProceso = s(c?.estado, "NO_INICIADO").toUpperCase();
+    const estadoProceso =
+      estadoActualProceso === "CERRADO"
+        ? "cerrado"
+        : estadoActualProceso === "PAUSADO"
+          ? "pausado"
+          : "abierto";
     return {
       id: casoId,
-      estado: s(c?.estado, "NO_INICIADO").toUpperCase() === "CERRADO" ? "cerrado" : "abierto",
+      estado: estadoProceso,
+      estadoActualProceso: (["NO_INICIADO", "INICIADO", "PAUSADO", "CERRADO"].includes(estadoActualProceso) ? estadoActualProceso : "NO_INICIADO") as "NO_INICIADO" | "INICIADO" | "PAUSADO" | "CERRADO",
       fechaInicio: s(c?.fechaInicio, "No informado"),
       fechaFin: cierre?.fechaCierre ?? null,
       motivoCierre,
