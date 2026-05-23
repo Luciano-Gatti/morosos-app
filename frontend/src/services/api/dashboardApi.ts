@@ -1,6 +1,12 @@
 import { apiClient } from "@/lib/apiClient";
 
 export interface DashboardResumenDto {
+  actividadMes?: {
+    regularizacionesYPlanes?: number;
+    compromisosPago?: number;
+    montoRecaudado?: number;
+    deudaVigente?: number;
+  };
   kpis?: {
     totalInmuebles?: number;
     alDia?: number;

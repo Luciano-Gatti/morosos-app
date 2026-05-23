@@ -4,6 +4,7 @@ import java.util.List;
 
 public record DashboardResumenResponse(
         DashboardKpisResponse kpis,
+        DashboardActividadMesResponse actividadMes,
         DashboardAccionesMesResponse accionesMes,
         List<DashboardDistritoResponse> distritos,
         List<DashboardMovimientoResponse> ultimosMovimientos

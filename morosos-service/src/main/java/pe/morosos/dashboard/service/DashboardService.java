@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import pe.morosos.dashboard.dto.DashboardAccionesMesResponse;
+import pe.morosos.dashboard.dto.DashboardActividadMesResponse;
 import pe.morosos.dashboard.dto.DashboardDistritoResponse;
 import pe.morosos.dashboard.dto.DashboardKpisResponse;
 import pe.morosos.dashboard.dto.DashboardMovimientoResponse;
@@ -41,6 +42,7 @@ public class DashboardService {
         if (cargaOpt.isEmpty()) {
             return new DashboardResumenResponse(
                     new DashboardKpisResponse(0, 0, 0, 0, 0, BigDecimal.ZERO),
+                    new DashboardActividadMesResponse(0, 0, BigDecimal.ZERO, BigDecimal.ZERO),
                     new DashboardAccionesMesResponse(0, 0, 0, 0, 0, 0, 0),
                     List.of(),
                     List.of());
@@ -52,10 +54,51 @@ public class DashboardService {
 
         DashboardKpisResponse kpis = queryKpis(cargaId, cuotasMin, grupoId, distritoId);
         DashboardAccionesMesResponse acciones = queryAccionesMes(inicio, fin, grupoId, distritoId);
+        DashboardActividadMesResponse actividadMes = queryActividadMes(inicio, fin, grupoId, distritoId, kpis.montoTotalDeuda(), acciones);
         List<DashboardDistritoResponse> distritos = queryDistritos(cargaId, cuotasMin, grupoId, distritoId, inicio, fin);
         List<DashboardMovimientoResponse> movimientos = queryMovimientos(inicio, fin, grupoId, distritoId);
 
-        return new DashboardResumenResponse(kpis, acciones, distritos, movimientos);
+        return new DashboardResumenResponse(kpis, actividadMes, acciones, distritos, movimientos);
+    }
+
+    private DashboardActividadMesResponse queryActividadMes(Instant inicio, Instant fin, UUID grupoId, UUID distritoId,
+                                                            BigDecimal deudaVigente, DashboardAccionesMesResponse accionesMes) {
+        BigDecimal regularizacionesMonto = decimalOrZero(entityManager.createQuery("""
+                select coalesce(sum(coalesce(p.montoAbonado, 0)), 0)
+                from ProcesoCierre p
+                join p.casoSeguimiento c
+                join c.inmueble i
+                join p.motivoCierre m
+                where p.fechaCierre >= :inicio and p.fechaCierre < :fin
+                  and upper(m.codigo) = 'REGULARIZACION'
+                  and (:grupoId is null or i.grupo.id = :grupoId)
+                  and (:distritoId is null or i.distrito.id = :distritoId)
+                """, BigDecimal.class)
+                .setParameter("inicio", inicio)
+                .setParameter("fin", fin)
+                .setParameter("grupoId", grupoId)
+                .setParameter("distritoId", distritoId)
+                .getSingleResult());
+
+        BigDecimal planesPagoMonto = decimalOrZero(entityManager.createQuery("""
+                select coalesce(sum(coalesce(pp.montoPagadoInicial, 0)), 0)
+                from ProcesoCierrePlanPago pp
+                join pp.procesoCierre p
+                join p.casoSeguimiento c
+                join c.inmueble i
+                where p.fechaCierre >= :inicio and p.fechaCierre < :fin
+                  and (:grupoId is null or i.grupo.id = :grupoId)
+                  and (:distritoId is null or i.distrito.id = :distritoId)
+                """, BigDecimal.class)
+                .setParameter("inicio", inicio)
+                .setParameter("fin", fin)
+                .setParameter("grupoId", grupoId)
+                .setParameter("distritoId", distritoId)
+                .getSingleResult());
+
+        BigDecimal montoRecaudado = regularizacionesMonto.add(planesPagoMonto);
+        long regularizacionesYPlanes = accionesMes.regularizaciones() + accionesMes.planesPago();
+        return new DashboardActividadMesResponse(regularizacionesYPlanes, accionesMes.compromisosPago(), montoRecaudado, deudaVigente);
     }
 
     private DashboardKpisResponse queryKpis(UUID cargaId, int minCuotas, UUID grupoId, UUID distritoId) {
