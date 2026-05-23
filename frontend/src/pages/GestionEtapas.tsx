@@ -1943,7 +1943,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
             Seguimiento de morosidad
           </div>
           <DialogTitle className="font-serif text-xl leading-tight">
-            Registrar compromiso de pago
+            Editar compromiso de pago
           </DialogTitle>
           <DialogDescription className="text-[12.5px]">
             Definí el período comprometido por el contribuyente. El proceso quedará pausado mientras esté vigente.
@@ -1962,7 +1962,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
                   Inmuebles alcanzados
                 </div>
                 <div className="text-[13px] text-foreground">
-                  Se registrará un compromiso por cada inmueble seleccionado.
+                  Si existe compromiso vigente se editará; si no existe, se registrará uno nuevo.
                 </div>
               </div>
             </div>
@@ -2109,7 +2109,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
               Cancelar
             </Button>
             <Button onClick={handleConfirm} disabled={!puedeConfirmar || mutating} className="h-9">
-              Confirmar y pausar
+              Guardar compromiso
             </Button>
           </div>
         </DialogFooter>
@@ -2143,8 +2143,8 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
       };
     case "compromiso":
       return {
-        titulo: "Registrar compromiso de pago",
-        descripcion: "Se registrará un compromiso de pago y el proceso quedará pausado en la etapa actual.",
+        titulo: "Compromiso de pago",
+        descripcion: "Si hay compromiso vigente se actualiza; si no, se registra uno nuevo manteniendo el proceso pausado.",
       };
     case "pausar":
       return {
