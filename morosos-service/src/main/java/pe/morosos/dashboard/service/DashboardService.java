@@ -139,23 +139,28 @@ public class DashboardService {
     private DashboardAccionesMesResponse queryAccionesMes(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         Object[] eventos = entityManager.createQuery("""
                 select
-                    coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoDeuda then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoCorte then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosIntimacion then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosCorte then 1 else 0 end), 0),
                     coalesce(sum(case when e.tipoEvento = :compromisoRegistrado then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
+                left join e.etapaDestino ed
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
+                  and e.tipoEvento in (:inicioProceso, :avanceEtapa, :repeticionEtapa, :compromisoRegistrado)
                   and (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                 """, Object[].class)
                 .setParameter("inicioProceso", CasoEventoTipo.INICIO_PROCESO)
                 .setParameter("avanceEtapa", CasoEventoTipo.AVANCE_ETAPA)
                 .setParameter("repeticionEtapa", CasoEventoTipo.REPETICION_ETAPA)
-                .setParameter("cierreProceso", CasoEventoTipo.CIERRE_PROCESO)
                 .setParameter("compromisoRegistrado", CasoEventoTipo.COMPROMISO_REGISTRADO)
+                .setParameter("codigosAvisoDeuda", List.of("RECORDATORIO_DE_DEUDA", "AVISO_DE_DEUDA"))
+                .setParameter("codigosAvisoCorte", List.of("AVISO_DE_CORTE"))
+                .setParameter("codigosIntimacion", List.of("INTIMACION"))
+                .setParameter("codigosCorte", List.of("CORTE"))
                 .setParameter("inicio", inicio)
                 .setParameter("fin", fin)
                 .setParameter("grupoId", grupoId)
@@ -182,14 +187,16 @@ public class DashboardService {
     private Map<UUID, DistritosAccionAgg> queryAccionesPorDistrito(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         List<Object[]> rows = entityManager.createQuery("""
                 select i.distrito.id,
-                       coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0)
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoDeuda then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoCorte then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosIntimacion then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosCorte then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
+                left join e.etapaDestino ed
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
+                  and e.tipoEvento in (:inicioProceso, :avanceEtapa, :repeticionEtapa)
                   and (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                 group by i.distrito.id
@@ -197,7 +204,10 @@ public class DashboardService {
                 .setParameter("inicioProceso", CasoEventoTipo.INICIO_PROCESO)
                 .setParameter("avanceEtapa", CasoEventoTipo.AVANCE_ETAPA)
                 .setParameter("repeticionEtapa", CasoEventoTipo.REPETICION_ETAPA)
-                .setParameter("cierreProceso", CasoEventoTipo.CIERRE_PROCESO)
+                .setParameter("codigosAvisoDeuda", List.of("RECORDATORIO_DE_DEUDA", "AVISO_DE_DEUDA"))
+                .setParameter("codigosAvisoCorte", List.of("AVISO_DE_CORTE"))
+                .setParameter("codigosIntimacion", List.of("INTIMACION"))
+                .setParameter("codigosCorte", List.of("CORTE"))
                 .setParameter("inicio", inicio)
                 .setParameter("fin", fin)
                 .setParameter("grupoId", grupoId)

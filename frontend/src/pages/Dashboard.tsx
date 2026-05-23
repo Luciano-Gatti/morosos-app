@@ -29,12 +29,21 @@ export default function Dashboard() {
   }, []);
 
   const isEmpty = useMemo(() => (data ? isDashboardResumenEmpty(data) : false), [data]);
+  const periodoActual = useMemo(
+    () => new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date()),
+    [],
+  );
+  const periodoActualLabel = `${periodoActual.charAt(0).toUpperCase()}${periodoActual.slice(1)}`;
+  const fechaActualizacion = useMemo(
+    () => new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date()),
+    [],
+  );
 
   return (
     <>
       <AppHeader
         title="Panel general"
-        description="Resumen ejecutivo y operativo del mes en curso — Abril 2026."
+        description={`Resumen ejecutivo y operativo del mes en curso — ${periodoActualLabel}.`}
         breadcrumb={[{ label: "Dashboard" }]}
       />
 
@@ -61,7 +70,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  Abril 2026
+                  {periodoActualLabel}
                 </span>
               </div>
 
@@ -76,7 +85,7 @@ export default function Dashboard() {
 
         <footer className="mt-8 flex items-center justify-between border-t border-border pt-4 text-[11px] text-muted-foreground">
           <span>AOSC · Ente Regulador — Sistema interno de seguimiento</span>
-          <span>Datos actualizados al 15/04/2026</span>
+          <span>Datos actualizados al {fechaActualizacion}</span>
         </footer>
       </main>
     </>
