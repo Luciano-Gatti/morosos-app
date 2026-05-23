@@ -453,8 +453,9 @@ function ResumenCard({
 }
 
 function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
-  const abierto = proceso.estado === "abierto";
-  const pausado = proceso.registros.some((r: any) => String(r?.tipoAccion ?? "").toUpperCase().includes("PAUSA") || String(r?.tipoAccion ?? "").toUpperCase().includes("COMPROMISO"));
+  const abierto = proceso.estado !== "cerrado";
+  const pausado = proceso.estado === "pausado";
+  const tituloEstado = !abierto ? "Proceso cerrado" : pausado ? "Proceso pausado" : "Proceso abierto";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/40 px-5 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -467,7 +468,7 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
           )}
         >
           {abierto ? <PlayCircle className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-          {abierto ? (pausado ? "Proceso pausado" : "Proceso abierto") : "Proceso cerrado"}
+          {tituloEstado}
         </span>
         <span className="font-serif text-[16px] font-semibold tracking-tight text-foreground">
           {proceso.id}
@@ -492,7 +493,16 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
 
 function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
   const registrosEtapa = proceso.registros.filter((registro: any) => !isRegistroCierre(registro) && !registro.esEventoProceso && !!registro.etapa);
-  const eventoPausa = [...proceso.registros].reverse().find((registro: any) => isRegistroPausa(registro)) ?? null;
+  const pausas = [...proceso.registros].filter((registro: any) => isRegistroPausa(registro));
+  const ultimaPausa = pausas.length > 0 ? pausas[pausas.length - 1] : null;
+  const reanudaciones = [...proceso.registros]
+    .filter((registro: any) => String(registro?.tipoAccion ?? "").toUpperCase().includes("REANUDAR"))
+    .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const fechaUltimaReanudacion = ultimaPausa
+    ? reanudaciones.find((registro) => new Date(registro.fecha).getTime() >= new Date(ultimaPausa.fecha).getTime())?.fecha ?? null
+    : null;
+  const mostrarBloquePausa = !!ultimaPausa;
+  const pausaVigente = proceso.estado === "pausado";
   const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
 
   return (
@@ -511,7 +521,7 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           />
         ))}
       </ol>
-      {eventoPausa && <PausaProcesoBloque proceso={proceso} pausaRegistro={eventoPausa} />}
+      {mostrarBloquePausa && ultimaPausa && <PausaProcesoBloque proceso={proceso} pausaRegistro={ultimaPausa} pausaVigente={pausaVigente} fechaReanudacion={fechaUltimaReanudacion} />}
       {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
   );
@@ -585,18 +595,24 @@ function isRegistroPausa(registro: RegistroHistorial) {
   return tipoEvento.includes("PAUSA") || tipoEvento.includes("COMPROMISO");
 }
 
-function PausaProcesoBloque({ proceso, pausaRegistro }: { proceso: ProcesoSeguimiento; pausaRegistro: RegistroHistorial }) {
+function PausaProcesoBloque({ proceso, pausaRegistro, pausaVigente, fechaReanudacion }: { proceso: ProcesoSeguimiento; pausaRegistro: RegistroHistorial; pausaVigente: boolean; fechaReanudacion?: string | null }) {
   const compromiso = (proceso as any).compromisos?.[0] ?? null;
   const metadata = (pausaRegistro as any).metadata ?? {};
   const monto = compromiso?.montoComprometido ?? metadata?.monto ?? null;
   return (
     <div className="border-t border-border bg-amber-500/5 px-5 py-4 dark:bg-amber-500/10">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-        Proceso pausado
+        {pausaVigente ? "Proceso pausado" : "Pausa finalizada"}
       </div>
       <div className="grid gap-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
         <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de pausa</span>
         <span className="tabular text-foreground">{formatFechaHora(pausaRegistro.fecha)}</span>
+        {!pausaVigente && fechaReanudacion && (
+          <>
+            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de reanudación</span>
+            <span className="tabular text-foreground">{formatFechaHora(fechaReanudacion)}</span>
+          </>
+        )}
         <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
         <span className="text-foreground">{pausaRegistro.responsable ?? "Sistema"}</span>
         <span className="font-medium uppercase tracking-wider text-muted-foreground">Observación</span>
