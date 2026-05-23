@@ -118,8 +118,6 @@ export function mapDashboardResumen(input: DashboardResumenDto): DashboardResume
 
 export function isDashboardResumenEmpty(vm: DashboardResumenViewModel): boolean {
   const hasKpis = vm.resumenMorosidad.totalInmuebles > 0 || vm.resumenMorosidad.deudores > 0 || vm.resumenMorosidad.morosos > 0;
-  const hasAcciones = vm.accionesMes.length > 0;
   const hasDistritos = vm.distritosStats.length > 0;
-  const hasMovimientos = vm.ultimosMovimientos.length > 0;
-  return !(hasKpis || hasAcciones || hasDistritos || hasMovimientos);
+  return !(hasKpis || hasDistritos);
 }
