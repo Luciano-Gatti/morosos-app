@@ -407,6 +407,19 @@ const formatFecha = (value?: string | null) => {
   }).format(date);
 };
 
+const currencyFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  maximumFractionDigits: 0,
+});
+
+const formatCurrencyOrDash = (value?: number | string | null) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return "—";
+  return currencyFormatter.format(numericValue);
+};
+
 const formatHora = (value?: string | null) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -684,7 +697,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
   const renderCompromisoResumen = (r: any) => {
     if (!r.compromisoPago) return "—";
     const parts: string[] = [];
-    if (typeof r.compromisoPago.montoComprometido === "number") parts.push(`Monto: ${currencyFormatter.format(r.compromisoPago.montoComprometido)}`);
+    if (r.compromisoPago.montoComprometido !== null && r.compromisoPago.montoComprometido !== undefined) parts.push(`Monto: ${formatCurrencyOrDash(r.compromisoPago.montoComprometido)}`);
     if (r.compromisoPago.fechaDesde || r.compromisoPago.fechaHasta) parts.push(`Vigencia: ${formatFecha(r.compromisoPago.fechaDesde)} - ${formatFecha(r.compromisoPago.fechaHasta)}`);
     if (r.compromisoPago.estadoLabel || r.compromisoPago.estado) parts.push(`Estado: ${r.compromisoPago.estadoLabel ?? r.compromisoPago.estado}`);
     if (r.compromisoPago.observacion && r.compromisoPago.observacion !== "No informado") parts.push(`Obs.: ${r.compromisoPago.observacion}`);
