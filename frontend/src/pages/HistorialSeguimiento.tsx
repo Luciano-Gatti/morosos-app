@@ -578,7 +578,7 @@ function ProcesoTimeline({ proceso, onAgregarObservacion }: { proceso: ProcesoSe
     observacionesPorEtapa.set(etapaKey, lista);
   });
 
-  const eventosPrincipales = registrosOrdenados.filter((registro) => !!registro.etapa && !isObservacionEtapa(registro));
+  const filasVisibles = registrosOrdenados.filter((fila) => !!fila.etapa && !isObservacionEtapa(fila));
 
   const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
     const etapaKey = String(registro.etapa ?? "").trim();
@@ -791,9 +791,13 @@ function normalizarTipoEvento(valor: unknown) {
     .replace(/\s+/g, "_");
 }
 
-function isObservacionEtapa(registro: RegistroHistorial) {
-  const candidatos = [registro.tipoAccion, (registro as any).tipoEvento, (registro as any).tipo, (registro as any).accion];
-  return candidatos.some((candidato) => normalizarTipoEvento(candidato) === "OBSERVACION_ETAPA");
+function isObservacionEtapa(registro: RegistroHistorial | Record<string, unknown>) {
+  const raw = registro as any;
+  const candidatos = [raw.tipoEvento, raw.tipoAccion, raw.tipo, raw.accion, raw.nombre];
+  return candidatos.some((candidato) => {
+    const tipo = normalizarTipoEvento(candidato);
+    return tipo === "OBSERVACION_ETAPA" || tipo === "OBSERVACION_DE_ETAPA";
+  });
 }
 
 function getResumenObservacionesEtapa(etapa: any) {
@@ -897,7 +901,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
     observacionesPorEtapa.set(etapaKey, lista);
   });
 
-  const eventosPrincipales = registrosOrdenados.filter((registro) => !!registro.etapa && !isObservacionEtapa(registro));
+  const filasVisibles = registrosOrdenados.filter((fila) => !!fila.etapa && !isObservacionEtapa(fila));
 
   const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
     const etapaKey = String(registro.etapa ?? "").trim();
@@ -939,7 +943,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {eventosPrincipales.map((r) => (
+            {filasVisibles.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>

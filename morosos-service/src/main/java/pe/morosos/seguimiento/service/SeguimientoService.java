@@ -321,12 +321,14 @@ public class SeguimientoService {
                 )).toList();
 
         List<CasoEventoResponse> eventosResponse = new ArrayList<>();
+        List<CasoEventoResponse> eventosPrincipalesResponse = new ArrayList<>();
+        List<CasoEventoResponse> observacionesEtapaResponse = new ArrayList<>();
         List<HistorialCierreResponse> cierresResponse = new ArrayList<>();
         List<HistorialCompromisoResponse> compromisosResponse = new ArrayList<>();
 
         for (CasoSeguimiento caso : casos) {
-            casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento ->
-                    eventosResponse.add(new CasoEventoResponse(
+            casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento -> {
+                    CasoEventoResponse eventoResponse = new CasoEventoResponse(
                             evento.getId(),
                             caso == null ? null : caso.getId(),
                             evento.getTipoEvento().name(),
@@ -335,7 +337,14 @@ public class SeguimientoService {
                             evento.getFechaEvento(),
                             evento.getObservacion(),
                             evento.getMetadata()
-                    )));
+                    );
+                    eventosResponse.add(eventoResponse);
+                    if (evento.getTipoEvento() == CasoEventoTipo.OBSERVACION_ETAPA) {
+                        observacionesEtapaResponse.add(eventoResponse);
+                    } else {
+                        eventosPrincipalesResponse.add(eventoResponse);
+                    }
+            });
 
             procesoCierreRepository.findByCasoSeguimientoId(caso.getId()).ifPresent(cierre -> {
                 Object planPago = procesoCierrePlanPagoRepository.findAll().stream()
@@ -392,7 +401,7 @@ public class SeguimientoService {
                 inmueble.getDistrito() == null ? null : inmueble.getDistrito().getNombre()
         );
 
-        return new HistorialSeguimientoResponse(inmuebleResponse, casosResponse, eventosResponse, cierresResponse, compromisosResponse);
+        return new HistorialSeguimientoResponse(inmuebleResponse, casosResponse, eventosResponse, eventosPrincipalesResponse, observacionesEtapaResponse, cierresResponse, compromisosResponse);
     }
 
     @Transactional

@@ -105,7 +105,7 @@ const humanizeCompromisoEstado = (value: string) => {
 export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string): HistorialSeguimientoViewModel {
   const inmuebleRaw = input?.inmueble ?? input?.inmuebleResumen ?? {};
   const casosRaw = Array.isArray(input?.casos) ? input.casos : [];
-  const eventosRaw = Array.isArray(input?.eventos) ? input.eventos : [];
+  const eventosRaw = Array.isArray(input?.eventosPrincipales) ? input.eventosPrincipales : (Array.isArray(input?.eventos) ? input.eventos : []);
   const cierresRaw = Array.isArray(input?.cierres) ? input.cierres : [];
   const compromisosRaw = Array.isArray(input?.compromisos) ? input.compromisos : [];
 
@@ -206,6 +206,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         estado: isCierreEvento ? "Cerrado" : isPausaEvento ? "Pausado" : isReanudarEvento ? "Iniciado" : toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
         responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
+        tipoEvento: mapped.tipoEvento,
         observaciones: mapped.observacion,
         numeroProceso: casoId,
         hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
