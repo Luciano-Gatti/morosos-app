@@ -117,7 +117,8 @@ type AccionMasiva =
   | { kind: "pausar" }
   | { kind: "reanudar" }
   | { kind: "cerrar" }
-  | { kind: "compromiso" };
+  | { kind: "compromiso" }
+  | { kind: "observacion-etapa" };
 
 type AccionesDisponiblesRow = {
   puedeIniciar?: boolean;
@@ -174,6 +175,7 @@ type CompromisoVigente = { id: string; fechaDesde: string; fechaHasta: string; m
 type AccionDialogConfirmPayload =
   | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
   | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "observacion-etapa"; payload: { observacion: string } }
   | { kind: "pausar"; payload: Omit<BulkSeguimientoPayload, "ids"> & { motivoPausa: string } }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
   | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> & { compromisoId?: string } };
@@ -413,6 +415,7 @@ export default function GestionEtapas() {
     const canCerrar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null);
     const canCompromiso = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true;
     const canReanudar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
+    const canObservacionEtapa = hasAny && selectedRows.every((m) => ["Iniciado", "Pausado"].includes(m.estado) && Boolean(m.casoId) && Boolean(m.etapa));
 
     return {
       hasAny,
@@ -423,6 +426,7 @@ export default function GestionEtapas() {
       canCerrar,
       canCompromiso,
       canReanudar,
+      canObservacionEtapa,
       hasBackendActions,
       missingBackendActions,
       reasons: {
@@ -454,6 +458,7 @@ export default function GestionEtapas() {
             : (USE_API ? reasonByApi(canCerrar) : (canCerrar ? null : "No hay casos válidos para esta acción.")),
         reanudar: USE_API ? reasonByApi(canReanudar) : (!hasAny ? blockedNoSelection : canReanudar ? null : "No hay casos válidos para esta acción."),
         compromiso: USE_API ? reasonByApi(canCompromiso) : (!hasAny ? blockedNoSelection : null),
+        observacionEtapa: !hasAny ? blockedNoSelection : canObservacionEtapa ? null : "Disponible solo para procesos iniciados o pausados con etapa actual.",
       },
     };
   }, [rows, selected, etapasApi, motivosCierreApi]);
@@ -548,6 +553,13 @@ export default function GestionEtapas() {
             ...data.payload,
           });
         }
+      } else if (data.kind === "observacion-etapa") {
+        const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        await Promise.all(casoIds.map((casoSeguimientoId) => seguimientoApi.agregarObservacionEtapa({
+          casoSeguimientoId,
+          observacion: data.payload.observacion,
+        })));
+        result = { aplicados: casoIds.length, omitidos: 0, errores: 0 };
       }
       const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
       const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
@@ -985,6 +997,7 @@ function SelectionBar({
     canCerrar: boolean;
     canCompromiso: boolean;
     canReanudar: boolean;
+    canObservacionEtapa: boolean;
     hasBackendActions: boolean;
     missingBackendActions: boolean;
     reasons: Record<string, string | null>;
@@ -1046,6 +1059,18 @@ function SelectionBar({
       >
         <RotateCcw className="h-3.5 w-3.5" />
         Repetir etapa
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-[12.5px]"
+        onClick={() => onAction({ kind: "observacion-etapa" })}
+        disabled={!selectedActions.canObservacionEtapa}
+        title={actionReason("observacionEtapa")}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Agregar observación
       </Button>
 
       <Button
@@ -1248,6 +1273,16 @@ function AccionDialog({
       />
     );
   }
+  if (accion && accion.kind === "observacion-etapa") {
+    return (
+      <ObservacionEtapaDialog
+        seleccionados={seleccionados}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        mutating={mutating}
+      />
+    );
+  }
 
   // Modal dedicado e institucional para cerrar proceso (con motivo dinámico).
   if (accion && accion.kind === "cerrar") {
@@ -1312,6 +1347,47 @@ function AccionDialog({
             }
           >
             Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ObservacionEtapaDialog({
+  seleccionados,
+  onCancel,
+  onConfirm,
+  mutating = false,
+}: {
+  seleccionados: InmuebleMoroso[];
+  onCancel: () => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
+}) {
+  const [observacion, setObservacion] = useState("");
+  const selected = seleccionados[0];
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Agregar observación a etapa</DialogTitle>
+          <DialogDescription>La observación se registrará como evento interno de la etapa actual.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {seleccionados.length === 1 && (
+            <div className="rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[12.5px]">
+              <div><span className="font-medium">Cuenta:</span> {selected.cuenta}</div>
+              <div><span className="font-medium">Titular:</span> {selected.titular}</div>
+              <div><span className="font-medium">Etapa actual:</span> {selected.etapa ?? "Sin etapa asignada"}</div>
+            </div>
+          )}
+          <ObservacionField value={observacion} onChange={setObservacion} required />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button disabled={mutating || observacion.trim().length === 0} onClick={() => onConfirm({ kind: "observacion-etapa", payload: { observacion: observacion.trim() } })}>
+            Guardar observación
           </Button>
         </DialogFooter>
       </DialogContent>

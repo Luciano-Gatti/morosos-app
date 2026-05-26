@@ -297,11 +297,6 @@ export default function HistorialSeguimiento() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {vista === "timeline" && casoAbierto?.casoId && (
-            <Button variant="outline" size="sm" className="ml-3 h-8 text-[12px]" onClick={() => setOpenObsModal(true)}>
-              Agregar observación a etapa
-            </Button>
-          )}
         </div>
 
         {/* Vista timeline */}
@@ -316,7 +311,11 @@ export default function HistorialSeguimiento() {
               </section>
             ) : (
               procesosOrdenados.map((proceso) => (
-                <ProcesoTimeline key={proceso.id} proceso={proceso} />
+                <ProcesoTimeline
+                  key={proceso.id}
+                  proceso={proceso}
+                  onAgregarObservacion={casoAbierto?.casoId && proceso.id === casoAbierto.casoId ? () => setOpenObsModal(true) : undefined}
+                />
               ))
             )}
           </div>
@@ -532,7 +531,7 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
   );
 }
 
-function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
+function ProcesoTimeline({ proceso, onAgregarObservacion }: { proceso: ProcesoSeguimiento; onAgregarObservacion?: () => void }) {
   const etapas = buildEtapaTimeline(proceso);
   const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
 
@@ -544,7 +543,7 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           aria-hidden
           className="absolute bottom-6 left-[34px] top-6 w-px bg-border"
         />
-        {etapas.map((etapa, idx) => <TimelineEtapaItem key={etapa.id} etapa={etapa} esUltimo={idx === etapas.length - 1} />)}
+        {etapas.map((etapa, idx) => <TimelineEtapaItem key={etapa.id} etapa={etapa} esUltimo={idx === etapas.length - 1} onAgregarObservacion={idx === etapas.length - 1 ? onAgregarObservacion : undefined} />)}
       </ol>
       {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
@@ -597,7 +596,7 @@ function buildEtapaTimeline(proceso: ProcesoSeguimiento) {
   return etapas;
 }
 
-function TimelineEtapaItem({ etapa, esUltimo }: { etapa: any; esUltimo: boolean }) {
+function TimelineEtapaItem({ etapa, esUltimo, onAgregarObservacion }: { etapa: any; esUltimo: boolean; onAgregarObservacion?: () => void }) {
   const observacion = getObservacionVisible(etapa.observaciones);
   return <li className="relative flex gap-4 pb-6 last:pb-0">
     <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
@@ -607,6 +606,11 @@ function TimelineEtapaItem({ etapa, esUltimo }: { etapa: any; esUltimo: boolean 
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <EtapaPill etapa={etapa.etapa} />
         <EstadoPill estado={etapa.estado} />
+        {onAgregarObservacion && etapa.estado !== "Cerrado" && (
+          <Button variant="outline" size="sm" className="ml-auto h-7 text-[11.5px]" onClick={onAgregarObservacion}>
+            Agregar observación
+          </Button>
+        )}
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
         <span className="font-medium uppercase tracking-wider text-muted-foreground">Apertura</span>
