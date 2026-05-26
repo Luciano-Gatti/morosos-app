@@ -515,4 +515,30 @@ public class SeguimientoService {
         return actualizado;
     }
 
+    @Transactional
+    public CasoSeguimiento agregarObservacionEtapa(UUID casoSeguimientoId, String observacion) {
+        CasoSeguimiento caso = casoRepository.findById(casoSeguimientoId)
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Caso de seguimiento no encontrado."));
+        if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
+            throw new BusinessRuleException("No se puede agregar observación de etapa a un caso cerrado.");
+        }
+        if (caso.getEstado() != CasoSeguimientoEstado.ABIERTO && caso.getEstado() != CasoSeguimientoEstado.PAUSADO) {
+            throw new BusinessRuleException("Solo se puede agregar observación de etapa en casos iniciados o pausados.");
+        }
+        if (caso.getEtapaActual() == null) {
+            throw new BusinessRuleException("El caso no tiene una etapa actual para registrar observación.");
+        }
+
+        casoEventoService.crearEvento(
+                caso,
+                CasoEventoTipo.OBSERVACION_ETAPA,
+                caso.getEtapaActual(),
+                caso.getEtapaActual(),
+                observacion,
+                objectMapper.valueToTree(Map.of("accion", "OBSERVACION_ETAPA"))
+        );
+        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "OBSERVACION_ETAPA", null, null, null, null, null);
+        return caso;
+    }
+
 }

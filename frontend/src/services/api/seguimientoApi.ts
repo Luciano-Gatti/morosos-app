@@ -14,4 +14,5 @@ export const seguimientoApi = {
   registrarCompromisosBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos/bulk", body),
   getCompromisoVigente: (casoId: string) => apiClient.get(`/api/v1/seguimiento/casos/${casoId}/compromiso-vigente`),
   actualizarCompromiso: (compromisoId: string, body: unknown) => apiClient.put(`/api/v1/seguimiento/compromisos/${compromisoId}`, body),
+  agregarObservacionEtapa: (body: unknown) => apiClient.post("/api/v1/seguimiento/observaciones-etapa", body),
 };
