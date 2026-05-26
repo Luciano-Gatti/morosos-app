@@ -37,6 +37,7 @@ public class ReporteService {
     private static final String PARAM_CUOTAS_MIN_LEGACY = "CUOTAS_MINIMAS_MOROSIDAD";
     private static final String SIN_GRUPO = "Sin grupo";
     private static final String SIN_DISTRITO = "Sin distrito";
+    private static final Set<String> EVENTOS_OPERATIVOS_ETAPA = Set.of("INICIO_PROCESO", "AVANCE_ETAPA", "REPETICION_ETAPA");
 
     private final InmuebleRepository inmuebleRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
@@ -326,6 +327,7 @@ public class ReporteService {
 
         List<AccionesFechasDetalleResponse> mapped = baseRows.stream()
                 .map(this::toDetalleAccionesFecha)
+                .filter(Objects::nonNull)
                 .filter(r -> tipoAccion == null || tipoAccion.isBlank() || r.tipoAccion().equalsIgnoreCase(tipoAccion))
                 .toList();
 
@@ -372,6 +374,9 @@ public class ReporteService {
         String motivoCierreCodigo = (String) r[18];
         BigDecimal montoAbonadoRegularizacion = (BigDecimal) r[19];
         String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaOrigenNombre, etapaDestinoCodigo, etapaDestinoNombre, motivoCierreCodigo);
+        if (tipoAccion == null || tipoAccion.isBlank()) {
+            return null;
+        }
         Integer cantidadCuotas = (Integer) r[20];
         Integer cuotasPagadas = (Integer) r[21];
         BigDecimal montoTotalPlan = (BigDecimal) r[22];
@@ -413,25 +418,25 @@ public class ReporteService {
     }
 
     private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaOrigenNombre, String etapaDestinoCodigo, String etapaDestinoNombre, String motivoCierreCodigo) {
-        if ("REPETICION_ETAPA".equals(tipoEvento)) {
-            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
-            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
-            return "REPETICION_ETAPA";
-        }
-        if ("OBSERVACION".equals(tipoEvento)) return "PAUSA";
-        if ("CAMBIO_PARAMETRO".equals(tipoEvento)) return "REAPERTURA";
-        if ("COMPROMISO_REGISTRADO".equals(tipoEvento)) return "COMPROMISO_PAGO";
         if ("CIERRE_PROCESO".equals(tipoEvento)) {
             if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) return "REGULARIZACION";
             if ("PLAN_DE_PAGO".equalsIgnoreCase(motivoCierreCodigo)) return "PLAN_DE_PAGO";
-            return "CIERRE";
+            return null;
+        }
+        if (!EVENTOS_OPERATIVOS_ETAPA.contains(tipoEvento)) {
+            return null;
+        }
+        if ("REPETICION_ETAPA".equals(tipoEvento)) {
+            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
+            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
+            return null;
         }
         if ("AVANCE_ETAPA".equals(tipoEvento) || "INICIO_PROCESO".equals(tipoEvento)) {
             if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
-            if (etapaDestinoCodigo != null && !etapaDestinoCodigo.isBlank()) return etapaDestinoCodigo.trim();
-            return "INICIO_PROCESO".equals(tipoEvento) ? "INICIO_PROCESO" : "AVANCE_ETAPA";
+            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
+            return null;
         }
-        return tipoEvento;
+        return null;
     }
 
     private String labelTipoAccion(String tipoAccion) {
