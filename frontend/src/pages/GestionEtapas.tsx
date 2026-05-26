@@ -20,6 +20,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  FileText,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
