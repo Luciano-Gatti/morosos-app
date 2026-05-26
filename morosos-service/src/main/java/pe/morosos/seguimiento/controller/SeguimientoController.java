@@ -191,10 +191,10 @@ public class SeguimientoController {
     }
 
     @PostMapping("/observaciones-etapa")
-    public HistorialCasoResponse agregarObservacionEtapa(@Valid @RequestBody ObservacionEtapaRequest request) {
-        return casoSeguimientoMapper.toHistorial(seguimientoService.agregarObservacionEtapa(
+    public ObservacionEtapaResponse agregarObservacionEtapa(@Valid @RequestBody ObservacionEtapaRequest request) {
+        return seguimientoService.agregarObservacionEtapa(
                 request.casoSeguimientoId(),
                 request.observacion()
-        ));
+        );
     }
 }

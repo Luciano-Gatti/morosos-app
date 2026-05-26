@@ -159,7 +159,7 @@ public class SeguimientoService {
                 c.setFechaInicio(Instant.now()); c.setFechaUltimoMovimiento(Instant.now()); c.setObservacion(observacion);
                 c.setCreatedAt(Instant.now());
                 c = casoRepository.save(c);
-                casoEventoService.crearEvento(c, CasoEventoTipo.INICIO_PROCESO, null, primera, observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(c, CasoEventoTipo.INICIO_PROCESO, null, primera, observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", c.getId(), "INICIAR_SEGUIMIENTO", null, null, null, null, null);
                 result.aplicado(id, "Seguimiento iniciado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -177,7 +177,7 @@ public class SeguimientoService {
                 EtapaConfig siguiente = motor.validarAvanceEtapa(caso);
                 caso.setEtapaActual(siguiente); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now());
                 casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, origen, siguiente, observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, origen, siguiente, observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "AVANZAR_ETAPA", null, null, null, null, null);
                 result.aplicado(id, "Etapa avanzada");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -212,7 +212,7 @@ public class SeguimientoService {
                         caso.setFechaUltimoMovimiento(Instant.now());
                         caso.setUpdatedAt(Instant.now());
                         casoRepository.save(caso);
-                        casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, null, etapaDestino, request.observacion(), null);
+                        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, null, etapaDestino, request.observacion(), null);
                         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                         result.aplicado(id, "Enviado a etapa destino.");
                     } else {
@@ -226,7 +226,7 @@ public class SeguimientoService {
                     caso.setFechaUltimoMovimiento(Instant.now());
                     caso.setUpdatedAt(Instant.now());
                     casoRepository.save(caso);
-                    casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
+                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
                     auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                     result.aplicado(id, "Enviado a etapa destino.");
                 } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
@@ -235,7 +235,7 @@ public class SeguimientoService {
                     caso.setFechaUltimoMovimiento(Instant.now());
                     caso.setUpdatedAt(Instant.now());
                     casoRepository.save(caso);
-                    casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion(), null);
+                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion(), null);
                     auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
                     result.aplicado(id, "Etapa repetida.");
                 } else {
@@ -256,7 +256,7 @@ public class SeguimientoService {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarRepeticionEtapa(caso);
                 caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, caso.getEtapaActual(), caso.getEtapaActual(), observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, caso.getEtapaActual(), caso.getEtapaActual(), observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
                 result.aplicado(id, "Etapa repetida");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -272,7 +272,7 @@ public class SeguimientoService {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarPausar(caso);
                 caso.setEstado(CasoSeguimientoEstado.PAUSADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA", "motivoPausa", motivoPausa)));
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA", "motivoPausa", motivoPausa)));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "PAUSAR_CASO", null, null, null, null, null);
                 result.aplicado(id, "Caso pausado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -295,7 +295,7 @@ public class SeguimientoService {
                             compromisoPagoRepository.save(compromiso);
                         });
                 caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REANUDAR_PROCESO", null, null, null, null, null);
                 result.aplicado(id, "Caso reanudado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -414,7 +414,7 @@ public class SeguimientoService {
             deudaEfectivaService.resolverPorCierre(caso, codigoMotivo);
         }
         caso.setEstado(CasoSeguimientoEstado.CERRADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
+        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "CERRAR_PROCESO", null, null, null, null, null);
         return caso;
     }
@@ -462,7 +462,7 @@ public class SeguimientoService {
         caso.setFechaUltimoMovimiento(Instant.now());
         caso.setUpdatedAt(Instant.now());
         casoRepository.save(caso);
-        casoEventoService.crearEvento(caso, (actualizaVigente ? CasoEventoTipo.ACTUALIZAR_COMPROMISO : CasoEventoTipo.RENOVAR_COMPROMISO), caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+        CasoEvento evento = casoEventoService.crearEvento(caso, (actualizaVigente ? CasoEventoTipo.ACTUALIZAR_COMPROMISO : CasoEventoTipo.RENOVAR_COMPROMISO), caso.getEtapaActual(), caso.getEtapaActual(), observacion,
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
         return c;
@@ -509,14 +509,14 @@ public class SeguimientoService {
         meta.put("fechaDesde", fechaDesde.toString());
         meta.put("fechaHasta", fechaHasta.toString());
         meta.put("monto", monto);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.ACTUALIZAR_COMPROMISO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ACTUALIZAR_COMPROMISO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", actualizado.getId(), "ACTUALIZAR_COMPROMISO", null, null, null, null, null);
         return actualizado;
     }
 
     @Transactional
-    public CasoSeguimiento agregarObservacionEtapa(UUID casoSeguimientoId, String observacion) {
+    public ObservacionEtapaResponse agregarObservacionEtapa(UUID casoSeguimientoId, String observacion) {
         CasoSeguimiento caso = casoRepository.findById(casoSeguimientoId)
                 .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Caso de seguimiento no encontrado."));
         if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
@@ -529,7 +529,7 @@ public class SeguimientoService {
             throw new BusinessRuleException("El caso no tiene una etapa actual para registrar observación.");
         }
 
-        casoEventoService.crearEvento(
+        CasoEvento evento = casoEventoService.crearEvento(
                 caso,
                 CasoEventoTipo.OBSERVACION_ETAPA,
                 caso.getEtapaActual(),
@@ -538,7 +538,16 @@ public class SeguimientoService {
                 objectMapper.valueToTree(Map.of("accion", "OBSERVACION_ETAPA"))
         );
         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "OBSERVACION_ETAPA", null, null, null, null, null);
-        return caso;
+        return new ObservacionEtapaResponse(
+                evento.getId(),
+                caso.getId(),
+                evento.getTipoEvento().name(),
+                caso.getEtapaActual().getId(),
+                caso.getEtapaActual().getNombre(),
+                java.time.OffsetDateTime.ofInstant(evento.getFechaEvento(), java.time.ZoneOffset.UTC),
+                evento.getObservacion(),
+                "Sistema"
+        );
     }
 
 }
