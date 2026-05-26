@@ -41,6 +41,7 @@ export default function HistorialSeguimiento() {
   const [openObsModal, setOpenObsModal] = useState(false);
   const [obsTexto, setObsTexto] = useState("");
   const [guardandoObs, setGuardandoObs] = useState(false);
+  const [obsError, setObsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -167,6 +168,7 @@ export default function HistorialSeguimiento() {
 
   const guardarObservacionEtapa = async () => {
     if (!casoAbierto?.casoId || !obsTexto.trim()) return;
+    setObsError(null);
     setGuardandoObs(true);
     try {
       await seguimientoApi.agregarObservacionEtapa({ casoSeguimientoId: casoAbierto.casoId, observacion: obsTexto.trim() });
@@ -176,7 +178,7 @@ export default function HistorialSeguimiento() {
       setOpenObsModal(false);
       setObsTexto("");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo guardar la observación de etapa.");
+      setObsError(e?.message ?? "No se pudo guardar la observación de etapa.");
     } finally {
       setGuardandoObs(false);
     }
@@ -314,7 +316,7 @@ export default function HistorialSeguimiento() {
                 <ProcesoTimeline
                   key={proceso.id}
                   proceso={proceso}
-                  onAgregarObservacion={casoAbierto?.casoId && proceso.id === casoAbierto.casoId ? () => setOpenObsModal(true) : undefined}
+                  onAgregarObservacion={casoAbierto?.casoId && ["abierto", "pausado"].includes(proceso.estado) ? () => setOpenObsModal(true) : undefined}
                 />
               ))
             )}
@@ -374,6 +376,35 @@ export default function HistorialSeguimiento() {
           </div>
         </section>
       </main>
+
+      <Dialog open={openObsModal} onOpenChange={(open) => {
+        setOpenObsModal(open);
+        if (!open) {
+          setObsTexto("");
+          setObsError(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar observación a etapa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              value={obsTexto}
+              onChange={(e) => setObsTexto(e.target.value)}
+              rows={4}
+              placeholder="Escribí la observación de la etapa actual"
+            />
+            {obsError && <p className="text-sm text-destructive">{obsError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenObsModal(false)} disabled={guardandoObs}>Cancelar</Button>
+            <Button onClick={guardarObservacionEtapa} disabled={guardandoObs || obsTexto.trim().length === 0}>
+              {guardandoObs ? "Guardando..." : "Guardar observación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

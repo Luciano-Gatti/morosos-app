@@ -533,7 +533,7 @@ public class SeguimientoService {
                 caso,
                 CasoEventoTipo.OBSERVACION_ETAPA,
                 caso.getEtapaActual(),
-                caso.getEtapaActual(),
+                null,
                 observacion,
                 objectMapper.valueToTree(Map.of("accion", "OBSERVACION_ETAPA"))
         );
