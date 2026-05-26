@@ -601,14 +601,19 @@ function TimelineEtapaItem({ etapa, esUltimo }: { etapa: any; esUltimo: boolean 
 function EventoInternoItem({ registro }: { registro: RegistroHistorial }) {
   const tipo = String(registro.tipoAccion ?? "Evento");
   const mostrarCompromisoCompleto = String(registro.tipoAccion ?? "").toUpperCase().includes("COMPROMISO");
+  const observacionCompromiso = getObservacionVisible(registro.compromisoPago?.observacion);
   return <div className="mt-3 rounded-md border border-border/80 bg-surface px-3 py-2 text-[12.5px]">
     <div className="flex flex-wrap items-center gap-2">
       <span className="inline-flex items-center gap-1 font-medium text-foreground"><HandCoins className="h-3.5 w-3.5" />{tipo}</span>
       <span className="ml-auto text-muted-foreground tabular">{formatFechaHora(registro.fecha)}</span>
     </div>
     <div className="mt-1 text-foreground">Responsable: {registro.responsable ?? "Sistema"}</div>
-    {mostrarCompromisoCompleto && registro.compromisoPago && <div className="mt-1 text-foreground">
-      Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)} · Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)} · Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado} · Obs.: {registro.compromisoPago.observacion ?? "—"}
+    {mostrarCompromisoCompleto && registro.compromisoPago && <div className="mt-2 grid gap-1 text-foreground">
+      <div>Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)}</div>
+      <div>Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)}</div>
+      <div>Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado}</div>
+      <div className="font-medium">Observación:</div>
+      <div>{observacionCompromiso ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
     </div>}
   </div>;
 }
@@ -650,19 +655,19 @@ function TimelineItem({
         </p>
 
         {registro.compromisoPago && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12.5px] dark:bg-amber-500/10">
+          <div className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12.5px] dark:bg-amber-500/10">
             <span className="inline-flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
               <HandCoins className="h-3.5 w-3.5" />
               Compromiso de pago
             </span>
-            <span className="text-foreground">
-              Desde:{" "}
-              <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaDesde)}</span>
-            </span>
-            <span className="text-foreground">
-              Hasta: <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaHasta)}</span>
-            </span>
-            <span className="ml-auto text-muted-foreground">{registro.compromisoPago.observacion}</span>
+            <div className="mt-1 grid gap-1 text-foreground">
+              <div>Responsable: {registro.compromisoPago.responsable ?? registro.responsable}</div>
+              <div>Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)}</div>
+              <div>Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)}</div>
+              <div>Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado}</div>
+              <div className="font-medium">Observación:</div>
+              <div>{getObservacionVisible(registro.compromisoPago.observacion) ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
+            </div>
           </div>
         )}
       </div>
@@ -721,13 +726,16 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
     const tipo = String(r.tipoAccion ?? "").toUpperCase();
     if (!r.compromisoPago) return "—";
     if (!["COMPROMISO_REGISTRADO", "ACTUALIZAR_COMPROMISO", "RENOVAR_COMPROMISO"].some((token) => tipo.includes(token))) return "—";
-    const parts: string[] = [];
-    if (r.compromisoPago.montoComprometido !== null && r.compromisoPago.montoComprometido !== undefined) parts.push(`Monto: ${formatCurrencyOrDash(r.compromisoPago.montoComprometido)}`);
-    if (r.compromisoPago.fechaDesde || r.compromisoPago.fechaHasta) parts.push(`Vigencia: ${formatFecha(r.compromisoPago.fechaDesde)} - ${formatFecha(r.compromisoPago.fechaHasta)}`);
-    if (r.compromisoPago.estadoLabel || r.compromisoPago.estado) parts.push(`Estado: ${r.compromisoPago.estadoLabel ?? r.compromisoPago.estado}`);
-    if (r.compromisoPago.observacion && r.compromisoPago.observacion !== "No informado") parts.push(`Obs.: ${r.compromisoPago.observacion}`);
-    if (r.compromisoPago.responsable && r.compromisoPago.responsable !== "No informado") parts.push(`Resp.: ${r.compromisoPago.responsable}`);
-    return parts.length > 0 ? parts.join(" · ") : "—";
+    const observacion = getObservacionVisible(r.compromisoPago.observacion);
+    return (
+      <div className="grid gap-1 whitespace-pre-line">
+        <div>Monto: {formatCurrencyOrDash(r.compromisoPago.montoComprometido)}</div>
+        <div>Vigencia: {formatFecha(r.compromisoPago.fechaDesde)} - {formatFecha(r.compromisoPago.fechaHasta)}</div>
+        <div>Estado: {r.compromisoPago.estadoLabel ?? r.compromisoPago.estado}</div>
+        <div className="font-medium">Observación:</div>
+        <div>{observacion ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
+      </div>
+    );
   };
 
   const renderCierreResumen = (r: any) => {

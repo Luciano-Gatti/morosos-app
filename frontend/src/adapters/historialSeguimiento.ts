@@ -65,6 +65,41 @@ export interface HistorialSeguimientoViewModel {
 const s = (v: unknown, d = "-") => (typeof v === "string" && v.trim() ? v : d);
 const n = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const b = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
+const toTitleCase = (value: string) =>
+  value
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+const EVENTO_LABELS: Record<string, string> = {
+  INICIO_PROCESO: "Inicio de proceso",
+  COMPROMISO_REGISTRADO: "Compromiso de pago registrado",
+  REANUDAR_PROCESO: "Proceso reanudado",
+  REPETICION_ETAPA: "Repetición de etapa",
+  AVANCE_ETAPA: "Avance de etapa",
+  CIERRE_PROCESO: "Cierre de proceso",
+  PAUSA_PROCESO: "Proceso pausado",
+};
+
+const COMPROMISO_ESTADO_LABELS: Record<string, string> = {
+  PENDIENTE: "Pendiente",
+  INCUMPLIDO: "Incumplido",
+  CUMPLIDO: "Cumplido",
+};
+
+const humanizeEventType = (value: string) => {
+  const normalized = value.toUpperCase();
+  if (EVENTO_LABELS[normalized]) return EVENTO_LABELS[normalized];
+  return toTitleCase(normalized.replaceAll("_", " "));
+};
+
+const humanizeCompromisoEstado = (value: string) => {
+  const normalized = value.toUpperCase();
+  if (COMPROMISO_ESTADO_LABELS[normalized]) return COMPROMISO_ESTADO_LABELS[normalized];
+  return toTitleCase(normalized.replaceAll("_", " "));
+};
 
 export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string): HistorialSeguimientoViewModel {
   const inmuebleRaw = input?.inmueble ?? input?.inmuebleResumen ?? {};
@@ -96,7 +131,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     eventoId: s(e?.id ?? e?.eventoId, `evt-${i}`),
     casoId: s(e?.casoId),
     tipoEvento: s(e?.tipoEvento ?? e?.tipoAccion ?? e?.tipo, "evento"),
-    tipoEventoLabel: s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento"),
+    tipoEventoLabel: humanizeEventType(s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento")),
     etapaOrigen: s(e?.etapaOrigen, "Sin etapa asignada"),
     etapaDestino: s(e?.etapaDestino ?? e?.etapaNombre ?? e?.etapa, "Sin etapa asignada"),
     fechaEvento: s(e?.fechaEvento ?? e?.fecha),
@@ -122,7 +157,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     fechaHasta: s(cp?.fechaHasta),
     montoComprometido: n(cp?.montoComprometido),
     estado: s(cp?.estado),
-    estadoLabel: s(cp?.estadoLabel ?? cp?.estado),
+    estadoLabel: humanizeCompromisoEstado(s(cp?.estadoLabel ?? cp?.estado)),
     observacion: s(cp?.observacion, "No informado"),
     responsable: s(cp?.responsable ?? cp?.responsableCompromiso ?? cp?.createdBy, "No informado"),
   }));
