@@ -81,6 +81,7 @@ const EVENTO_LABELS: Record<string, string> = {
   AVANCE_ETAPA: "Avance de etapa",
   CIERRE_PROCESO: "Cierre de proceso",
   PAUSA_PROCESO: "Proceso pausado",
+  OBSERVACION_ETAPA: "Observación de etapa",
 };
 
 const COMPROMISO_ESTADO_LABELS: Record<string, string> = {

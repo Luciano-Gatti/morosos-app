@@ -26,6 +26,7 @@ import pe.morosos.seguimiento.dto.EnviarEtapaRequest;
 import pe.morosos.seguimiento.dto.HistorialCasoResponse;
 import pe.morosos.seguimiento.dto.HistorialSeguimientoResponse;
 import pe.morosos.seguimiento.dto.IniciarSeguimientoRequest;
+import pe.morosos.seguimiento.dto.ObservacionEtapaRequest;
 import pe.morosos.seguimiento.dto.PausarCasoRequest;
 import pe.morosos.seguimiento.dto.ReanudarCasoRequest;
 import pe.morosos.seguimiento.dto.RegistrarCompromisosBulkRequest;
@@ -187,5 +188,13 @@ public class SeguimientoController {
     @GetMapping("/inmuebles/{inmuebleId}/historial")
     public HistorialSeguimientoResponse getHistorial(@PathVariable UUID inmuebleId) {
         return seguimientoService.getHistorialByInmueble(inmuebleId);
+    }
+
+    @PostMapping("/observaciones-etapa")
+    public HistorialCasoResponse agregarObservacionEtapa(@Valid @RequestBody ObservacionEtapaRequest request) {
+        return casoSeguimientoMapper.toHistorial(seguimientoService.agregarObservacionEtapa(
+                request.casoSeguimientoId(),
+                request.observacion()
+        ));
     }
 }

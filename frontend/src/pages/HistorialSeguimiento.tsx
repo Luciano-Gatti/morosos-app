@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { USE_API } from "@/lib/apiClient";
@@ -36,6 +38,9 @@ export default function HistorialSeguimiento() {
   const [historialVm, setHistorialVm] = useState<HistorialSeguimientoViewModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openObsModal, setOpenObsModal] = useState(false);
+  const [obsTexto, setObsTexto] = useState("");
+  const [guardandoObs, setGuardandoObs] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -158,6 +163,24 @@ export default function HistorialSeguimiento() {
 
   // ordenamos procesos: actual (abierto) primero, luego cerrados desc
   const procesosOrdenados = [...procesos].reverse();
+  const casoAbierto = (historialVm?.casos ?? []).find((c) => ["ABIERTO", "PAUSADO"].includes(String(c.estado ?? "").toUpperCase()));
+
+  const guardarObservacionEtapa = async () => {
+    if (!casoAbierto?.casoId || !obsTexto.trim()) return;
+    setGuardandoObs(true);
+    try {
+      await seguimientoApi.agregarObservacionEtapa({ casoSeguimientoId: casoAbierto.casoId, observacion: obsTexto.trim() });
+      const [historialRes, inmuebleRes] = await Promise.all([seguimientoApi.historialInmueble(id!), inmueblesApi.getById(id!)]);
+      const merged = { ...historialRes, inmueble: (historialRes as any)?.inmueble ?? inmuebleRes };
+      setHistorialVm(mapHistorialSeguimiento(merged, id!));
+      setOpenObsModal(false);
+      setObsTexto("");
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo guardar la observación de etapa.");
+    } finally {
+      setGuardandoObs(false);
+    }
+  };
 
   return (
     <>
@@ -274,6 +297,11 @@ export default function HistorialSeguimiento() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          {vista === "timeline" && casoAbierto?.casoId && (
+            <Button variant="outline" size="sm" className="ml-3 h-8 text-[12px]" onClick={() => setOpenObsModal(true)}>
+              Agregar observación a etapa
+            </Button>
+          )}
         </div>
 
         {/* Vista timeline */}
@@ -758,7 +786,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             <tr className="border-b border-border bg-surface-muted/30">
               <Th className="w-[110px]">Fecha</Th>
               <Th className="w-[130px]">Proceso</Th>
-              <Th className="w-[140px]">Etapa</Th>
+              <Th className="w-[160px]">Etapa relacionada</Th>
               <Th className="w-[120px]">Estado</Th>
               <Th className="w-[180px]">Acción</Th>
               <Th>Observaciones</Th>
@@ -775,7 +803,11 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                 </td>
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">{r.numeroProceso}</td>
                 <td className="px-4 py-3">
-                  <EtapaPill etapa={r.etapa} />
+                  {r.esEventoProceso ? (
+                    <span className="text-[12.5px] text-foreground">Durante {r.etapa ?? "—"}</span>
+                  ) : (
+                    <EtapaPill etapa={r.etapa} />
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <EstadoPill estado={r.estado} />
@@ -806,6 +838,25 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
           </div>
         </div>
       )}
+      <Dialog open={openObsModal} onOpenChange={setOpenObsModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Agregar observación a etapa</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={obsTexto}
+            onChange={(e) => setObsTexto(e.target.value)}
+            placeholder="Observación *"
+            rows={5}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenObsModal(false)}>Cancelar</Button>
+            <Button onClick={guardarObservacionEtapa} disabled={guardandoObs || !obsTexto.trim()}>
+              {guardandoObs ? "Guardando..." : "Guardar observación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
