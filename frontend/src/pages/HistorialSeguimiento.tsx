@@ -505,17 +505,7 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
 }
 
 function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
-  const registrosEtapa = proceso.registros.filter((registro: any) => !isRegistroCierre(registro) && !registro.esEventoProceso && !!registro.etapa);
-  const pausas = [...proceso.registros].filter((registro: any) => isRegistroPausa(registro));
-  const ultimaPausa = pausas.length > 0 ? pausas[pausas.length - 1] : null;
-  const reanudaciones = [...proceso.registros]
-    .filter((registro: any) => String(registro?.tipoAccion ?? "").toUpperCase().includes("REANUDAR"))
-    .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-  const fechaUltimaReanudacion = ultimaPausa
-    ? reanudaciones.find((registro) => new Date(registro.fecha).getTime() >= new Date(ultimaPausa.fecha).getTime())?.fecha ?? null
-    : null;
-  const mostrarBloquePausa = !!ultimaPausa;
-  const pausaVigente = proceso.estado === "pausado";
+  const etapas = buildEtapaTimeline(proceso);
   const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
 
   return (
@@ -526,18 +516,101 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           aria-hidden
           className="absolute bottom-6 left-[34px] top-6 w-px bg-border"
         />
-        {registrosEtapa.map((r, idx) => (
-          <TimelineItem
-            key={r.id}
-            registro={r}
-            esUltimo={idx === registrosEtapa.length - 1}
-          />
-        ))}
+        {etapas.map((etapa, idx) => <TimelineEtapaItem key={etapa.id} etapa={etapa} esUltimo={idx === etapas.length - 1} />)}
       </ol>
-      {mostrarBloquePausa && ultimaPausa && <PausaProcesoBloque proceso={proceso} pausaRegistro={ultimaPausa} pausaVigente={pausaVigente} fechaReanudacion={fechaUltimaReanudacion} />}
       {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
   );
+}
+
+function buildEtapaTimeline(proceso: ProcesoSeguimiento) {
+  const registros = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const etapas: Array<any> = [];
+  let actual: any = null;
+
+  registros.forEach((registro: any) => {
+    const tipo = String(registro?.tipoAccion ?? "").toUpperCase();
+    const esEtapa = !registro.esEventoProceso;
+    const esInterno = registro.esEventoProceso && !isRegistroCierre(registro);
+    if (esEtapa) {
+      if (actual) {
+        actual.estado = "Cerrado";
+        actual.fechaCierre = registro.fecha;
+      }
+      actual = {
+        id: registro.id,
+        etapa: registro.etapa,
+        estado: "Iniciado",
+        fechaApertura: registro.fecha,
+        fechaCierre: null,
+        responsable: registro.responsable,
+        observaciones: registro.observaciones,
+        eventosInternos: [],
+      };
+      etapas.push(actual);
+      return;
+    }
+
+    if (esInterno && actual) {
+      actual.eventosInternos.push(registro);
+    }
+
+    if (tipo.includes("REANUDAR") && actual) {
+      actual.estado = "Iniciado";
+    }
+  });
+
+  if (actual && proceso.estado === "pausado") actual.estado = "Pausado";
+  if (proceso.estado === "cerrado" && etapas.length > 0) {
+    const ultima = etapas[etapas.length - 1];
+    ultima.estado = "Cerrado";
+    if (!ultima.fechaCierre) ultima.fechaCierre = proceso.fechaFin;
+  }
+  return etapas;
+}
+
+function TimelineEtapaItem({ etapa, esUltimo }: { etapa: any; esUltimo: boolean }) {
+  const observacion = getObservacionVisible(etapa.observaciones);
+  return <li className="relative flex gap-4 pb-6 last:pb-0">
+    <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
+      <EtapaIcon etapa={etapa.etapa} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <EtapaPill etapa={etapa.etapa} />
+        <EstadoPill estado={etapa.estado} />
+      </div>
+      <div className="mt-2 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Apertura</span>
+        <span className="text-foreground tabular">{formatFechaHora(etapa.fechaApertura)}</span>
+        {etapa.fechaCierre && <>
+          <span className="font-medium uppercase tracking-wider text-muted-foreground">Cierre</span>
+          <span className="text-foreground tabular">{formatFechaHora(etapa.fechaCierre)}</span>
+        </>}
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
+        <span className="text-foreground">{etapa.responsable}</span>
+      </div>
+      <p className="mt-2 max-w-[72ch] rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+        {observacion ?? "No se dejaron asentadas observaciones para esta etapa."}
+      </p>
+      {etapa.eventosInternos.map((evento: any) => <EventoInternoItem key={evento.id} registro={evento} />)}
+    </div>
+  </li>;
+}
+
+function EventoInternoItem({ registro }: { registro: RegistroHistorial }) {
+  const tipo = String(registro.tipoAccion ?? "Evento");
+  const mostrarCompromisoCompleto = String(registro.tipoAccion ?? "").toUpperCase().includes("COMPROMISO");
+  return <div className="mt-3 rounded-md border border-border/80 bg-surface px-3 py-2 text-[12.5px]">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1 font-medium text-foreground"><HandCoins className="h-3.5 w-3.5" />{tipo}</span>
+      <span className="ml-auto text-muted-foreground tabular">{formatFechaHora(registro.fecha)}</span>
+    </div>
+    <div className="mt-1 text-foreground">Responsable: {registro.responsable ?? "Sistema"}</div>
+    {mostrarCompromisoCompleto && registro.compromisoPago && <div className="mt-1 text-foreground">
+      Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)} · Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)} · Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado} · Obs.: {registro.compromisoPago.observacion ?? "—"}
+    </div>}
+  </div>;
 }
 
 function TimelineItem({
@@ -603,56 +676,6 @@ function isRegistroCierre(registro: RegistroHistorial) {
   const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
   return tipoEvento.includes("CIERRE");
 }
-function isRegistroPausa(registro: RegistroHistorial) {
-  const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
-  return tipoEvento.includes("PAUSA") || tipoEvento.includes("COMPROMISO");
-}
-
-function PausaProcesoBloque({ proceso, pausaRegistro, pausaVigente, fechaReanudacion }: { proceso: ProcesoSeguimiento; pausaRegistro: RegistroHistorial; pausaVigente: boolean; fechaReanudacion?: string | null }) {
-  const compromiso = (proceso as any).compromisos?.[0] ?? null;
-  const metadata = (pausaRegistro as any).metadata ?? {};
-  const monto = compromiso?.montoComprometido ?? metadata?.monto ?? null;
-  return (
-    <div className="border-t border-border bg-amber-500/5 px-5 py-4 dark:bg-amber-500/10">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-        {pausaVigente ? "Proceso pausado" : "Pausa finalizada"}
-      </div>
-      <div className="grid gap-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
-        <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de pausa</span>
-        <span className="tabular text-foreground">{formatFechaHora(pausaRegistro.fecha)}</span>
-        {!pausaVigente && fechaReanudacion && (
-          <>
-            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de reanudación</span>
-            <span className="tabular text-foreground">{formatFechaHora(fechaReanudacion)}</span>
-          </>
-        )}
-        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
-        <span className="text-foreground">{pausaRegistro.responsable ?? "Sistema"}</span>
-        <span className="font-medium uppercase tracking-wider text-muted-foreground">Observación</span>
-        <span className="text-foreground">{getObservacionVisible(pausaRegistro.observaciones) ?? "No informado"}</span>
-        {monto !== null && (
-          <>
-            <span className="font-medium uppercase tracking-wider text-muted-foreground">Monto comprometido</span>
-            <span className="text-foreground">{`$ ${monto}`}</span>
-          </>
-        )}
-        {(compromiso?.fechaDesde ?? metadata?.fechaDesde) && (
-          <>
-            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha desde</span>
-            <span className="text-foreground tabular">{formatFecha(String(compromiso?.fechaDesde ?? metadata?.fechaDesde))}</span>
-          </>
-        )}
-        {(compromiso?.fechaHasta ?? metadata?.fechaHasta) && (
-          <>
-            <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha hasta</span>
-            <span className="text-foreground tabular">{formatFecha(String(compromiso?.fechaHasta ?? metadata?.fechaHasta))}</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function CierreProcesoBloque({
   proceso,
   cierreRegistro,
@@ -695,7 +718,9 @@ function getObservacionVisible(observaciones?: string | null) {
 
 function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
   const renderCompromisoResumen = (r: any) => {
+    const tipo = String(r.tipoAccion ?? "").toUpperCase();
     if (!r.compromisoPago) return "—";
+    if (!["COMPROMISO_REGISTRADO", "ACTUALIZAR_COMPROMISO", "RENOVAR_COMPROMISO"].some((token) => tipo.includes(token))) return "—";
     const parts: string[] = [];
     if (r.compromisoPago.montoComprometido !== null && r.compromisoPago.montoComprometido !== undefined) parts.push(`Monto: ${formatCurrencyOrDash(r.compromisoPago.montoComprometido)}`);
     if (r.compromisoPago.fechaDesde || r.compromisoPago.fechaHasta) parts.push(`Vigencia: ${formatFecha(r.compromisoPago.fechaDesde)} - ${formatFecha(r.compromisoPago.fechaHasta)}`);
