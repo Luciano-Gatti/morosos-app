@@ -628,8 +628,7 @@ function buildEtapaTimeline(proceso: ProcesoSeguimiento) {
 }
 
 function TimelineEtapaItem({ etapa, esUltimo, onAgregarObservacion }: { etapa: any; esUltimo: boolean; onAgregarObservacion?: () => void }) {
-  const observacionEtapa = getUltimaObservacionEtapa(etapa);
-  const observacion = observacionEtapa ? getObservacionVisible(observacionEtapa.ultimaObservacion.observaciones) : getObservacionVisible(etapa.observaciones);
+  const observacionEtapa = getResumenObservacionesEtapa(etapa);
   const eventosInternosVisibles = (etapa.eventosInternos ?? []).filter((evento: RegistroHistorial) => !isObservacionEtapa(evento));
   return <li className="relative flex gap-4 pb-6 last:pb-0">
     <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
@@ -656,11 +655,11 @@ function TimelineEtapaItem({ etapa, esUltimo, onAgregarObservacion }: { etapa: a
         <span className="text-foreground">{etapa.responsable}</span>
       </div>
       <p className="mt-2 max-w-[72ch] rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[13px] leading-relaxed text-foreground">
-        {observacion ? <><span className="font-medium">Última observación:</span> {observacion}</> : "No se dejaron asentadas observaciones para esta etapa."}
+        {observacionEtapa.ultimaObservacionTexto ? <><span className="font-medium">Última observación de etapa:</span> {observacionEtapa.ultimaObservacionTexto}</> : "No se dejaron asentadas observaciones para esta etapa."}
       </p>
-      {observacionEtapa && observacionEtapa.totalObservaciones > 1 && (
+      {observacionEtapa.totalObservaciones > 1 && (
         <p className="mt-2 text-[12px] text-muted-foreground">
-          Hay {observacionEtapa.totalObservaciones} observaciones registradas. Ver todas en Observaciones del expediente.
+          Hay {observacionEtapa.totalObservaciones} observaciones registradas. Ver historial completo en Observaciones del expediente.
         </p>
       )}
       {eventosInternosVisibles.map((evento: any) => <EventoInternoItem key={evento.id} registro={evento} />)}
@@ -752,13 +751,17 @@ function isObservacionEtapa(registro: RegistroHistorial) {
   return tipoEvento.includes("OBSERVACION_ETAPA");
 }
 
-function getUltimaObservacionEtapa(etapa: any) {
-  const observaciones = (etapa.eventosInternos ?? []).filter((evento: RegistroHistorial) => isObservacionEtapa(evento));
-  if (observaciones.length === 0) return null;
-  const ordenadas = [...observaciones].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+function getResumenObservacionesEtapa(etapa: any) {
+  const observacionesEvento = (etapa.eventosInternos ?? []).filter((evento: RegistroHistorial) => isObservacionEtapa(evento));
+  const observacionApertura = getObservacionVisible(etapa.observaciones);
+  const observaciones = [...observacionesEvento].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const ultimaObservacionEvento = observaciones[observaciones.length - 1];
+  const ultimaObservacionTexto = getObservacionVisible(ultimaObservacionEvento?.observaciones) ?? observacionApertura ?? null;
+  const totalObservaciones = observacionesEvento.length + (observacionApertura ? 1 : 0);
+
   return {
-    ultimaObservacion: ordenadas[ordenadas.length - 1],
-    totalObservaciones: observaciones.length,
+    ultimaObservacionTexto,
+    totalObservaciones,
   };
 }
 
