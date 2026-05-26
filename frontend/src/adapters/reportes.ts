@@ -68,7 +68,6 @@ export function mapReporteAccionesFechas(payload: any): AccionRegistro[] {
     ...(Array.isArray(root?.cortes) ? root.cortes : []),
     ...(Array.isArray(root?.regularizaciones) ? root.regularizaciones : []),
     ...(Array.isArray(root?.planesDePago) ? root.planesDePago : []),
-    ...(Array.isArray(root?.compromisosDePago) ? root.compromisosDePago : []),
   ];
   const rows = detailRows.length > 0 ? [...detailRows, ...groupedRows] : (root?.content ?? root?.rows ?? groupedRows);
   return (Array.isArray(rows) ? rows : []).map((r: any) => ({
