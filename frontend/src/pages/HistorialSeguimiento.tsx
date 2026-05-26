@@ -842,25 +842,6 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
           </div>
         </div>
       )}
-      <Dialog open={openObsModal} onOpenChange={setOpenObsModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Agregar observación a etapa</DialogTitle>
-          </DialogHeader>
-          <Textarea
-            value={obsTexto}
-            onChange={(e) => setObsTexto(e.target.value)}
-            placeholder="Observación *"
-            rows={5}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenObsModal(false)}>Cancelar</Button>
-            <Button onClick={guardarObservacionEtapa} disabled={guardandoObs || !obsTexto.trim()}>
-              {guardandoObs ? "Guardando..." : "Guardar observación"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }

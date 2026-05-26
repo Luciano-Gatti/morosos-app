@@ -1066,18 +1066,6 @@ function SelectionBar({
         size="sm"
         variant="outline"
         className="h-8 gap-1.5 text-[12.5px]"
-        onClick={() => onAction({ kind: "observacion-etapa" })}
-        disabled={!selectedActions.canObservacionEtapa}
-        title={actionReason("observacionEtapa")}
-      >
-        <FileText className="h-3.5 w-3.5" />
-        Agregar observación
-      </Button>
-
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 gap-1.5 text-[12.5px]"
         onClick={() => onAction({ kind: "pausar" })}
         disabled={USE_API ? !selectedActions.canPausar : !hasConEtapa}
         title={USE_API ? actionReason("pausar") : (!hasConEtapa ? "Requiere inmuebles con etapa asignada" : undefined)}
@@ -1139,6 +1127,18 @@ function SelectionBar({
       >
         <HandCoins className="h-3.5 w-3.5" />
         {hasPausado ? "Editar compromiso" : "Compromiso de pago"}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-[12.5px]"
+        onClick={() => onAction({ kind: "observacion-etapa" })}
+        disabled={!selectedActions.canObservacionEtapa}
+        title={actionReason("observacionEtapa")}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Agregar observación
       </Button>
     </div>
   );
