@@ -27,6 +27,7 @@ import pe.morosos.seguimiento.dto.HistorialCasoResponse;
 import pe.morosos.seguimiento.dto.HistorialSeguimientoResponse;
 import pe.morosos.seguimiento.dto.IniciarSeguimientoRequest;
 import pe.morosos.seguimiento.dto.ObservacionEtapaRequest;
+import pe.morosos.seguimiento.dto.ObservacionEtapaResponse;
 import pe.morosos.seguimiento.dto.PausarCasoRequest;
 import pe.morosos.seguimiento.dto.ReanudarCasoRequest;
 import pe.morosos.seguimiento.dto.RegistrarCompromisosBulkRequest;
