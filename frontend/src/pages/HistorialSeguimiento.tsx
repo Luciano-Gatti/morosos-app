@@ -566,6 +566,42 @@ function ProcesoTimeline({ proceso, onAgregarObservacion }: { proceso: ProcesoSe
   const etapas = buildEtapaTimeline(proceso);
   const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
 
+  const registrosOrdenados = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const observacionesPorEtapa = new Map<string, RegistroHistorial[]>();
+
+  registrosOrdenados.forEach((registro) => {
+    if (!isObservacionEtapa(registro)) return;
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return;
+    const lista = observacionesPorEtapa.get(etapaKey) ?? [];
+    lista.push(registro);
+    observacionesPorEtapa.set(etapaKey, lista);
+  });
+
+  const eventosPrincipales = registrosOrdenados.filter((registro) => !!registro.etapa && !isObservacionEtapa(registro));
+
+  const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return null;
+    const observaciones = [...(observacionesPorEtapa.get(etapaKey) ?? [])].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    if (observaciones.length === 0) return null;
+
+    const ultimaObservacion = observaciones[observaciones.length - 1];
+    const ultimaObservacionTexto = getObservacionVisible(ultimaObservacion.observaciones);
+    if (!ultimaObservacionTexto) return null;
+
+    return (
+      <div className="mt-2 rounded-md border border-border/70 bg-surface-muted/20 p-2">
+        <div className="font-medium">Última observación de etapa: {ultimaObservacionTexto}</div>
+        {observaciones.length > 1 && (
+          <div className="mt-1 text-[11.5px] text-muted-foreground">
+            Hay {observaciones.length} observaciones registradas. Ver historial completo en Observaciones del expediente.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -746,9 +782,18 @@ function TimelineItem({
 
 
 
+function normalizarTipoEvento(valor: unknown) {
+  return String(valor ?? "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, "_");
+}
+
 function isObservacionEtapa(registro: RegistroHistorial) {
-  const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
-  return tipoEvento.includes("OBSERVACION_ETAPA");
+  const candidatos = [registro.tipoAccion, (registro as any).tipoEvento, (registro as any).tipo, (registro as any).accion];
+  return candidatos.some((candidato) => normalizarTipoEvento(candidato) === "OBSERVACION_ETAPA");
 }
 
 function getResumenObservacionesEtapa(etapa: any) {
@@ -756,8 +801,11 @@ function getResumenObservacionesEtapa(etapa: any) {
   const observacionApertura = getObservacionVisible(etapa.observaciones);
   const observaciones = [...observacionesEvento].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
   const ultimaObservacionEvento = observaciones[observaciones.length - 1];
-  const ultimaObservacionTexto = getObservacionVisible(ultimaObservacionEvento?.observaciones) ?? observacionApertura ?? null;
   const totalObservaciones = observacionesEvento.length + (observacionApertura ? 1 : 0);
+  const ultimaObservacionTexto =
+    getObservacionVisible(ultimaObservacionEvento?.observaciones) ??
+    observacionApertura ??
+    (totalObservaciones > 0 ? "Sin detalle informado." : null);
 
   return {
     ultimaObservacionTexto,
@@ -837,6 +885,42 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
     return parts.length > 0 ? parts.join(" · ") : "—";
   };
 
+  const registrosOrdenados = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const observacionesPorEtapa = new Map<string, RegistroHistorial[]>();
+
+  registrosOrdenados.forEach((registro) => {
+    if (!isObservacionEtapa(registro)) return;
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return;
+    const lista = observacionesPorEtapa.get(etapaKey) ?? [];
+    lista.push(registro);
+    observacionesPorEtapa.set(etapaKey, lista);
+  });
+
+  const eventosPrincipales = registrosOrdenados.filter((registro) => !!registro.etapa && !isObservacionEtapa(registro));
+
+  const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return null;
+    const observaciones = [...(observacionesPorEtapa.get(etapaKey) ?? [])].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    if (observaciones.length === 0) return null;
+
+    const ultimaObservacion = observaciones[observaciones.length - 1];
+    const ultimaObservacionTexto = getObservacionVisible(ultimaObservacion.observaciones);
+    if (!ultimaObservacionTexto) return null;
+
+    return (
+      <div className="mt-2 rounded-md border border-border/70 bg-surface-muted/20 p-2">
+        <div className="font-medium">Última observación de etapa: {ultimaObservacionTexto}</div>
+        {observaciones.length > 1 && (
+          <div className="mt-1 text-[11.5px] text-muted-foreground">
+            Hay {observaciones.length} observaciones registradas. Ver historial completo en Observaciones del expediente.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -855,7 +939,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {proceso.registros.filter((r: any) => !!r.etapa).map((r) => (
+            {eventosPrincipales.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>
@@ -874,10 +958,11 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                 </td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">{r.tipoAccion ?? "Evento"}</td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">
-                  <p className="max-w-[48ch] leading-relaxed">{r.observaciones}</p>
+                  <p className="max-w-[48ch] leading-relaxed">{getObservacionVisible(r.observaciones) ?? "—"}</p>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
                     Resp.: {r.responsable}
                   </p>
+                  {renderResumenObservacionesEtapa(r)}
                 </td>
                 <td className="px-4 py-3 text-[12.5px]">
                   <span className={cn("text-[12.5px]", r.compromisoPago ? "text-foreground" : "italic text-muted-foreground")}>{renderCompromisoResumen(r)}</span>
