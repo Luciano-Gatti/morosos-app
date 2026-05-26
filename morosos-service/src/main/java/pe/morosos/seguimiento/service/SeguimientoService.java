@@ -287,6 +287,13 @@ public class SeguimientoService {
             try {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarReanudar(caso);
+                compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(caso.getId()).stream()
+                        .filter(compromiso -> compromiso.getEstado() == CompromisoPagoEstado.PENDIENTE)
+                        .findFirst()
+                        .ifPresent(compromiso -> {
+                            compromiso.setEstado(CompromisoPagoEstado.INCUMPLIDO);
+                            compromisoPagoRepository.save(compromiso);
+                        });
                 caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
                 casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REANUDAR_PROCESO", null, null, null, null, null);
