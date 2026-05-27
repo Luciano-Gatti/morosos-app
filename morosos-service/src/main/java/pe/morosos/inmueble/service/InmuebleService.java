@@ -41,6 +41,7 @@ import pe.morosos.inmueble.mapper.InmuebleMapper;
 import pe.morosos.inmueble.repository.GrupoDistritoConfigLookupRepository;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.inmueble.repository.InmuebleSpecifications;
+import pe.morosos.deuda.entity.CargaDeudaDetalle;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 import pe.morosos.deuda.entity.DeudaEfectivaActual;
 import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
@@ -214,7 +215,7 @@ public class InmuebleService {
         Inmueble inmueble = findEntity(inmuebleId);
         Instant desde = fechaDesde == null ? null : fechaDesde.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant hasta = fechaHasta == null ? null : fechaHasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        var detalles = cargaDeudaDetalleRepository.findHistorialByInmuebleId(inmuebleId, desde, hasta);
+        var detalles = obtenerHistorialDeudaDetalles(inmuebleId, desde, hasta);
         List<HistorialDeudaInmuebleResponse.ItemHistorialDeuda> items = detalles.stream().map(d -> {
             Integer cuotas = d.getCuotasVencidas() == null ? 0 : d.getCuotasVencidas();
             return new HistorialDeudaInmuebleResponse.ItemHistorialDeuda(
@@ -236,6 +237,23 @@ public class InmuebleService {
                         ultimo == null ? null : detalles.get(detalles.size() - 1).getCargaDeuda().getCreatedAt().atOffset(ZoneOffset.UTC)
                 ),
                 items);
+    }
+
+
+    private List<CargaDeudaDetalle> obtenerHistorialDeudaDetalles(UUID inmuebleId, Instant desde, Instant hasta) {
+        if (desde != null && hasta != null) {
+            return cargaDeudaDetalleRepository
+                    .findByInmuebleIdAndCargaDeudaCreatedAtGreaterThanEqualAndCargaDeudaCreatedAtLessThanOrderByCargaDeudaCreatedAtAsc(inmuebleId, desde, hasta);
+        }
+        if (desde != null) {
+            return cargaDeudaDetalleRepository
+                    .findByInmuebleIdAndCargaDeudaCreatedAtGreaterThanEqualOrderByCargaDeudaCreatedAtAsc(inmuebleId, desde);
+        }
+        if (hasta != null) {
+            return cargaDeudaDetalleRepository
+                    .findByInmuebleIdAndCargaDeudaCreatedAtLessThanOrderByCargaDeudaCreatedAtAsc(inmuebleId, hasta);
+        }
+        return cargaDeudaDetalleRepository.findByInmuebleIdOrderByCargaDeudaCreatedAtAsc(inmuebleId);
     }
 
     @Transactional(readOnly = true)

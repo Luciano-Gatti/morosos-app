@@ -163,19 +163,20 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
 
 
 
-    @Query("""
-            select d
-            from CargaDeudaDetalle d
-            join fetch d.cargaDeuda c
-            where d.inmueble.id = :inmuebleId
-              and (:fechaDesde is null or c.createdAt >= :fechaDesde)
-              and (:fechaHasta is null or c.createdAt < :fechaHasta)
-            order by c.createdAt asc
-            """)
-    List<CargaDeudaDetalle> findHistorialByInmuebleId(
-            @Param("inmuebleId") UUID inmuebleId,
-            @Param("fechaDesde") java.time.Instant fechaDesde,
-            @Param("fechaHasta") java.time.Instant fechaHasta);
+    List<CargaDeudaDetalle> findByInmuebleIdOrderByCargaDeudaCreatedAtAsc(UUID inmuebleId);
+
+    List<CargaDeudaDetalle> findByInmuebleIdAndCargaDeudaCreatedAtGreaterThanEqualOrderByCargaDeudaCreatedAtAsc(
+            UUID inmuebleId,
+            java.time.Instant fechaDesde);
+
+    List<CargaDeudaDetalle> findByInmuebleIdAndCargaDeudaCreatedAtLessThanOrderByCargaDeudaCreatedAtAsc(
+            UUID inmuebleId,
+            java.time.Instant fechaHasta);
+
+    List<CargaDeudaDetalle> findByInmuebleIdAndCargaDeudaCreatedAtGreaterThanEqualAndCargaDeudaCreatedAtLessThanOrderByCargaDeudaCreatedAtAsc(
+            UUID inmuebleId,
+            java.time.Instant fechaDesde,
+            java.time.Instant fechaHasta);
 
     interface SeguimientoBandejaProjection {
         UUID getInmuebleId(); String getCuenta(); String getTitular(); String getDireccion();
