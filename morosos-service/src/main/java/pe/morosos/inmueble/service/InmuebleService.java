@@ -4,8 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +30,9 @@ import pe.morosos.distrito.repository.DistritoRepository;
 import pe.morosos.grupo.entity.Grupo;
 import pe.morosos.grupo.repository.GrupoRepository;
 import pe.morosos.grupodistrito.entity.GrupoDistritoConfig;
+import pe.morosos.inmueble.dto.HistorialDeudaInmuebleResponse;
 import pe.morosos.inmueble.dto.InmuebleFilterRequest;
+import pe.morosos.inmueble.dto.ObservacionesExpedienteResponse;
 import pe.morosos.inmueble.dto.InmuebleResponse;
 import pe.morosos.inmueble.dto.ResumenOperativoResponse;
 import pe.morosos.inmueble.dto.InmuebleUpdateRequest;
@@ -36,6 +46,8 @@ import pe.morosos.deuda.entity.DeudaEfectivaActual;
 import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
 import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
+import pe.morosos.seguimiento.entity.CasoEvento;
+import pe.morosos.seguimiento.entity.CasoEventoTipo;
 import pe.morosos.seguimiento.entity.CasoSeguimiento;
 import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
 import pe.morosos.seguimiento.repository.CasoEventoRepository;
@@ -194,6 +206,86 @@ public class InmuebleService {
 
         inmueble.setSeguimientoHabilitado(seguimientoHabilitado);
         return inmuebleMapper.toResponse(inmuebleRepository.save(inmueble));
+    }
+
+
+    @Transactional(readOnly = true)
+    public HistorialDeudaInmuebleResponse obtenerHistorialDeuda(UUID inmuebleId, LocalDate fechaDesde, LocalDate fechaHasta) {
+        Inmueble inmueble = findEntity(inmuebleId);
+        Instant desde = fechaDesde == null ? null : fechaDesde.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant hasta = fechaHasta == null ? null : fechaHasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        var detalles = cargaDeudaDetalleRepository.findHistorialByInmuebleId(inmuebleId, desde, hasta);
+        List<HistorialDeudaInmuebleResponse.ItemHistorialDeuda> items = detalles.stream().map(d -> {
+            Integer cuotas = d.getCuotasVencidas() == null ? 0 : d.getCuotasVencidas();
+            return new HistorialDeudaInmuebleResponse.ItemHistorialDeuda(
+                    d.getCargaDeuda().getCreatedAt().atOffset(ZoneOffset.UTC).toLocalDate(),
+                    d.getCargaDeuda().getPeriodo() == null ? null : d.getCargaDeuda().getPeriodo().toString().substring(0, 7),
+                    cuotas,
+                    d.getMontoVencido() == null ? BigDecimal.ZERO : d.getMontoVencido(),
+                    calcularEstadoDeuda(cuotas),
+                    "Carga de deuda");
+        }).toList();
+        BigDecimal mayorDeuda = items.stream().map(HistorialDeudaInmuebleResponse.ItemHistorialDeuda::montoAdeudado).max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO);
+        HistorialDeudaInmuebleResponse.ItemHistorialDeuda ultimo = items.isEmpty() ? null : items.get(items.size() - 1);
+        return new HistorialDeudaInmuebleResponse(
+                new HistorialDeudaInmuebleResponse.InmuebleResumen(inmueble.getId(), inmueble.getCuenta(), inmueble.getTitular()),
+                new HistorialDeudaInmuebleResponse.ResumenDeuda(
+                        ultimo == null ? BigDecimal.ZERO : ultimo.montoAdeudado(),
+                        ultimo == null ? 0 : ultimo.cuotasAdeudadas(),
+                        mayorDeuda,
+                        ultimo == null ? null : detalles.get(detalles.size() - 1).getCargaDeuda().getCreatedAt().atOffset(ZoneOffset.UTC)
+                ),
+                items);
+    }
+
+    @Transactional(readOnly = true)
+    public ObservacionesExpedienteResponse obtenerObservacionesExpediente(UUID inmuebleId, LocalDate fechaDesde, LocalDate fechaHasta, UUID etapaId, String estadoProceso, String q) {
+        Inmueble inmueble = findEntity(inmuebleId);
+        Instant desde = fechaDesde == null ? null : fechaDesde.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant hasta = fechaHasta == null ? null : fechaHasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        List<CasoEvento> eventos = (desde == null && hasta == null)
+                ? casoEventoRepository.findByCasoSeguimientoInmuebleIdAndTipoEventoOrderByFechaEventoAsc(inmuebleId, CasoEventoTipo.OBSERVACION_ETAPA)
+                : casoEventoRepository.findByCasoSeguimientoInmuebleIdAndTipoEventoAndFechaEventoGreaterThanEqualAndFechaEventoLessThanOrderByFechaEventoAsc(inmuebleId, CasoEventoTipo.OBSERVACION_ETAPA, desde == null ? Instant.EPOCH : desde, hasta == null ? Instant.parse("9999-12-31T23:59:59Z") : hasta);
+        String qLower = q == null ? null : q.trim().toLowerCase(Locale.ROOT);
+        Map<UUID, List<CasoEvento>> porProceso = new LinkedHashMap<>();
+        for (CasoEvento ev : eventos) {
+            if (qLower != null && !qLower.isBlank() && (ev.getObservacion() == null || !ev.getObservacion().toLowerCase(Locale.ROOT).contains(qLower))) continue;
+            CasoSeguimiento caso = ev.getCasoSeguimiento();
+            if (estadoProceso != null && !estadoProceso.isBlank()) {
+                String estado = mapEstadoProceso(caso.getEstado().name());
+                if (!estado.equalsIgnoreCase(estadoProceso) && !caso.getEstado().name().equalsIgnoreCase(estadoProceso)) continue;
+            }
+            if (etapaId != null) {
+                UUID eid = ev.getEtapaDestino() != null ? ev.getEtapaDestino().getId() : (ev.getEtapaOrigen() != null ? ev.getEtapaOrigen().getId() : null);
+                if (!etapaId.equals(eid)) continue;
+            }
+            porProceso.computeIfAbsent(caso.getId(), k -> new ArrayList<>()).add(ev);
+        }
+        List<ObservacionesExpedienteResponse.ProcesoObservaciones> procesos = new ArrayList<>();
+        int total=0;
+        for (var entry: porProceso.entrySet()) {
+            CasoSeguimiento caso = entry.getValue().get(0).getCasoSeguimiento();
+            Map<UUID, List<CasoEvento>> porEtapa = new LinkedHashMap<>();
+            for (CasoEvento ev: entry.getValue()) {
+                UUID eid = ev.getEtapaDestino() != null ? ev.getEtapaDestino().getId() : (ev.getEtapaOrigen() != null ? ev.getEtapaOrigen().getId() : null);
+                porEtapa.computeIfAbsent(eid, k -> new ArrayList<>()).add(ev); total++;
+            }
+            List<ObservacionesExpedienteResponse.EtapaObservaciones> etapas = porEtapa.entrySet().stream().map(et -> {
+                String nombre = et.getValue().get(0).getEtapaDestino() != null ? et.getValue().get(0).getEtapaDestino().getNombre() : (et.getValue().get(0).getEtapaOrigen() != null ? et.getValue().get(0).getEtapaOrigen().getNombre() : "Sin etapa");
+                List<ObservacionesExpedienteResponse.ObservacionItem> obs = et.getValue().stream().map(ev -> new ObservacionesExpedienteResponse.ObservacionItem(ev.getId(), ev.getFechaEvento().atOffset(ZoneOffset.UTC), ev.getCreatedBy() == null ? "Sistema" : ev.getCreatedBy().toString(), ev.getObservacion())).toList();
+                return new ObservacionesExpedienteResponse.EtapaObservaciones(et.getKey(), nombre, obs);
+            }).toList();
+            procesos.add(new ObservacionesExpedienteResponse.ProcesoObservaciones(caso.getId(), mapEstadoProceso(caso.getEstado().name()), caso.getFechaInicio().atOffset(ZoneOffset.UTC), caso.getEstado() == CasoSeguimientoEstado.CERRADO ? caso.getFechaUltimoMovimiento().atOffset(ZoneOffset.UTC) : null, caso.getEtapaActual() == null ? null : caso.getEtapaActual().getId(), etapas));
+        }
+        return new ObservacionesExpedienteResponse(new ObservacionesExpedienteResponse.InmuebleResumen(inmueble.getId(), inmueble.getCuenta(), inmueble.getTitular()), total, procesos);
+    }
+
+    private String mapEstadoProceso(String estado) { return "ABIERTO".equalsIgnoreCase(estado) ? "INICIADO" : estado; }
+    private String calcularEstadoDeuda(int cuotas) {
+        int umbralMoroso = 5;
+        if (cuotas <= 0) return "AL_DIA";
+        if (cuotas < umbralMoroso) return "DEUDOR";
+        return "MOROSO";
     }
 
     private Inmueble findEntity(UUID id) {

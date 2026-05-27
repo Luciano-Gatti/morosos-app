@@ -28,7 +28,7 @@ export interface HistorialDeudaItem {
   cuotasAdeudadas: number;
   montoAdeudado: number;
   estado?: string;
-  observacion?: string;
+  origen?: string;
 }
 export interface HistorialDeudaResponse {
   inmueble: { id: string; cuenta: string; titular: string };
