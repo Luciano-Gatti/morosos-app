@@ -2,6 +2,7 @@ package pe.morosos.inmueble.dto;
 
 import java.time.Instant;
 import java.util.UUID;
+import pe.morosos.inmueble.dto.ResumenOperativoResponse;
 
 public record InmuebleResponse(
         UUID id,
@@ -22,6 +23,7 @@ public record InmuebleResponse(
         String createdBy,
         Instant createdAt,
         String updatedBy,
-        Instant updatedAt
+        Instant updatedAt,
+        ResumenOperativoResponse resumenOperativo
 ) {
 }

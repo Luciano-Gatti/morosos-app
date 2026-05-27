@@ -18,6 +18,13 @@ export interface InmuebleDetalleViewModel {
   updatedAt: string;
   estadoLabel: string;
   seguimientoLabel: string;
+  resumenOperativo: {
+    ultimaGestion: string | null;
+    etapaActualNombre: string | null;
+    estadoProceso: string | null;
+    periodosAdeudados: number;
+    montoAdeudado: number;
+  };
 }
 
 const asString = (v: unknown, d = "") => (typeof v === "string" ? v : d);
@@ -46,5 +53,12 @@ export function mapInmuebleDetalle(input: any): InmuebleDetalleViewModel {
     updatedAt: asString(input?.updatedAt),
     estadoLabel: activo ? "Activo" : "Inactivo",
     seguimientoLabel: seguimientoHabilitado ? "Habilitado" : "Deshabilitado",
+    resumenOperativo: {
+      ultimaGestion: typeof input?.resumenOperativo?.ultimaGestion === "string" ? input.resumenOperativo.ultimaGestion : null,
+      etapaActualNombre: typeof input?.resumenOperativo?.etapaActualNombre === "string" ? input.resumenOperativo.etapaActualNombre : null,
+      estadoProceso: typeof input?.resumenOperativo?.estadoProceso === "string" ? input.resumenOperativo.estadoProceso : null,
+      periodosAdeudados: Number(input?.resumenOperativo?.periodosAdeudados ?? 0),
+      montoAdeudado: Number(input?.resumenOperativo?.montoAdeudado ?? 0),
+    },
   };
 }

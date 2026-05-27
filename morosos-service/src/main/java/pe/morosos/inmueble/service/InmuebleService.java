@@ -2,6 +2,11 @@ package pe.morosos.inmueble.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,12 +24,22 @@ import pe.morosos.grupo.repository.GrupoRepository;
 import pe.morosos.grupodistrito.entity.GrupoDistritoConfig;
 import pe.morosos.inmueble.dto.InmuebleFilterRequest;
 import pe.morosos.inmueble.dto.InmuebleResponse;
+import pe.morosos.inmueble.dto.ResumenOperativoResponse;
 import pe.morosos.inmueble.dto.InmuebleUpdateRequest;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.mapper.InmuebleMapper;
 import pe.morosos.inmueble.repository.GrupoDistritoConfigLookupRepository;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.inmueble.repository.InmuebleSpecifications;
+import pe.morosos.deuda.entity.CargaDeudaEstado;
+import pe.morosos.deuda.entity.DeudaEfectivaActual;
+import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
+import pe.morosos.deuda.repository.CargaDeudaRepository;
+import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
+import pe.morosos.seguimiento.entity.CasoSeguimiento;
+import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
+import pe.morosos.seguimiento.repository.CasoEventoRepository;
+import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +52,11 @@ public class InmuebleService {
     private final InmuebleMapper inmuebleMapper;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final CasoSeguimientoRepository casoSeguimientoRepository;
+    private final CasoEventoRepository casoEventoRepository;
+    private final DeudaEfectivaActualRepository deudaEfectivaActualRepository;
+    private final CargaDeudaRepository cargaDeudaRepository;
+    private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
 
     @Transactional(readOnly = true)
     public Page<InmuebleResponse> findAll(InmuebleFilterRequest filter, Pageable pageable) {
@@ -51,7 +71,57 @@ public class InmuebleService {
 
     @Transactional(readOnly = true)
     public InmuebleResponse findById(UUID id) {
-        return inmuebleMapper.toResponse(findEntity(id));
+        Inmueble entity = findEntity(id);
+        return inmuebleMapper.toResponse(entity, buildResumenOperativo(entity.getId()));
+    }
+
+    private ResumenOperativoResponse buildResumenOperativo(UUID inmuebleId) {
+        List<CasoSeguimiento> casos = casoSeguimientoRepository.findByInmuebleIdOrderByFechaInicioDesc(inmuebleId);
+        CasoSeguimiento casoPrioritario = casos.stream()
+                .filter(c -> c.getEstado() == CasoSeguimientoEstado.ABIERTO || c.getEstado() == CasoSeguimientoEstado.PAUSADO)
+                .findFirst()
+                .orElse(casos.isEmpty() ? null : casos.get(0));
+
+        Instant ultimaGestion = null;
+        UUID etapaActualId = null;
+        String etapaActualNombre = null;
+        String estadoProceso = null;
+        if (casoPrioritario != null) {
+            ultimaGestion = casoPrioritario.getFechaUltimoMovimiento();
+            if (ultimaGestion == null) {
+                ultimaGestion = casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoDesc(casoPrioritario.getId())
+                        .stream().findFirst().map(e -> e.getFechaEvento()).orElse(null);
+            }
+            if (casoPrioritario.getEtapaActual() != null) {
+                etapaActualId = casoPrioritario.getEtapaActual().getId();
+                etapaActualNombre = casoPrioritario.getEtapaActual().getNombre();
+            }
+            estadoProceso = casoPrioritario.getEstado() == null ? null : casoPrioritario.getEstado().name();
+        }
+
+        Integer periodosAdeudados = 0;
+        BigDecimal montoAdeudado = BigDecimal.ZERO;
+        Optional<DeudaEfectivaActual> deudaActual = deudaEfectivaActualRepository.findByInmuebleId(inmuebleId);
+        if (deudaActual.isPresent()) {
+            periodosAdeudados = deudaActual.get().getCuotasAdeudadas() == null ? 0 : deudaActual.get().getCuotasAdeudadas();
+            montoAdeudado = deudaActual.get().getMontoAdeudado() == null ? BigDecimal.ZERO : deudaActual.get().getMontoAdeudado();
+        } else {
+            var detalleOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES))
+                    .flatMap(carga -> cargaDeudaDetalleRepository.findFirstByCargaDeudaIdAndInmuebleId(carga.getId(), inmuebleId));
+            if (detalleOpt.isPresent()) {
+                periodosAdeudados = detalleOpt.get().getCuotasVencidas() == null ? 0 : detalleOpt.get().getCuotasVencidas();
+                montoAdeudado = detalleOpt.get().getMontoVencido() == null ? BigDecimal.ZERO : detalleOpt.get().getMontoVencido();
+            }
+        }
+
+        return new ResumenOperativoResponse(
+                ultimaGestion == null ? null : ultimaGestion.atOffset(ZoneOffset.UTC),
+                etapaActualId,
+                etapaActualNombre,
+                estadoProceso,
+                periodosAdeudados,
+                montoAdeudado
+        );
     }
 
     @Transactional

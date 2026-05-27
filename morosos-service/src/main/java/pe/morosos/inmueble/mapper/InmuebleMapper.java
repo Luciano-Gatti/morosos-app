@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import pe.morosos.distrito.entity.Distrito;
 import pe.morosos.grupo.entity.Grupo;
 import pe.morosos.inmueble.dto.InmuebleResponse;
+import pe.morosos.inmueble.dto.ResumenOperativoResponse;
 import pe.morosos.inmueble.dto.InmuebleUpdateRequest;
 import pe.morosos.inmueble.entity.Inmueble;
 
@@ -19,6 +20,10 @@ public class InmuebleMapper {
     }
 
     public InmuebleResponse toResponse(Inmueble entity) {
+        return toResponse(entity, null);
+    }
+
+    public InmuebleResponse toResponse(Inmueble entity, ResumenOperativoResponse resumenOperativo) {
         return new InmuebleResponse(
                 entity.getId(),
                 entity.getCuenta(),
@@ -38,7 +43,8 @@ public class InmuebleMapper {
                 entity.getCreatedBy(),
                 entity.getCreatedAt(),
                 entity.getUpdatedBy(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                resumenOperativo
         );
     }
 

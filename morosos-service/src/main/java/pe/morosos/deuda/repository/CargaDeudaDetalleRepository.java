@@ -9,11 +9,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import pe.morosos.deuda.entity.CargaDeudaDetalle;
 import java.util.List;
+import java.util.Optional;
 import java.math.BigDecimal;
 import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
 
 public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDetalle, UUID>, JpaSpecificationExecutor<CargaDeudaDetalle> {
     Page<CargaDeudaDetalle> findByCargaDeudaId(UUID cargaDeudaId, Pageable pageable);
+    Optional<CargaDeudaDetalle> findFirstByCargaDeudaIdAndInmuebleId(UUID cargaDeudaId, UUID inmuebleId);
 
     @Query("""
             select d.inmueble.id, d.cuotasVencidas, d.montoVencido
