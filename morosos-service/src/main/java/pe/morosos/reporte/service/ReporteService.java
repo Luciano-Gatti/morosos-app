@@ -52,8 +52,8 @@ public class ReporteService {
     public Object obtenerReporte(String reporteId, LocalDate fechaDesde, LocalDate fechaHasta, String action,
                                  String entityType, String tipoAccion, java.util.UUID grupoId, java.util.UUID distritoId, java.util.UUID actorId, Pageable pageable) {
         return switch (reporteId) {
-            case "morosos-grupo-distrito" -> reporteMorososGrupoDistrito();
-            case "estado-inmuebles" -> reporteEstadoInmuebles();
+            case "morosos-grupo-distrito" -> reporteMorososGrupoDistrito(distritoId);
+            case "estado-inmuebles" -> reporteEstadoInmuebles(distritoId);
             case "historial-movimientos" -> reporteHistorialMovimientos(fechaDesde, fechaHasta, action, entityType, pageable);
             case "porcentajes-morosidad" -> reportePorcentajesMorosidad();
             case "acciones-fechas" -> reporteAccionesFechas(fechaDesde, fechaHasta, tipoAccion, grupoId, distritoId, actorId, pageable);
@@ -62,7 +62,7 @@ public class ReporteService {
         };
     }
     // implementations abbreviated but complete
-    private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(){
+    private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(UUID distritoIdFiltro){
         try {
             log.info("[morosos-grupo-distrito] Inicio armado de reporte");
             int min = cuotasMinimas();
@@ -70,6 +70,7 @@ public class ReporteService {
             List<Inmueble> activos = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
                 .filter(i -> i.getId() != null)
+                .filter(i -> distritoIdFiltro == null || (i.getDistrito() != null && distritoIdFiltro.equals(i.getDistrito().getId())))
                 .toList();
             log.info("[morosos-grupo-distrito] Inmuebles activos encontrados: {}", activos.size());
 
@@ -208,11 +209,12 @@ public class ReporteService {
         return resultado;
     }
 
-    private EstadoInmueblesResponse reporteEstadoInmuebles() {
+    private EstadoInmueblesResponse reporteEstadoInmuebles(UUID distritoIdFiltro) {
         int cuotasMoroso = cuotasMinimas();
         List<Inmueble> inmuebles = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
                 .filter(i -> i.getId() != null)
+                .filter(i -> distritoIdFiltro == null || (i.getDistrito() != null && distritoIdFiltro.equals(i.getDistrito().getId())))
                 .collect(Collectors.toMap(Inmueble::getId, i -> i, (a, b) -> a, LinkedHashMap::new))
                 .values()
                 .stream()
