@@ -561,13 +561,13 @@ export default function InmuebleDetalle() {
                   icon={Receipt}
                   title="Historial de deuda"
                   description="Períodos adeudados y pagos registrados."
-                  to={`/inmuebles/${inmueble.id}/deuda`}
+                  to={`/inmuebles/${inmueble.id}/historial-deuda`}
                 />
                 <AccessRow
                   icon={StickyNote}
                   title="Observaciones del expediente"
                   description="Notas y documentos cargados al inmueble."
-                  to={`/inmuebles/${inmueble.id}/observaciones`}
+                  to={`/inmuebles/${inmueble.id}/observaciones-expediente`}
                   last
                 />
               </div>
