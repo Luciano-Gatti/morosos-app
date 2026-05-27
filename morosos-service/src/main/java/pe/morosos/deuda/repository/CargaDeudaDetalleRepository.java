@@ -44,7 +44,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 e.esFinal as etapaFinal
             from CargaDeudaDetalle d
             join d.inmueble i
-            join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
             left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
@@ -52,7 +51,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             where d.cargaDeuda.id = :cargaId
               and i.activo = true
               and i.seguimientoHabilitado = true
-              and gdc.seguimientoHabilitado = true
               and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
@@ -63,7 +61,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             select count(d.id)
             from CargaDeudaDetalle d
             join d.inmueble i
-            join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
             left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
@@ -71,7 +68,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             where d.cargaDeuda.id = :cargaId
               and i.activo = true
               and i.seguimientoHabilitado = true
-              and gdc.seguimientoHabilitado = true
               and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
@@ -107,7 +103,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 e.esFinal as etapaFinal
             from CargaDeudaDetalle d
             join d.inmueble i
-            join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
             left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
@@ -115,7 +110,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             where d.cargaDeuda.id = :cargaId
               and i.activo = true
               and i.seguimientoHabilitado = true
-              and gdc.seguimientoHabilitado = true
               and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
@@ -131,7 +125,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             select count(d.id)
             from CargaDeudaDetalle d
             join d.inmueble i
-            join GrupoDistritoConfig gdc on gdc.grupo.id = i.grupo.id and gdc.distrito.id = i.distrito.id
             left join DeudaEfectivaActual dea on dea.inmueble.id = i.id
             left join CasoSeguimiento c on c.inmueble.id = i.id
                 and c.fechaInicio = (select max(c2.fechaInicio) from CasoSeguimiento c2 where c2.inmueble.id = i.id)
@@ -139,7 +132,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
             where d.cargaDeuda.id = :cargaId
               and i.activo = true
               and i.seguimientoHabilitado = true
-              and gdc.seguimientoHabilitado = true
               and coalesce(dea.cuotasAdeudadas, d.cuotasVencidas) >= :minCuotas
               and (:grupoId is null or i.grupo.id = :grupoId)
               and (:distritoId is null or i.distrito.id = :distritoId)
