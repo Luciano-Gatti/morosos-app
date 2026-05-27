@@ -543,15 +543,26 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     if (p !== "custom") setRango(presetRange(p));
   };
 
+  const reportesConFiltroDistrito = useMemo(
+    () => new Set<ReporteId>(["morosos-grupo-distrito", "estado-inmuebles", "acciones-fechas"]),
+    [],
+  );
+  const showDistritoFilter = reportesConFiltroDistrito.has(reporte.id);
+
   const filtrosLabel = useMemo(() => {
-    const distritoLabel = distritoId
-      ? (distritosCatalogo.find((d) => d.id === distritoId)?.nombre ?? "Distrito seleccionado")
-      : "Todos los distritos";
-    if (!reporte.conFechas) return [`Distrito: ${distritoLabel}`];
+    const labels: string[] = [];
+    if (showDistritoFilter) {
+      const distritoLabel = distritoId
+        ? (distritosCatalogo.find((d) => d.id === distritoId)?.nombre ?? "Distrito seleccionado")
+        : "Todos los distritos";
+      labels.push(`Distrito: ${distritoLabel}`);
+    }
+    if (!reporte.conFechas) return labels;
     const desdeS = desde ? dateFmt.format(desde) : "Inicio";
     const hastaS = hasta ? dateFmt.format(hasta) : "Hoy";
-    return [`Distrito: ${distritoLabel}`, `Período: ${desdeS} — ${hastaS}`];
-  }, [reporte.conFechas, desde, hasta, distritoId, distritosCatalogo]);
+    labels.push(`Período: ${desdeS} — ${hastaS}`);
+    return labels;
+  }, [showDistritoFilter, reporte.conFechas, desde, hasta, distritoId, distritosCatalogo]);
 
 
   const canExport = useMemo(() => {
@@ -577,6 +588,19 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
           <p className="mt-0.5 text-[12.5px] text-muted-foreground">{reporte.descripcion}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {showDistritoFilter && (
+            <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-8 w-[220px] text-[12.5px]" disabled={distritosLoading}>
+                <SelectValue placeholder="Distrito" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los distritos</SelectItem>
+                {distritosCatalogo.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <span className="text-[11.5px] text-muted-foreground">Exportar:</span>
           <Button
             size="sm"
@@ -597,6 +621,9 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
             <FileDown className="h-3.5 w-3.5" />
             PDF
           </Button>
+          {showDistritoFilter && distritosError && (
+            <span className="text-[12px] text-destructive">No se pudo cargar catálogo de distritos.</span>
+          )}
         </div>
       </div>
 
@@ -649,34 +676,6 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
               setRango((r) => ({ ...r, hasta: d }));
             }}
           />
-          <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-8 w-[220px] text-[12.5px]" disabled={distritosLoading}>
-              <SelectValue placeholder="Distrito" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los distritos</SelectItem>
-              {distritosCatalogo.map((d) => (
-                <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {!reporte.conFechas && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <label className="text-[12px] font-medium text-muted-foreground">Distrito</label>
-          <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-8 w-[240px] text-[12.5px]" disabled={distritosLoading}>
-              <SelectValue placeholder="Distrito" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los distritos</SelectItem>
-              {distritosCatalogo.map((d) => (
-                <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {distritosError && <span className="text-[12px] text-destructive">No se pudo cargar catálogo de distritos.</span>}
         </div>
       )}
     </div>
