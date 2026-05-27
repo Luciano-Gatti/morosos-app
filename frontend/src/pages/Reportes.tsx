@@ -54,6 +54,7 @@ import { conteoPorTipo, serieDiaria, TIPOS_REGULARIZACION } from "@/lib/reportes
 import { exportarReportePdf, exportarReporteXlsx } from "@/lib/exportReporte";
 import type { AccionRegistro, AccionTipo, AccionesRegularizacionViewModel, MovimientoRegistro, MovimientoTipo } from "@/types/reportes";
 import { reportesApi } from "@/services/api/reportesApi";
+import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapReporteAccionesFechas, mapReporteAccionesRegularizacionDetallado, mapReporteEstadoInmuebles, mapReporteHistorialMovimientos, mapReporteMorosos } from "@/adapters/reportes";
 import { USE_API } from "@/lib/apiClient";
 
@@ -323,6 +324,10 @@ function ReportesCatalogo({ onSelect }: { onSelect: (id: ReporteId) => void }) {
 
 function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   const { toast } = useToast();
+  const [distritoId, setDistritoId] = useState<string>("");
+  const [distritosCatalogo, setDistritosCatalogo] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [distritosLoading, setDistritosLoading] = useState(false);
+  const [distritosError, setDistritosError] = useState<string | null>(null);
   const [preset, setPreset] = useState<PresetId>("mes");
   const [{ desde, hasta }, setRango] = useState(() => presetRange("mes"));
   const [exportando, setExportando] = useState(false);
@@ -363,11 +368,38 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   });
 
   useEffect(() => {
+    let cancelled = false;
+    setDistritosLoading(true);
+    setDistritosError(null);
+    configuracionApi
+      .distritos({ size: 500, activo: true })
+      .then((resp: any) => {
+        if (cancelled) return;
+        const raw = Array.isArray(resp) ? resp : Array.isArray(resp?.content) ? resp.content : [];
+        const catalogo = raw
+          .filter((d: any) => d?.id && d?.nombre)
+          .map((d: any) => ({ id: String(d.id), nombre: String(d.nombre) }));
+        setDistritosCatalogo(catalogo);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setDistritosCatalogo([]);
+        setDistritosError(e?.message ?? "No se pudo cargar distritos");
+      })
+      .finally(() => {
+        if (!cancelled) setDistritosLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (reporte.id !== "morosos-grupo-distrito") return;
     let cancelled = false;
     setMorososState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
-      .morososGrupoDistrito()
+      .morososGrupoDistrito(distritoId ? { distritoId } : undefined)
       .then((payload) => {
         if (cancelled) return;
         const vm = mapReporteMorosos(payload);
@@ -394,7 +426,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     return () => {
       cancelled = true;
     };
-  }, [reporte.id]);
+  }, [reporte.id, distritoId]);
 
   useEffect(() => {
     if (reporte.id !== "acciones-fechas") return;
@@ -404,6 +436,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       .accionesFechas({
         fechaDesde: desde ? format(desde, "yyyy-MM-dd") : undefined,
         fechaHasta: hasta ? format(hasta, "yyyy-MM-dd") : undefined,
+        distritoId: distritoId || undefined,
       })
       .then((payload) => {
         if (cancelled) return;
@@ -418,14 +451,14 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     return () => {
       cancelled = true;
     };
-  }, [reporte.id, desde, hasta, toast]);
+  }, [reporte.id, desde, hasta, distritoId, toast]);
 
   useEffect(() => {
     if (reporte.id !== "estado-inmuebles") return;
         let cancelled = false;
     setEstadoInmueblesState((s) => ({ ...s, loading: true, error: null }));
     reportesApi
-      .estadoInmuebles()
+      .estadoInmuebles(distritoId ? { distritoId } : undefined)
       .then((payload) => {
         if (cancelled) return;
         const vm = mapReporteEstadoInmuebles(payload);
@@ -439,7 +472,7 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
     return () => {
       cancelled = true;
     };
-  }, [reporte.id, toast]);
+  }, [reporte.id, distritoId, toast]);
 
   useEffect(() => {
     if (reporte.id !== "historial-movimientos") return;
@@ -511,11 +544,14 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
   };
 
   const filtrosLabel = useMemo(() => {
-    if (!reporte.conFechas) return [];
+    const distritoLabel = distritoId
+      ? (distritosCatalogo.find((d) => d.id === distritoId)?.nombre ?? "Distrito seleccionado")
+      : "Todos los distritos";
+    if (!reporte.conFechas) return [`Distrito: ${distritoLabel}`];
     const desdeS = desde ? dateFmt.format(desde) : "Inicio";
     const hastaS = hasta ? dateFmt.format(hasta) : "Hoy";
-    return [`Período: ${desdeS} — ${hastaS}`];
-  }, [reporte.conFechas, desde, hasta]);
+    return [`Distrito: ${distritoLabel}`, `Período: ${desdeS} — ${hastaS}`];
+  }, [reporte.conFechas, desde, hasta, distritoId, distritosCatalogo]);
 
 
   const canExport = useMemo(() => {
@@ -613,6 +649,34 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
               setRango((r) => ({ ...r, hasta: d }));
             }}
           />
+          <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-8 w-[220px] text-[12.5px]" disabled={distritosLoading}>
+              <SelectValue placeholder="Distrito" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los distritos</SelectItem>
+              {distritosCatalogo.map((d) => (
+                <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {!reporte.conFechas && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <label className="text-[12px] font-medium text-muted-foreground">Distrito</label>
+          <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-8 w-[240px] text-[12.5px]" disabled={distritosLoading}>
+              <SelectValue placeholder="Distrito" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los distritos</SelectItem>
+              {distritosCatalogo.map((d) => (
+                <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {distritosError && <span className="text-[12px] text-destructive">No se pudo cargar catálogo de distritos.</span>}
         </div>
       )}
     </div>
