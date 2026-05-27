@@ -122,6 +122,12 @@ interface PlanPagoDetalle {
 const fmtDateSafe = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const fmtTextSafe = (value: string | null | undefined) => value && value.trim() ? value : "—";
 const fmtMoneySafe = (value: number | null | undefined) => Number.isFinite(value) ? moneyFmt.format(value as number) : "—";
+const sortMorososGrupoDistrito = <T extends { distrito: string; grupo: string }>(rows: T[]) =>
+  [...rows].sort((a, b) => {
+    const distritoCmp = a.distrito.localeCompare(b.distrito, "es", { sensitivity: "base" });
+    if (distritoCmp !== 0) return distritoCmp;
+    return a.grupo.localeCompare(b.grupo, "es", { sensitivity: "base" });
+  });
 
 
 interface TipoAccionFiltro {
@@ -403,11 +409,12 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       .then((payload) => {
         if (cancelled) return;
         const vm = mapReporteMorosos(payload);
+        const gruposOrdenados = sortMorososGrupoDistrito(vm.grupos);
         setMorososState({
-          data: vm,
+          data: { ...vm, grupos: gruposOrdenados },
           loading: false,
           error: null,
-          empty: vm.grupos.length === 0 && vm.distritos.length === 0,
+          empty: gruposOrdenados.length === 0 && vm.distritos.length === 0,
           source: "api",
         });
       })
@@ -856,6 +863,28 @@ function ReporteMorososGrupoDistrito({
     return <div className="rounded-md border border-border bg-surface-muted/30 px-4 py-8 text-center text-[12.5px] text-muted-foreground">Sin datos para el reporte seleccionado.</div>;
   }
 
+  const distritoUnicoSeleccionado = new Set(grupos.map((g) => g.distrito).filter(Boolean)).size <= 1;
+  const chartDataGrupoDistrito = grupos.map((g) => ({
+    ...g,
+    etiquetaCorta: distritoUnicoSeleccionado ? g.grupo : `${g.grupo} · ${g.distrito}`,
+    etiquetaCompleta: `${g.grupo} - ${g.distrito}`,
+  }));
+  const chartHeightGrupoDistrito = Math.max(280, chartDataGrupoDistrito.length * 36);
+  const morososTotales = Math.max(total.morosos || 0, 1);
+
+  const tooltipGrupoDistrito = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: typeof chartDataGrupoDistrito[number] }> }) => {
+    if (!active || !payload?.length) return null;
+    const row = payload[0].payload;
+    return (
+      <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-sm">
+        <div><span className="font-semibold">Grupo:</span> {row.grupo}</div>
+        <div><span className="font-semibold">Distrito:</span> {row.distrito}</div>
+        <div><span className="font-semibold">Morosos:</span> {numberFmt.format(row.morosos)}</div>
+        <div><span className="font-semibold">% del total:</span> {pctFmt((row.morosos / morososTotales) * 100)}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5">
       <KpiBar
@@ -876,14 +905,14 @@ function ReporteMorososGrupoDistrito({
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartBox id="rep-grupos-chart" title="Morosos por grupo">
-          <BarChart data={grupos} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+        <ChartBox id="rep-grupos-chart" title="Morosos por grupo y distrito" height={chartHeightGrupoDistrito}>
+          <BarChart layout="vertical" data={chartDataGrupoDistrito} margin={{ top: 8, right: 16, left: 10, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
-            <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Bar dataKey="morosos" radius={[3, 3, 0, 0]}>
-              {grupos.map((_, i) => (
+            <XAxis type="number" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="etiquetaCorta" tick={{ fontSize: 11 }} width={220} interval={0} />
+            <Tooltip content={tooltipGrupoDistrito} />
+            <Bar dataKey="morosos" radius={[0, 3, 3, 0]}>
+              {chartDataGrupoDistrito.map((_, i) => (
                 <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
               ))}
             </Bar>
