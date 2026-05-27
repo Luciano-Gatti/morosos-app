@@ -105,7 +105,7 @@ export default function HistorialDeudaInmueble() {
             <table className="w-full text-sm">
               <thead><tr className="text-left text-muted-foreground"><th>Fecha de carga</th><th>Período</th><th>Cuotas</th><th>Monto adeudado</th><th>Estado</th><th>Observación/origen</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={6} className="py-4 text-muted-foreground">Cargando…</td></tr> : items.length === 0 ? <tr><td colSpan={6} className="py-4 text-muted-foreground">No hay registros de deuda para este inmueble en el período seleccionado.</td></tr> : items.map((it) => <tr key={`${it.fechaCarga}-${it.periodo}`} className="border-t border-border"><td className="py-2">{it.fechaCarga}</td><td>{it.periodo}</td><td>{it.cuotasAdeudadas}</td><td>{moneyFmt.format(it.montoAdeudado)}</td><td>{calcEstado(it.cuotasAdeudadas)}</td><td>{it.observacion ?? "—"}</td></tr>)}
+                {loading ? <tr><td colSpan={6} className="py-4 text-muted-foreground">Cargando…</td></tr> : items.length === 0 ? <tr><td colSpan={6} className="py-4 text-muted-foreground">No hay registros de deuda para este inmueble en el período seleccionado.</td></tr> : items.map((it) => <tr key={`${it.fechaCarga}-${it.periodo}`} className="border-t border-border"><td className="py-2">{it.fechaCarga}</td><td>{it.periodo}</td><td>{it.cuotasAdeudadas}</td><td>{moneyFmt.format(it.montoAdeudado)}</td><td>{it.estado ?? calcEstado(it.cuotasAdeudadas)}</td><td>{it.origen ?? "—"}</td></tr>)}
               </tbody>
             </table>
           </div>
