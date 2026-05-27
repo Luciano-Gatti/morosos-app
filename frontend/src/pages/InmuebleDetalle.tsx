@@ -67,6 +67,8 @@ export default function InmuebleDetalle() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const notFound = !inmueble;
+  const moneyFmt = useMemo(() => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0, maximumFractionDigits: 0 }), []);
+  const dateTimeFmt = useMemo(() => new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }), []);
 
   const grupoNombreResueltoApi = useMemo(() => {
     if (!USE_API) return "";
@@ -574,10 +576,10 @@ export default function InmuebleDetalle() {
             <section className="rounded-md border border-border bg-surface shadow-sm">
               <SectionHeader title="Resumen operativo" />
               <dl className="divide-y divide-border text-[12.5px]">
-                                <ResumenRow label="Última gestión" value="No hay información disponible" />
-                <ResumenRow label="Etapa actual" value="No hay información disponible" />
-                <ResumenRow label="Períodos adeudados" value="No hay información disponible" />
-                <ResumenRow label="Monto adeudado" value="No hay información disponible" />
+                <ResumenRow label="Última gestión" value={formatUltimaGestion(inmueble.resumenOperativo.ultimaGestion, dateTimeFmt)} />
+                <ResumenRow label="Etapa actual" value={formatEtapaActual(inmueble.resumenOperativo.etapaActualNombre, inmueble.resumenOperativo.estadoProceso)} />
+                <ResumenRow label="Períodos adeudados" value={String(inmueble.resumenOperativo.periodosAdeudados)} mono />
+                <ResumenRow label="Monto adeudado" value={moneyFmt.format(inmueble.resumenOperativo.montoAdeudado)} mono />
               </dl>
             </section>
           </aside>
@@ -585,6 +587,18 @@ export default function InmuebleDetalle() {
       </main>
     </>
   );
+}
+
+function formatUltimaGestion(value: string | null, fmt: Intl.DateTimeFormat): string {
+  if (!value) return "Sin gestiones registradas";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Sin gestiones registradas" : fmt.format(date);
+}
+
+function formatEtapaActual(etapaActualNombre: string | null, estadoProceso: string | null): string {
+  if (etapaActualNombre && etapaActualNombre.trim()) return etapaActualNombre;
+  if (estadoProceso === "CERRADO") return "Proceso cerrado";
+  return "Sin proceso iniciado";
 }
 
 /* ---------- Subcomponentes ---------- */
