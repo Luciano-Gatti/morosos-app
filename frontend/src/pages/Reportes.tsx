@@ -122,6 +122,12 @@ interface PlanPagoDetalle {
 const fmtDateSafe = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const fmtTextSafe = (value: string | null | undefined) => value && value.trim() ? value : "—";
 const fmtMoneySafe = (value: number | null | undefined) => Number.isFinite(value) ? moneyFmt.format(value as number) : "—";
+const sortMorososGrupoDistrito = <T extends { distrito: string; grupo: string }>(rows: T[]) =>
+  [...rows].sort((a, b) => {
+    const distritoCmp = a.distrito.localeCompare(b.distrito, "es", { sensitivity: "base" });
+    if (distritoCmp !== 0) return distritoCmp;
+    return a.grupo.localeCompare(b.grupo, "es", { sensitivity: "base" });
+  });
 
 
 interface TipoAccionFiltro {
@@ -403,11 +409,12 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
       .then((payload) => {
         if (cancelled) return;
         const vm = mapReporteMorosos(payload);
+        const gruposOrdenados = sortMorososGrupoDistrito(vm.grupos);
         setMorososState({
-          data: vm,
+          data: { ...vm, grupos: gruposOrdenados },
           loading: false,
           error: null,
-          empty: vm.grupos.length === 0 && vm.distritos.length === 0,
+          empty: gruposOrdenados.length === 0 && vm.distritos.length === 0,
           source: "api",
         });
       })
