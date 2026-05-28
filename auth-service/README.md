@@ -16,8 +16,8 @@ La base técnica de **ETAPA 0** se mantiene y la **ETAPA 1** agrega el modelo pe
 - seguridad base sin login real;
 - Swagger/OpenAPI básico;
 - JPA, PostgreSQL y Flyway para el esquema inicial de autorización;
-- permisos descriptivos por módulo, recurso y acción;
-- asociación futura endpoint -> permiso mediante `endpoint_permisos`.
+- permisos modulares y descriptivos por módulo, recurso y acción;
+- roles vinculados a permisos mediante `rol_permisos`.
 
 ## Puerto
 
@@ -86,32 +86,34 @@ En local también se permite `http://127.0.0.1:5173`.
 
 La configuración base usa sesiones stateless, CSRF deshabilitado para API y CORS habilitado. Se permiten públicamente health, actuator health/info, Swagger/OpenAPI y solicitudes `OPTIONS`. Cualquier otro endpoint se bloquea con `denyAll` porque todavía no existen endpoints privados reales ni mecanismo de autenticación.
 
-La etapa deja preparado el modelo `Usuario -> Roles -> Permisos` y `Endpoint -> Permiso requerido`, pero todavía no implementa validación de autorización, login ni JWT.
+La etapa deja preparado el modelo `Usuario -> Roles -> Permisos`. Cada microservicio declarará en su propio código qué permiso requiere cada endpoint, pero todavía no se implementa validación de autorización, login ni JWT.
 
 
-## Modelo de permisos descriptivos
+## Modelo de permisos modulares y descriptivos
 
-`Permiso` representa una capacidad funcional asignable a roles. Incluye `codigo`, `nombre`, `descripcion`, `modulo`, `recurso`, `accion`, `activo` y auditoría técnica (`created_at`, `updated_at`, `created_by`, `updated_by`). La acción se modela con el enum `PermissionAction` y se persiste como texto.
+`Permiso` representa una capacidad funcional asignable a roles y reusable por los microservicios. Incluye `id`, `codigo`, `nombre`, `descripcion`, `modulo`, `recurso`, `accion`, `activo` y auditoría técnica (`created_at`, `updated_at`, `created_by`, `updated_by`).
 
-Acciones soportadas:
+Ejemplos conceptuales futuros de `codigo`:
 
-- `VER`, `CREAR`, `EDITAR`, `ELIMINAR`;
-- `IMPORTAR`, `EXPORTAR`, `INICIAR`, `AVANZAR`, `REPETIR`;
-- `PAUSAR`, `REANUDAR`, `CERRAR`, `OBSERVAR`;
-- `CONFIGURAR`, `ADMINISTRAR`, `EJECUTAR`.
+- `INMUEBLES_VER_LISTADO`;
+- `INMUEBLES_VER_DETALLE`;
+- `INMUEBLES_CREAR`;
+- `SEGUIMIENTO_INICIAR_PROCESO`;
+- `SEGUIMIENTO_AVANZAR_ETAPA`;
+- `REPORTES_EXPORTAR_PDF`.
 
-`EndpointPermiso` representa la asociación futura entre un endpoint concreto y el permiso requerido. Incluye `servicio`, `metodo_http`, `path_pattern`, `permiso_id`, `descripcion`, `activo`, `created_at` y `updated_at`.
+`modulo`, `recurso` y `accion` se modelan como texto para permitir permisos descriptivos como `VER_LISTADO`, `VER_DETALLE`, `AVANZAR_ETAPA` o `EXPORTAR_PDF` sin cambiar código Java por cada acción nueva.
 
-Diferencia conceptual:
+Diferencia de responsabilidades:
 
 ```text
-Usuario -> Roles -> Permisos
-Endpoint -> Permiso requerido
+auth-service: Usuario -> Roles -> Permisos
+microservicio consumidor: endpoint protegido en código -> permiso requerido
 ```
 
-Los roles siguen vinculándose a permisos por `rol_permisos`. No se vinculan roles directamente a endpoints.
+Los roles siguen vinculándose a permisos por `rol_permisos`. No se vinculan roles directamente a endpoints y no existe tabla `endpoint_permisos` en esta etapa.
 
-La migración `V1__auth_schema.sql` crea las tablas `permisos`, `roles`, `rol_permisos` y `endpoint_permisos`, pero no inserta datos iniciales.
+La migración `V1__auth_schema.sql` crea las tablas `permisos`, `roles` y `rol_permisos`, pero no inserta datos iniciales.
 
 ## No implementado todavía
 
@@ -125,7 +127,8 @@ Esta etapa **no** implementa:
 - seeds de roles;
 - seeds de permisos;
 - seed de usuario admin;
-- registros en `endpoint_permisos`;
+- tabla `endpoint_permisos`;
+- asociaciones endpoint -> permiso en base de datos;
 - envío de correos;
 - integración con frontend;
 - protección de `morosos-service`.

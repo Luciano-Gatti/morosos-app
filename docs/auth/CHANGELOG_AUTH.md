@@ -1,17 +1,14 @@
 # Changelog Auth Service
 
-## 2026-05-28 - ETAPA 1 - Permisos descriptivos por endpoint y acción
+## 2026-05-28 - ETAPA 1 - Permisos modulares y descriptivos
 
 ### Resumen
 
-Se ajustó `auth-service` para preparar el modelo persistente de autorización con permisos descriptivos por módulo, recurso y acción, además de la tabla `endpoint_permisos` para asociar endpoints concretos con el permiso requerido en una etapa posterior.
+Se ajustó `auth-service` para preparar el modelo persistente de autorización con permisos modulares y descriptivos por módulo, recurso y acción, sin almacenar asociaciones endpoint -> permiso. Cada microservicio declarará en su propio código qué permiso requiere cada endpoint y `auth-service` quedará enfocado en administrar usuarios, roles y permisos.
 
 ### Archivos principales creados/modificados
 
 - `auth-service/src/main/java/pe/morosos/auth/permission/entity/Permiso.java`
-- `auth-service/src/main/java/pe/morosos/auth/permission/entity/PermissionAction.java`
-- `auth-service/src/main/java/pe/morosos/auth/permission/entity/EndpointPermiso.java`
-- `auth-service/src/main/java/pe/morosos/auth/permission/repository/EndpointPermisoRepository.java`
 - `auth-service/src/main/java/pe/morosos/auth/role/entity/Rol.java`
 - `auth-service/src/main/java/pe/morosos/auth/role/entity/RolPermiso.java`
 - `auth-service/src/main/resources/db/migration/V1__auth_schema.sql`
@@ -20,7 +17,7 @@ Se ajustó `auth-service` para preparar el modelo persistente de autorización c
 
 ### Restricciones respetadas
 
-No se agregaron seeds, no se crearon controllers administrativos, no se implementó login, JWT, Google login, reset de contraseña, envío de correos, integración con frontend ni protección de `morosos-service`.
+No se agregaron seeds, no se creó `endpoint_permisos`, no se asociaron endpoints a permisos en base de datos, no se crearon controllers administrativos, no se implementó login, JWT, Google login, reset de contraseña, envío de correos, integración con frontend ni protección de `morosos-service`.
 
 ## 2026-05-28 - ETAPA 0 - Base técnica
 

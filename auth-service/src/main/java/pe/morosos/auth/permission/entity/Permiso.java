@@ -2,11 +2,10 @@ package pe.morosos.auth.permission.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -14,7 +13,15 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "permisos")
+@Table(
+        name = "permisos",
+        indexes = {
+                @Index(name = "idx_permisos_modulo", columnList = "modulo"),
+                @Index(name = "idx_permisos_recurso", columnList = "recurso"),
+                @Index(name = "idx_permisos_accion", columnList = "accion"),
+                @Index(name = "idx_permisos_activo", columnList = "activo")
+        }
+)
 public class Permiso {
 
     @Id
@@ -36,9 +43,8 @@ public class Permiso {
     @Column(name = "recurso", nullable = false, length = 100)
     private String recurso;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "accion", nullable = false, length = 50)
-    private PermissionAction accion;
+    @Column(name = "accion", nullable = false, length = 80)
+    private String accion;
 
     @Column(name = "activo", nullable = false)
     private boolean activo = true;
@@ -115,11 +121,11 @@ public class Permiso {
         this.recurso = recurso;
     }
 
-    public PermissionAction getAccion() {
+    public String getAccion() {
         return accion;
     }
 
-    public void setAccion(PermissionAction accion) {
+    public void setAccion(String accion) {
         this.accion = accion;
     }
 
