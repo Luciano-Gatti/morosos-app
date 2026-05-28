@@ -1,5 +1,29 @@
 # Changelog Auth Service
 
+## 2026-05-28 - ETAPA 1-B - Modelo base de usuarios, relaciones, recuperación y auditoría
+
+### Resumen
+
+Se completó el modelo persistente base de `auth-service` manteniendo la estrategia `Usuario -> Roles -> Permisos`. Se agregó una migración incremental para usuarios, relación usuario-rol, identidades externas, tokens de recuperación de contraseña, intentos de login y auditoría técnica, junto con entidades y repositories JPA.
+
+### Archivos principales creados/modificados
+
+- `auth-service/src/main/resources/db/migration/V2__complete_auth_base_schema.sql`
+- `auth-service/src/main/java/pe/morosos/auth/user/entity/Usuario.java`
+- `auth-service/src/main/java/pe/morosos/auth/user/entity/UsuarioRol.java`
+- `auth-service/src/main/java/pe/morosos/auth/identity/entity/IdentidadExterna.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/entity/PasswordResetToken.java`
+- `auth-service/src/main/java/pe/morosos/auth/audit/entity/LoginAttempt.java`
+- `auth-service/src/main/java/pe/morosos/auth/audit/entity/AuditLog.java`
+- `auth-service/src/main/java/pe/morosos/auth/**/repository/*.java`
+- `auth-service/README.md`
+- `docs/auth/01-etapa-1/auth-service-permisos-descriptivos.md`
+- `docs/auth/01-etapa-1/modelo-usuarios-roles-permisos.md`
+
+### Restricciones respetadas
+
+No se agregaron seeds, no se creó `endpoint_permisos`, no se creó `EndpointPermiso`, no se implementó login, JWT, Google login, forgot/reset password funcional, generación de tokens, envío de correos, integración con frontend ni protección de `morosos-service`.
+
 ## 2026-05-28 - ETAPA 1 - Permisos modulares y descriptivos
 
 ### Resumen

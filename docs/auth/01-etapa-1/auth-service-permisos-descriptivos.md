@@ -1,8 +1,8 @@
-# ETAPA 1 - Modelo de permisos modulares y descriptivos
+# ETAPA 1 - Auth service: permisos modulares y descriptivos
 
-## Alcance
+## Objetivo
 
-Esta etapa prepara el modelo persistente inicial de `auth-service` para administrar permisos funcionales, descriptivos y reutilizables por los microservicios.
+La ETAPA 1 define el modelo persistente de autorización de `auth-service` con permisos funcionales, descriptivos y reutilizables por roles.
 
 No se modifica la lógica funcional de `morosos-service`, no se protege ningún endpoint de `morosos-service` y no se integra todavía el frontend.
 
@@ -47,25 +47,28 @@ Campos principales del permiso:
 
 `modulo`, `recurso` y `accion` se mantienen como texto para no bloquear la evolución del dominio ni obligar a desplegar `auth-service` cada vez que un microservicio necesite una acción funcional nueva.
 
-## Roles y permisos
+No se vuelve a un enum `PermissionAction`.
 
-El rol conserva su relación con permisos mediante `rol_permisos`:
+## Usuarios, roles y permisos
+
+El rol conserva su relación con permisos mediante `rol_permisos` y la ETAPA 1-B agrega usuarios con roles mediante `usuario_roles`:
 
 ```text
-roles -> rol_permisos -> permisos
+usuarios -> usuario_roles -> roles -> rol_permisos -> permisos
 ```
 
 No se vinculan roles directamente contra endpoints.
 
-## Migración Flyway
+El detalle del modelo agregado en ETAPA 1-B está documentado en `docs/auth/01-etapa-1/modelo-usuarios-roles-permisos.md`.
 
-La migración `V1__auth_schema.sql` crea las tablas iniciales:
+## Migraciones Flyway
 
-- `permisos`
-- `roles`
-- `rol_permisos`
+Las migraciones actuales son:
 
-La migración no crea `endpoint_permisos` y no inserta datos iniciales.
+- `V1__auth_schema.sql`: crea `permisos`, `roles` y `rol_permisos`.
+- `V2__complete_auth_base_schema.sql`: crea `usuarios`, `usuario_roles`, `identidades_externas`, `password_reset_tokens`, `login_attempts` y `audit_log`.
+
+Las migraciones no crean `endpoint_permisos` y no insertan datos iniciales.
 
 ## Fuera de alcance en esta etapa
 
@@ -73,6 +76,7 @@ Esta etapa todavía no crea ni implementa:
 
 - seeds de permisos;
 - seeds de roles;
+- seeds de usuarios;
 - usuario admin;
 - tabla `endpoint_permisos`;
 - asociaciones endpoint -> permiso en base de datos;
@@ -82,6 +86,7 @@ Esta etapa todavía no crea ni implementa:
 - login;
 - JWT;
 - Google login;
-- forgot/reset password;
+- forgot/reset password funcional;
+- generación de tokens de recuperación;
 - envío de correos;
 - integración con frontend.
