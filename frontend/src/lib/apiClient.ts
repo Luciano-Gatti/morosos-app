@@ -1,3 +1,5 @@
+import { clearStoredSession, getStoredAccessToken } from "@/services/api/authStorage";
+
 export class ApiError extends Error {
   status: number;
   data: unknown;
@@ -29,19 +31,31 @@ export function buildQueryParams(params?: Record<string, QueryValue>): string {
   return query ? `?${query}` : "";
 }
 
+function emitAuthEvent(status: number) {
+  if (typeof window === "undefined") return;
+
+  if (status === 401) {
+    clearStoredSession();
+    window.dispatchEvent(new CustomEvent("morosos:auth:unauthorized"));
+  }
+
+  if (status === 403) {
+    window.dispatchEvent(new CustomEvent("morosos:auth:forbidden"));
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = API_BASE_URL.endsWith(API_PREFIX) && path.startsWith(API_PREFIX)
     ? path.slice(API_PREFIX.length) || "/"
     : path;
   const url = `${API_BASE_URL}${normalizedPath}`;
-  const method = init?.method ?? "GET";
-  console.debug("[apiClient] request:start", { url, method });
-
+  const accessToken = getStoredAccessToken();
   const response = await fetch(url, {
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init?.headers,
     },
   });
@@ -50,42 +64,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isJson = contentType.includes("application/json");
   const rawResponseText = await response.text();
 
-  console.debug("[apiClient] request:response", {
-    url,
-    method,
-    status: response.status,
-    ok: response.ok,
-    rawResponseText,
-  });
-
   let payload: unknown = rawResponseText;
   if (isJson && rawResponseText) {
     try {
       payload = JSON.parse(rawResponseText);
-      console.debug("[apiClient] request:parsed-json", { url, method, payload });
     } catch (error) {
-      console.warn("[apiClient] request:json-parse-error", { url, method, error });
+      if (import.meta.env.DEV) {
+        console.warn("[apiClient] No se pudo parsear la respuesta JSON.", { url, status: response.status, error });
+      }
     }
   }
 
   if (!response.ok) {
+    emitAuthEvent(response.status);
     const message =
       (typeof payload === "object" && payload && "message" in payload && String(payload.message)) ||
       (typeof payload === "string" && payload.trim()) ||
       `${response.status} ${response.statusText}`.trim();
-    throw new ApiError(`${response.status} ${message}`.trim(), response.status, { rawResponseText, payload });
+    throw new ApiError(`${response.status} ${message}`.trim(), response.status, { payload });
   }
 
   return payload as T;
 }
 
 export const apiClient = {
-  get: <T = any>(path: string) => request<T>(path),
-  post: <T = any>(path: string, body?: unknown) =>
+  get: <T = unknown>(path: string) => request<T>(path),
+  post: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body instanceof FormData ? body : JSON.stringify(body ?? {}) }),
-  put: <T = any>(path: string, body?: unknown) =>
+  put: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body ?? {}) }),
-  patch: <T = any>(path: string, body?: unknown) =>
+  patch: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
-  delete: <T = any>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T = unknown>(path: string) => request<T>(path, { method: "DELETE" }),
 };

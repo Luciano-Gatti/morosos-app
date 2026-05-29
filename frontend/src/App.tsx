@@ -4,6 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { PublicRoute } from "@/components/auth/PublicRoute";
+import { AuthProvider } from "@/context/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import Inmuebles from "./pages/Inmuebles";
 import InmuebleDetalle from "./pages/InmuebleDetalle";
@@ -33,8 +36,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthProvider>
         <Routes>
-          <Route element={<AppLayout />}>
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/inmuebles" element={<Inmuebles />} />
             <Route path="/inmuebles/:id" element={<InmuebleDetalle />} />
@@ -60,15 +65,19 @@ const App = () => (
             <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
             <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
             <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
+            </Route>
           </Route>
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
-          <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
-          <Route path="/forgot-password" element={<OlvideContrasena />} />
-          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
-          <Route path="/reset-password" element={<RestablecerContrasena />} />
+          <Route element={<PublicRoute />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Registro />} />
+            <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+            <Route path="/forgot-password" element={<OlvideContrasena />} />
+            <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
+            <Route path="/reset-password" element={<RestablecerContrasena />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

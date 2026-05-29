@@ -2,12 +2,15 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/hooks/useAuth";
+import { AuthServiceError } from "@/services/api/authService";
 import {
   Form,
   FormControl,
@@ -30,8 +33,12 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from?.pathname || "/";
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -43,32 +50,35 @@ export default function Login() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     setLoginError(null);
 
     try {
-      // Simulación de login — reemplazar por authService.login(data.email, data.password)
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      // eslint-disable-next-line no-console
-      console.log("Login simulado:", {
-        email: data.email,
+      await login({
+        usernameOrEmail: data.email,
+        password: data.password,
         rememberMe: data.rememberMe,
       });
-
-      // TODO: conectar con authService.login()
-      // await authService.login(data.email, data.password, data.rememberMe);
-    } catch {
-      setLoginError("Credenciales incorrectas. Intentá de nuevo.");
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      if (error instanceof AuthServiceError) {
+        if (error.status === 401) {
+          setLoginError("Credenciales inválidas.");
+          return;
+        }
+        if (error.status === 403) {
+          setLoginError("El usuario se encuentra inactivo o no autorizado.");
+          return;
+        }
+      }
+      setLoginError("No se pudo conectar con el servicio de autenticación.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleGoogleLogin = () => {
-    // TODO: conectar con OAuth/Google
-    // eslint-disable-next-line no-console
-    console.log("Google OAuth — pendiente de conexión");
+    toast.info("Inicio con Google pendiente de integración.");
   };
 
   return (
@@ -115,7 +125,7 @@ export default function Login() {
                         type="email"
                         placeholder="nombre@aosc.gob.ar"
                         autoComplete="email"
-                        disabled={isLoading}
+                        disabled={isSubmitting}
                         className="h-11 border-[hsl(215,35%,28%)] bg-[hsl(215,40%,14%)] text-white placeholder:text-[hsl(215,15%,50%)] focus-visible:ring-[hsl(215,65%,32%)]"
                         {...field}
                       />
@@ -140,7 +150,7 @@ export default function Login() {
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
                           autoComplete="current-password"
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                           className="h-11 border-[hsl(215,35%,28%)] bg-[hsl(215,40%,14%)] pr-10 text-white placeholder:text-[hsl(215,15%,50%)] focus-visible:ring-[hsl(215,65%,32%)]"
                           {...field}
                         />
@@ -181,7 +191,7 @@ export default function Login() {
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        disabled={isLoading}
+                        disabled={isSubmitting}
                         className="border-[hsl(215,35%,35%)] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                       />
                     </FormControl>
@@ -195,10 +205,10 @@ export default function Login() {
               {/* Botón principal */}
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="h-11 w-full bg-[hsl(215,65%,28%)] text-white hover:bg-[hsl(215,65%,24%)]"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Iniciando sesión…
@@ -224,7 +234,7 @@ export default function Login() {
             type="button"
             variant="outline"
             onClick={handleGoogleLogin}
-            disabled={isLoading}
+            disabled={isSubmitting}
             className="h-11 w-full border-[hsl(215,35%,28%)] bg-transparent text-[hsl(210,20%,85%)] hover:bg-[hsl(215,40%,16%)] hover:text-white"
           >
             <svg
