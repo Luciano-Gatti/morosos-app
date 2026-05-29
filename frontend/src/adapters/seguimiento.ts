@@ -10,7 +10,7 @@ export type SeguimientoRow = {
   cuotasAdeudadas: number;
   montoAdeudado: number;
   etapa: string | null;
-  estado: "No iniciado" | "Iniciado" | "Pausado" | "Cerrado";
+  estado: "No iniciado" | "Activo" | "Pausado" | "Cerrado";
   fechaProgramada: string | null;
   accionesDisponibles?: {
     puedeIniciar?: boolean;
@@ -25,7 +25,7 @@ export type SeguimientoRow = {
 
 export function mapEstadoCasoLabel(value: string): SeguimientoRow["estado"] {
   const v = (value ?? "").toUpperCase();
-  if (v === "ABIERTO" || v === "INICIADO" || v === "ACTIVO") return "Iniciado";
+  if (v === "ABIERTO" || v === "INICIADO" || v === "ACTIVO") return "Activo";
   if (v === "PAUSADO") return "Pausado";
   if (v === "CERRADO") return "Cerrado";
   return "No iniciado";

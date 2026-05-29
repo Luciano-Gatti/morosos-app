@@ -7,7 +7,7 @@ export const etapasSeguimiento = [
 ] as const;
 export type EtapaSeguimiento = string;
 
-export const estadosProceso = ["No iniciado", "Iniciado", "Pausado", "Cerrado"] as const;
+export const estadosProceso = ["No iniciado", "Activo", "Pausado", "Cerrado"] as const;
 export type EstadoProceso = (typeof estadosProceso)[number];
 
 export interface InmuebleMoroso {
@@ -21,5 +21,16 @@ export interface InmuebleMoroso {
   montoAdeudado: number;
   etapa: EtapaSeguimiento | null;
   estado: EstadoProceso;
-  seguimientoHabilitado: boolean;
+  seguimientoHabilitado?: boolean;
+  casoId?: string;
+  fechaProgramada?: string | null;
+  accionesDisponibles?: {
+    puedeIniciar?: boolean;
+    puedeAvanzar?: boolean;
+    puedeRepetir?: boolean;
+    puedePausar?: boolean;
+    puedeReabrir?: boolean;
+    puedeCerrar?: boolean;
+    puedeRegistrarCompromiso?: boolean;
+  } | null;
 }

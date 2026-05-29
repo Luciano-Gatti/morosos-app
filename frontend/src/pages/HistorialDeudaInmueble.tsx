@@ -67,7 +67,7 @@ export default function HistorialDeudaInmueble() {
         <section className="rounded-md border border-border bg-surface p-4">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Período</div>
           <div className="flex flex-wrap gap-2">
-            {[["hoy","Hoy"],["ultimos7","Últimos 7 días"],["mes","Mes actual"],["anio","Año actual"],["custom","Personalizado"] as const].map(([k,l]) => <Button key={k} variant={periodo===k?"default":"outline"} size="sm" onClick={() => setPeriodo(k)}>{l}</Button>)}
+            {([["hoy","Hoy"],["ultimos7","Últimos 7 días"],["mes","Mes actual"],["anio","Año actual"],["custom","Personalizado"]] as const).map(([k,l]) => <Button key={k} variant={periodo===k?"default":"outline"} size="sm" onClick={() => setPeriodo(k)}>{l}</Button>)}
           </div>
           {periodo === "custom" && <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3"><Input type="date" value={customDesde} onChange={(e) => setCustomDesde(e.target.value)} /><Input type="date" value={customHasta} onChange={(e) => setCustomHasta(e.target.value)} /><div className="text-xs text-muted-foreground self-center">Seleccioná fecha desde/hasta para recargar.</div></div>}
         </section>

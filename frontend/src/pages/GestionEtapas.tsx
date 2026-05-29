@@ -67,7 +67,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import type { EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
+import type { EtapaSeguimiento, EstadoProceso, InmuebleMoroso } from "@/types/seguimiento";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
@@ -210,8 +210,8 @@ export default function GestionEtapas() {
   const [rows, setRows] = useState<SeguimientoRow[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [gruposApi, setGruposApi] = useState<CatalogOption[]>([]);
-  const [distritosApi, setDistritosApi] = useState<CatalogOption[]>([]);
+  const [gruposApi, setGruposApi] = useState<any[]>([]);
+  const [distritosApi, setDistritosApi] = useState<any[]>([]);
   const [etapasApi, setEtapasApi] = useState<CatalogOption[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -1270,7 +1270,7 @@ function AccionDialog({
         onConfirm={onConfirm}
         mutating={mutating}
         compromisoVigente={compromisoVigente}
-        loading={compromisoLoading}
+        compromisoLoading={compromisoLoading}
       />
     );
   }

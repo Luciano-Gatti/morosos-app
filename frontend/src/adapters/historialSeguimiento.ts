@@ -93,13 +93,13 @@ const COMPROMISO_ESTADO_LABELS: Record<string, string> = {
 const humanizeEventType = (value: string) => {
   const normalized = value.toUpperCase();
   if (EVENTO_LABELS[normalized]) return EVENTO_LABELS[normalized];
-  return toTitleCase(normalized.replaceAll("_", " "));
+  return toTitleCase(normalized.replace(/_/g, " "));
 };
 
 const humanizeCompromisoEstado = (value: string) => {
   const normalized = value.toUpperCase();
   if (COMPROMISO_ESTADO_LABELS[normalized]) return COMPROMISO_ESTADO_LABELS[normalized];
-  return toTitleCase(normalized.replaceAll("_", " "));
+  return toTitleCase(normalized.replace(/_/g, " "));
 };
 
 export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string): HistorialSeguimientoViewModel {
@@ -238,7 +238,12 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         observaciones: s(c?.observacion, "No informado"),
         numeroProceso: casoId,
         metadata: null,
-      });
+        tipoEvento: "",
+        esEventoProceso: false,
+        cierre: null,
+        compromisoPago: null,
+        esCierreEvento: false,
+      } as any);
     }
     const motivoCierre = cierre
       ? s(cierre.motivoCierreNombre || cierre.motivoCierreCodigo, "Motivo de cierre no registrado")

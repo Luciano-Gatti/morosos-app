@@ -1022,7 +1022,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
 function EstadoPill({ estado }: { estado: EstadoProceso }) {
   const map: Record<EstadoProceso, { cls: string; Icon: typeof PlayCircle }> = {
     "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
-    "Iniciado": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
+    "Activo": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
     "Pausado": { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle },
     "Cerrado": { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck },
   };
@@ -1072,5 +1072,5 @@ function EtapaIcon({ etapa }: { etapa?: string | null }) {
   const { Icon, color, label } = config;
   const title = etapa?.trim() ? etapa : label;
 
-  return <Icon className={cn("h-4 w-4", color)} title={title} aria-label={title} />;
+  return <span title={title} aria-label={title}><Icon className={cn("h-4 w-4", color)} /></span>;
 }

@@ -82,6 +82,7 @@ function mapCargaApi(row: any): CargaDeuda {
     montoTotal: Number(row.montoTotal ?? row.totalMonto ?? 0),
     procesados: Number(row.procesados ?? row.registrosProcesados ?? 0),
     creados: Number(row.creados ?? row.registrosCreados ?? 0),
+    actualizados: Number(row.actualizados ?? 0),
     errores: Number(row.errores ?? row.totalErrores ?? 0),
     noEncontradas: Number(row.noEncontradas ?? row.totalNoEncontradas ?? 0),
   };

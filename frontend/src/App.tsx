@@ -20,6 +20,10 @@ import ConfiguracionEtapas from "./pages/ConfiguracionEtapas";
 import ConfiguracionMotivosCierre from "./pages/ConfiguracionMotivosCierre";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound.tsx";
+import Login from "./pages/Login";
+import Registro from "./pages/Registro";
+import OlvideContrasena from "./pages/OlvideContrasena";
+import RestablecerContrasena from "./pages/RestablecerContrasena";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +61,12 @@ const App = () => (
             <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
             <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
           </Route>
+          <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Registro />} />
+          <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+          <Route path="/forgot-password" element={<OlvideContrasena />} />
+          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
+          <Route path="/reset-password" element={<RestablecerContrasena />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
