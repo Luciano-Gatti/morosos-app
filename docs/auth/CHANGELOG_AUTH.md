@@ -1,10 +1,20 @@
 # Changelog Auth Service
 
+## 2026-05-29 - ETAPA 1-C - Correcciones de auditoría de seeds
+
+### Resumen
+
+Se corrigió el riesgo de casteo de UUID en `V5__seed_role_permissions.sql`, se agregaron permisos faltantes para los reportes de porcentajes de morosidad y acciones de regularización, y se actualizaron conteos/documentación de seeds. Los conteos finales son 83 permisos, 5 roles y 193 asignaciones rol-permiso. `OPERADOR` no recibe permisos de reportes porque la matriz vigente no le asigna lectura del módulo `REPORTES`.
+
+### Restricciones respetadas
+
+No se creó `endpoint_permisos`, no se asociaron endpoints a permisos en base de datos, no se implementó login, JWT, Google login, forgot/reset password funcional, generación de tokens, envío de correos, integración con frontend ni protección de `morosos-service`.
+
 ## 2026-05-29 - ETAPA 1-C - Seeds controlados de roles y permisos
 
 ### Resumen
 
-Se agregaron seeds idempotentes para permisos descriptivos y modulares, roles base y matriz inicial rol-permiso. No se creó usuario admin dev porque no hay hashing BCrypt seguro y portable desde migraciones SQL; queda diferido para un initializer Java controlado por properties en la etapa de login local.
+Se agregaron seeds idempotentes para permisos descriptivos y modulares, roles base y matriz inicial rol-permiso (actualizados a 83 permisos, 5 roles y 193 asignaciones tras las correcciones de auditoría). No se creó usuario admin dev porque no hay hashing BCrypt seguro y portable desde migraciones SQL; queda diferido para un initializer Java controlado por properties en la etapa de login local.
 
 ### Archivos principales creados/modificados
 
@@ -40,7 +50,7 @@ Se completó el modelo persistente base de `auth-service` manteniendo la estrate
 
 ### Restricciones respetadas
 
-No se agregaron seeds, no se creó `endpoint_permisos`, no se creó `EndpointPermiso`, no se implementó login, JWT, Google login, forgot/reset password funcional, generación de tokens, envío de correos, integración con frontend ni protección de `morosos-service`.
+En ETAPA 1-B no se agregaron seeds; a partir de ETAPA 1-C sí existen seeds idempotentes de roles, permisos y `rol_permisos`. No se creó `endpoint_permisos`, no se creó `EndpointPermiso`, no se implementó login, JWT, Google login, forgot/reset password funcional, generación de tokens, envío de correos, integración con frontend ni protección de `morosos-service`.
 
 ## 2026-05-28 - ETAPA 1 - Permisos modulares y descriptivos
 
@@ -59,7 +69,7 @@ Se ajustó `auth-service` para preparar el modelo persistente de autorización c
 
 ### Restricciones respetadas
 
-No se agregaron seeds, no se creó `endpoint_permisos`, no se asociaron endpoints a permisos en base de datos, no se crearon controllers administrativos, no se implementó login, JWT, Google login, reset de contraseña, envío de correos, integración con frontend ni protección de `morosos-service`.
+En ETAPA 1 no se agregaron seeds; a partir de ETAPA 1-C sí existen seeds idempotentes de roles, permisos y `rol_permisos`. No se creó `endpoint_permisos`, no se asociaron endpoints a permisos en base de datos, no se crearon controllers administrativos, no se implementó login, JWT, Google login, reset de contraseña, envío de correos, integración con frontend ni protección de `morosos-service`.
 
 ## 2026-05-28 - ETAPA 0 - Base técnica
 

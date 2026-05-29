@@ -67,15 +67,16 @@ Las migraciones actuales son:
 
 - `V1__auth_schema.sql`: crea `permisos`, `roles` y `rol_permisos`.
 - `V2__complete_auth_base_schema.sql`: crea `usuarios`, `usuario_roles`, `identidades_externas`, `password_reset_tokens`, `login_attempts` y `audit_log`.
+- `V3__seed_permissions.sql`: carga 83 permisos descriptivos y modulares.
+- `V4__seed_roles.sql`: carga 5 roles base.
+- `V5__seed_role_permissions.sql`: carga 193 asignaciones iniciales rol-permiso.
 
-Las migraciones no crean `endpoint_permisos` y no insertan datos iniciales.
+Nota: este documento describe el diseño iniciado en ETAPA 1 y actualizado hasta ETAPA 1-C. A partir de ETAPA 1-C existen seeds idempotentes de permisos, roles y `rol_permisos`. Las migraciones no crean `endpoint_permisos` ni insertan usuarios.
 
 ## Fuera de alcance en esta etapa
 
 Esta etapa todavía no crea ni implementa:
 
-- seeds de permisos;
-- seeds de roles;
 - seeds de usuarios;
 - usuario admin;
 - tabla `endpoint_permisos`;
