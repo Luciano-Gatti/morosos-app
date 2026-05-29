@@ -181,11 +181,11 @@ Los repositories exponen búsquedas y validaciones básicas por códigos, userna
 
 ## Restricciones respetadas
 
+Nota: este documento describe el modelo incorporado en ETAPA 1-B y fue actualizado tras ETAPA 1-C: ya existen seeds idempotentes de roles, permisos y `rol_permisos`; no existe seed de usuario admin.
+
 Esta etapa no crea ni implementa:
 
 - seeds de usuarios;
-- seeds de roles;
-- seeds de permisos;
 - seed de usuario admin;
 - inserts demo;
 - tabla `endpoint_permisos`;

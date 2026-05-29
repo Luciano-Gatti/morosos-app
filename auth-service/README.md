@@ -102,9 +102,11 @@ Las migraciones Flyway actuales son:
 
 - `V1__auth_schema.sql`: crea `permisos`, `roles` y `rol_permisos`.
 - `V2__complete_auth_base_schema.sql`: crea `usuarios`, `usuario_roles`, `identidades_externas`, `password_reset_tokens`, `login_attempts` y `audit_log`.
-- `V3__seed_permissions.sql`: carga 81 permisos descriptivos y modulares.
+- `V3__seed_permissions.sql`: carga 83 permisos descriptivos y modulares.
 - `V4__seed_roles.sql`: carga roles base (`ADMIN`, `SUPERVISOR`, `OPERADOR`, `CONSULTA`, `AUDITOR`).
-- `V5__seed_role_permissions.sql`: carga la matriz inicial rol-permiso.
+- `V5__seed_role_permissions.sql`: carga 193 asignaciones iniciales rol-permiso.
+
+Conteos actuales de seeds: 83 permisos, 5 roles, 193 asignaciones rol-permiso y 0 usuarios creados por seed.
 
 ### Usuarios, roles y permisos
 

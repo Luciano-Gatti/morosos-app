@@ -14,9 +14,9 @@ Esta etapa no implementa login, JWT, Google login, recuperación funcional de co
 
 ## Migraciones creadas
 
-- `V3__seed_permissions.sql`: carga 81 permisos descriptivos y modulares.
+- `V3__seed_permissions.sql`: carga 83 permisos descriptivos y modulares.
 - `V4__seed_roles.sql`: carga 5 roles base.
-- `V5__seed_role_permissions.sql`: carga 185 asignaciones iniciales rol-permiso.
+- `V5__seed_role_permissions.sql`: carga 193 asignaciones iniciales rol-permiso y castea explícitamente el identificador seed a UUID al insertar en `rol_permisos`.
 
 Las migraciones usan `INSERT ... ON CONFLICT DO NOTHING`, por lo que son idempotentes y no duplican datos si se vuelven a ejecutar sobre una base ya poblada.
 
@@ -87,6 +87,8 @@ Cada permiso cargado tiene:
 - `REPORTES_VER_ESTADO_INMUEBLES`
 - `REPORTES_VER_ACCIONES_FECHAS`
 - `REPORTES_VER_HISTORIAL_MOVIMIENTOS`
+- `REPORTES_VER_PORCENTAJES_MOROSIDAD`
+- `REPORTES_VER_ACCIONES_REGULARIZACION`
 - `REPORTES_EXPORTAR_EXCEL`
 - `REPORTES_EXPORTAR_PDF`
 
@@ -163,17 +165,18 @@ Cada permiso cargado tiene:
 
 | Rol | Cantidad | Criterio |
 | --- | ---: | --- |
-| `ADMIN` | 81 | Todos los permisos. |
-| `SUPERVISOR` | 45 | Dashboard, inmuebles operativos, deuda completa, seguimiento completo, reportes con exportación, lectura de configuración, cálculo de impacto y auditoría. |
+| `ADMIN` | 83 | Todos los permisos. |
+| `SUPERVISOR` | 47 | Dashboard, inmuebles operativos, deuda completa, seguimiento completo, reportes con exportación, lectura de configuración, cálculo de impacto y auditoría. |
 | `OPERADOR` | 22 | Dashboard, lectura de inmuebles, lectura de deuda y gestión operativa de seguimiento sin cierres, sin operaciones masivas y sin configuración. |
-| `CONSULTA` | 17 | Dashboard, lectura de inmuebles, deuda, seguimiento y reportes visibles, sin exportar ni modificar. |
-| `AUDITOR` | 20 | Dashboard, lectura operativa, reportes con exportación y auditoría, sin modificar datos. |
+| `CONSULTA` | 19 | Dashboard, lectura de inmuebles, deuda, seguimiento y reportes visibles, sin exportar ni modificar. |
+| `AUDITOR` | 22 | Dashboard, lectura operativa, reportes con exportación y auditoría, sin modificar datos. |
 
 Decisiones explícitas:
 
 - El cierre de procesos (`SEGUIMIENTO_CERRAR_PROCESO` y `SEGUIMIENTO_CERRAR_PROCESOS_MASIVO`) queda reservado para `ADMIN` y `SUPERVISOR`.
 - `CONSULTA` puede ver reportes, pero no exportarlos.
 - `AUDITOR` puede exportar reportes para auditoría, pero no tiene permisos de modificación.
+- `OPERADOR` no recibe permisos de reportes porque la matriz actual no le asigna lectura de `REPORTES`; se mantiene enfocado en operación de seguimiento sin cierres, operaciones masivas ni configuración.
 - La lectura de configuración para `SUPERVISOR` incluye permisos `CONFIG_VER_*` y `CONFIG_CALCULAR_IMPACTO_PARAMETROS`; no incluye creación, edición, eliminación ni activación/desactivación.
 
 ## Admin dev
