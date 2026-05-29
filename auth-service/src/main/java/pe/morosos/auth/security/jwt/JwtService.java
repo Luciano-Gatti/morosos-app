@@ -43,8 +43,15 @@ public class JwtService {
     @PostConstruct
     void validateConfiguration() {
         String secret = properties.secret();
-        if (!StringUtils.hasText(secret) && isLocalOrDevProfile()) {
+        boolean localOrDevActiveProfile = isLocalOrDevActiveProfile();
+        if (!StringUtils.hasText(secret) && localOrDevActiveProfile) {
             secret = LOCAL_DEV_SECRET;
+        }
+
+        if (LOCAL_DEV_SECRET.equals(secret) && !localOrDevActiveProfile) {
+            throw new IllegalStateException(
+                    "JWT_SECRET no puede usar el fallback conocido de desarrollo fuera de perfiles activos local/dev."
+            );
         }
 
         if (!StringUtils.hasText(secret) || secret.getBytes(StandardCharsets.UTF_8).length < MIN_HS256_SECRET_BYTES) {
@@ -95,6 +102,9 @@ public class JwtService {
     public AuthPrincipal validateAccessToken(String token) {
         try {
             SignedJWT signedJwt = SignedJWT.parse(token);
+            if (!JWSAlgorithm.HS256.equals(signedJwt.getHeader().getAlgorithm())) {
+                throw new JwtAuthenticationException("AUTH_UNAUTHORIZED", "Token inválido.");
+            }
             if (!signedJwt.verify(new MACVerifier(secretBytes))) {
                 throw new JwtAuthenticationException("AUTH_UNAUTHORIZED", "Token inválido.");
             }
@@ -140,17 +150,16 @@ public class JwtService {
         return values == null ? List.of() : List.copyOf(values);
     }
 
-    private boolean isLocalOrDevProfile() {
+    private boolean isLocalOrDevActiveProfile() {
+        boolean localOrDevActive = false;
         for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equalsIgnoreCase(profile)) {
+                return false;
+            }
             if ("local".equalsIgnoreCase(profile) || "dev".equalsIgnoreCase(profile)) {
-                return true;
+                localOrDevActive = true;
             }
         }
-        for (String profile : environment.getDefaultProfiles()) {
-            if ("local".equalsIgnoreCase(profile) || "dev".equalsIgnoreCase(profile)) {
-                return true;
-            }
-        }
-        return false;
+        return localOrDevActive;
     }
 }

@@ -1,12 +1,12 @@
 # auth-service
 
-`auth-service` es el microservicio Spring Boot independiente reservado para la autenticación y autorización de usuarios internos del Sistema de Seguimiento de Morosos.
+`auth-service` es el microservicio Spring Boot independiente para la autenticación y autorización de usuarios internos del Sistema de Seguimiento de Morosos.
 
-## Estado de esta etapa
+## Estado actual
 
-La base técnica de **ETAPA 0** se mantiene y la **ETAPA 1-C** agrega seeds controlados sobre el modelo persistente base para usuarios, roles, permisos, identidades externas, recuperación de contraseña, intentos de login y auditoría técnica.
+La base técnica de **ETAPA 0**, el modelo y seeds de **ETAPA 1-C**, y el login local con JWT de **ETAPA 2** están implementados en este servicio.
 
-Esta etapa incluye:
+Implementado actualmente:
 
 - arranque Spring Boot independiente;
 - configuración base por perfiles;
@@ -15,17 +15,31 @@ Esta etapa incluye:
 - manejo uniforme de errores;
 - propagación de `X-Request-Id` como `traceId`;
 - CORS configurable;
-- seguridad base sin login real;
 - Swagger/OpenAPI básico;
 - JPA, PostgreSQL y Flyway;
-- permisos modulares y descriptivos por módulo, recurso y acción;
-- roles vinculados a permisos mediante `rol_permisos`;
-- usuarios vinculados a roles mediante `usuario_roles`;
-- estructura persistente para identidades externas;
-- estructura persistente para tokens de recuperación de contraseña;
-- estructura persistente para intentos de login;
-- estructura persistente para auditoría técnica;
-- seeds idempotentes de permisos, roles y matriz rol-permiso.
+- modelo persistente `usuarios -> usuario_roles -> roles -> rol_permisos -> permisos`;
+- seeds idempotentes de permisos, roles y matriz rol-permiso;
+- login local en `POST /api/v1/auth/login`;
+- validación de password con BCrypt;
+- admin dev initializer controlado por properties;
+- JWT firmado con HS256 mediante Nimbus JOSE JWT;
+- endpoint autenticado `GET /api/v1/auth/me`;
+- logout stateless en `POST /api/v1/auth/logout`;
+- registro funcional de intentos de login en `login_attempts`;
+- auditoría funcional básica en `audit_log` para login y logout.
+
+No implementado todavía:
+
+- Google login;
+- forgot/reset password funcional;
+- envío de correos;
+- integración con frontend;
+- protección de `morosos-service`;
+- refresh token;
+- blacklist de access tokens;
+- endpoints administrativos;
+- tabla `endpoint_permisos`;
+- asociación endpoint-permiso en base de datos.
 
 ## Puerto
 
@@ -78,7 +92,7 @@ GET http://localhost:8080/actuator/info
 - Swagger UI: `http://localhost:8080/swagger-ui`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-## Variables de entorno iniciales
+## Variables de entorno
 
 | Variable | Default | Uso |
 | --- | --- | --- |
@@ -87,14 +101,20 @@ GET http://localhost:8080/actuator/info
 | `AUTH_DB_USERNAME` | `postgres` | Usuario de base de datos. |
 | `AUTH_DB_PASSWORD` | `postgres` | Password de base de datos. |
 | `FRONTEND_URL` | `http://localhost:5173` | Origen principal permitido para CORS. |
+| `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
+| `JWT_AUDIENCE` | `morosos-app` | Claim `aud` esperado y emitido. |
+| `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
+| `JWT_SECRET` | vacío | Secreto HS256. Debe tener al menos 32 bytes. El fallback de desarrollo solo se permite con perfil activo real `local` o `dev`; en `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
+| `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
+| `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
+| `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
+| `AUTH_SEED_ADMIN_PASSWORD` | vacío | Password inicial; si está vacío, no se crea el usuario. |
+| `AUTH_SEED_ADMIN_NOMBRE` | `Administrador` | Nombre del admin dev. |
+| `AUTH_SEED_ADMIN_APELLIDO` | `Local` | Apellido del admin dev. |
 
-En local también se permite `http://127.0.0.1:5173`.
+En local también se permite `http://127.0.0.1:5173` para CORS.
 
-## Seguridad en ETAPA 1-B
-
-La configuración base usa sesiones stateless, CSRF deshabilitado para API y CORS habilitado. Se permiten públicamente health, actuator health/info, Swagger/OpenAPI y solicitudes `OPTIONS`. Cualquier otro endpoint se bloquea con `denyAll` porque todavía no existen endpoints privados reales ni mecanismo de autenticación.
-
-La etapa deja preparado el modelo `Usuario -> Roles -> Permisos`. Cada microservicio declarará en su propio código qué permiso requiere cada endpoint, pero todavía no se implementa validación de autorización, login ni JWT.
+Nunca se loggea el secreto JWT, passwords, hashes ni tokens.
 
 ## Modelo persistente
 
@@ -106,7 +126,7 @@ Las migraciones Flyway actuales son:
 - `V4__seed_roles.sql`: carga roles base (`ADMIN`, `SUPERVISOR`, `OPERADOR`, `CONSULTA`, `AUDITOR`).
 - `V5__seed_role_permissions.sql`: carga 193 asignaciones iniciales rol-permiso.
 
-Conteos actuales de seeds: 83 permisos, 5 roles, 193 asignaciones rol-permiso y 0 usuarios creados por seed.
+Conteos actuales de seeds: 83 permisos, 5 roles, 193 asignaciones rol-permiso y 0 usuarios creados por seed SQL.
 
 ### Usuarios, roles y permisos
 
@@ -118,8 +138,6 @@ usuarios -> usuario_roles -> roles -> rol_permisos -> permisos
 
 `Permiso` representa una capacidad funcional asignable a roles y reusable por los microservicios. Incluye `id`, `codigo`, `nombre`, `descripcion`, `modulo`, `recurso`, `accion`, `activo` y auditoría técnica (`created_at`, `updated_at`, `created_by`, `updated_by`).
 
-`modulo`, `recurso` y `accion` se modelan como texto para permitir permisos descriptivos como `VER_LISTADO`, `VER_DETALLE`, `AVANZAR_ETAPA` o `EXPORTAR_PDF` sin cambiar código Java por cada acción nueva.
-
 Diferencia de responsabilidades:
 
 ```text
@@ -129,75 +147,66 @@ microservicio consumidor: endpoint protegido en código -> permiso requerido
 
 Los roles siguen vinculándose a permisos por `rol_permisos`. Los usuarios se vinculan a roles por `usuario_roles`. No se vinculan roles directamente a endpoints y no existe tabla `endpoint_permisos`.
 
+### Decisión de authorities
+
+Las authorities reales de Spring Security se construyen desde `permissions`, no desde `roles`.
+
+Los endpoints de microservicios deben protegerse con permisos específicos, por ejemplo:
+
+```java
+@PreAuthorize("hasAuthority('INMUEBLES_VER_LISTADO')")
+@PreAuthorize("hasAuthority('SEGUIMIENTO_CERRAR_PROCESO')")
+@PreAuthorize("hasAuthority('REPORTES_EXPORTAR_PDF')")
+```
+
+No se agregan authorities `ROLE_ADMIN`, `ROLE_OPERADOR`, etc. en esta etapa, y no se debe depender de `hasRole()` para autorización directa de endpoints. Los roles permanecen en base de datos, en el JWT y en `/me` como agrupadores administrativos de permisos e información útil para UI/administración.
+
 ### Estructuras preparadas pero no funcionales
 
-La etapa deja tablas y entidades para:
+La etapa mantiene tablas y entidades para funcionalidades futuras:
 
 - `identidades_externas`: vinculación futura de providers externos, inicialmente con enum `GOOGLE` disponible en el modelo Java, sin implementar Google login.
 - `password_reset_tokens`: almacenamiento futuro de hashes de tokens de recuperación, sin generar tokens ni implementar forgot/reset password.
-- `login_attempts`: auditoría futura de intentos de login, sin implementar login.
-- `audit_log`: bitácora técnica genérica con `old_values` y `new_values` en `JSONB`, sin servicio funcional de auditoría todavía.
 
-## Repositories JPA
+## Seguridad y JWT
 
-La etapa incluye repositories JPA para `Usuario`, `Rol`, `Permiso`, `RolPermiso`, `UsuarioRol`, `IdentidadExterna`, `PasswordResetToken`, `LoginAttempt` y `AuditLog`.
+La configuración usa sesiones stateless, CSRF deshabilitado para API y CORS habilitado.
 
-## Seeds de ETAPA 1-C
+Públicos:
 
-Los seeds de ETAPA 1-C cargan permisos con `codigo`, `nombre`, `descripcion`, `modulo`, `recurso`, `accion` y `activo`, junto con roles base y asignaciones iniciales. Las migraciones son idempotentes mediante `ON CONFLICT DO NOTHING`.
+- `POST /api/v1/auth/login`;
+- `GET /api/v1/auth-service/health`;
+- `GET /actuator/health`;
+- `GET /actuator/info`;
+- `GET /v3/api-docs/**`;
+- `GET /swagger-ui/**`;
+- `GET /swagger-ui.html`;
+- `OPTIONS /**`.
 
-No se crea usuario admin dev en SQL porque no hay una forma limpia y segura de generar BCrypt condicionado por variables de entorno desde las migraciones. Ese usuario queda diferido para un initializer Java de la etapa de login local.
+Protegidos:
 
-La documentación detallada está en `docs/auth/01-etapa-1/seeds-roles-permisos.md`.
+- `GET /api/v1/auth/me`;
+- `POST /api/v1/auth/logout`.
 
-## No implementado todavía
+El JWT incluye `sub`, `userId`, `username`, `email`, `roles`, `permissions`, `iss`, `aud`, `iat`, `exp`, `jti` y `authProvider=LOCAL`. No incluye password hash, tokens de reset ni información sensible.
 
-Esta etapa **no** implementa:
+Al validar JWT se exige explícitamente `alg=HS256`; no se aceptan `none`, `HS384`, `HS512` ni otros algoritmos. El filtro JWT no sobrescribe el `SecurityContext` cuando ya existe una autenticación previa.
 
-- login;
-- JWT;
-- Google login;
-- recuperación o reseteo funcional de contraseña;
-- generación de tokens de recuperación;
-- envío de correos;
-- endpoints administrativos de usuarios, roles o permisos;
-- seeds de usuarios;
-- seed de usuario admin;
-- tabla `endpoint_permisos`;
-- asociaciones endpoint -> permiso en base de datos;
-- integración con frontend;
-- protección de `morosos-service`.
+## Admin dev initializer
 
-## ETAPA 2 - Login local con BCrypt y JWT
+El initializer Java solo actúa si `AUTH_SEED_ADMIN_ENABLED=true`.
 
-`auth-service` ahora expone autenticación local real para usuarios internos:
+Reglas principales:
 
-- `POST /api/v1/auth/login`: valida username/email + password con BCrypt y emite JWT propio.
-- `GET /api/v1/auth/me`: requiere JWT válido y devuelve el usuario actual con roles/permisos consultados desde base.
-- `POST /api/v1/auth/logout`: requiere JWT válido, registra auditoría y responde OK en modo stateless.
+1. Si está deshabilitado, no hace nada.
+2. Si el password está vacío, no crea usuario y emite una advertencia segura.
+3. Si ya existe usuario por username o email, no duplica.
+4. Si crea usuario nuevo, lo crea activo y con email verificado.
+5. Guarda `passwordHash` con BCrypt.
+6. Asigna el rol `ADMIN` existente.
+7. No crea roles ni permisos; deben venir por Flyway.
 
-### Dependencia JWT elegida
-
-Se agregó `com.nimbusds:nimbus-jose-jwt` para generar y validar JWT HS256. Se eligió Nimbus porque es una librería JOSE/JWT madura y compatible con el ecosistema Spring Security. En esta etapa se usa HS256 para facilitar el arranque local; la opción recomendada a futuro para microservicios es RS256 con JWKS.
-
-### Variables nuevas
-
-| Variable | Default | Uso |
-| --- | --- | --- |
-| `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
-| `JWT_AUDIENCE` | `morosos-app` | Claim `aud` esperado y emitido. |
-| `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token. |
-| `JWT_SECRET` | vacío | Secreto HS256. Debe tener al menos 32 bytes; local/dev tiene fallback de desarrollo y prod no permite vacío/inseguro. |
-| `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
-| `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
-| `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
-| `AUTH_SEED_ADMIN_PASSWORD` | vacío | Password inicial; si está vacío, no se crea el usuario. |
-| `AUTH_SEED_ADMIN_NOMBRE` | `Administrador` | Nombre del admin dev. |
-| `AUTH_SEED_ADMIN_APELLIDO` | `Local` | Apellido del admin dev. |
-
-### Crear admin dev local
-
-Ejemplo:
+Ejemplo local:
 
 ```bash
 AUTH_SEED_ADMIN_ENABLED=true \
@@ -206,30 +215,78 @@ JWT_SECRET=local-secret-with-at-least-32-bytes \
 mvn spring-boot:run
 ```
 
-El initializer no crea roles ni permisos: usa los seeds Flyway existentes y asigna el rol `ADMIN` si existe. Nunca loggea password ni hash.
+## Endpoints de autenticación
 
-### Ejemplo de login
+### POST `/api/v1/auth/login`
 
-```http
-POST http://localhost:8080/api/v1/auth/login
-Content-Type: application/json
+Request:
 
+```json
 {
   "usernameOrEmail": "admin",
   "password": "unaClaveSeguraLocal"
 }
 ```
 
-La respuesta incluye `accessToken`, `tokenType=Bearer`, `expiresIn` y el usuario con `roles` y `permissions`.
+Response exitosa:
 
-### Claims JWT
+```json
+{
+  "accessToken": "...",
+  "tokenType": "Bearer",
+  "expiresIn": 900,
+  "user": {
+    "id": "...",
+    "username": "admin",
+    "email": "admin@local.test",
+    "nombre": "Administrador",
+    "apellido": "Local",
+    "roles": ["ADMIN"],
+    "permissions": ["..."]
+  }
+}
+```
 
-El JWT incluye `sub`, `userId`, `username`, `email`, `roles`, `permissions`, `iss`, `aud`, `iat`, `exp`, `jti` y `authProvider=LOCAL`. No incluye password hash, tokens de reset ni información sensible.
+Credenciales inválidas devuelven `401` con `AUTH_INVALID_CREDENTIALS` y el mensaje genérico `Credenciales inválidas.`.
 
-### Auditoría
+### GET `/api/v1/auth/me`
 
-Los logins registran filas en `login_attempts` con resultado `SUCCESS`, `INVALID_CREDENTIALS` o `USER_DISABLED`, usuario resuelto si aplica, IP y user-agent. Además se registran eventos seguros en `audit_log`: `LOGIN_SUCCESS`, `LOGIN_FAILURE` y `LOGOUT`.
+Requiere `Authorization: Bearer <token>`.
 
-### Limitaciones de ETAPA 2
+Valida el JWT, obtiene el usuario autenticado del `SecurityContext` y vuelve a consultar base para devolver datos actuales y roles/permisos vigentes. Si los permisos cambian en base, `/me` refleja el cambio sin depender de los claims anteriores del token.
 
-No se implementa todavía Google login, forgot/reset password funcional, envío de correos, refresh token, blacklist de tokens, conexión con frontend, protección de `morosos-service`, tabla `endpoint_permisos`, asociación endpoint-permiso en base de datos ni endpoints administrativos.
+### POST `/api/v1/auth/logout`
+
+Requiere JWT válido. Registra `LOGOUT` si es posible y responde:
+
+```json
+{
+  "message": "Sesión cerrada correctamente."
+}
+```
+
+Es stateless: no hay blacklist ni refresh token. El frontend será responsable de borrar el token cuando se integre.
+
+## Login attempts y auditoría
+
+Cada login registra un intento en `login_attempts` con usuario resuelto si aplica, username/email usado, resultado, IP, user-agent y fecha.
+
+Resultados usados:
+
+- `SUCCESS`;
+- `INVALID_CREDENTIALS`;
+- `USER_DISABLED`;
+- `ERROR` reservado para errores controlados inesperados.
+
+La auditoría en `audit_log` registra eventos básicos:
+
+- `LOGIN_SUCCESS`;
+- `LOGIN_FAILURE`;
+- `LOGOUT`.
+
+Los JSON guardados son seguros y no incluyen passwords, hashes ni tokens.
+
+## Documentación relacionada
+
+- `docs/auth/01-etapa-1/seeds-roles-permisos.md`
+- `docs/auth/02-etapa-2/login-local-jwt.md`
