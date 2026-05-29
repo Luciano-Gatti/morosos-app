@@ -1,5 +1,23 @@
 # Changelog Auth Service
 
+## 2026-05-29 - ETAPA 1-C - Seeds controlados de roles y permisos
+
+### Resumen
+
+Se agregaron seeds idempotentes para permisos descriptivos y modulares, roles base y matriz inicial rol-permiso. No se creó usuario admin dev porque no hay hashing BCrypt seguro y portable desde migraciones SQL; queda diferido para un initializer Java controlado por properties en la etapa de login local.
+
+### Archivos principales creados/modificados
+
+- `auth-service/src/main/resources/db/migration/V3__seed_permissions.sql`
+- `auth-service/src/main/resources/db/migration/V4__seed_roles.sql`
+- `auth-service/src/main/resources/db/migration/V5__seed_role_permissions.sql`
+- `auth-service/README.md`
+- `docs/auth/01-etapa-1/seeds-roles-permisos.md`
+
+### Restricciones respetadas
+
+No se creó `endpoint_permisos`, no se asociaron endpoints a permisos en base de datos, no se implementó login, JWT, Google login, forgot/reset password funcional, generación de tokens, envío de correos, integración con frontend ni protección de `morosos-service`.
+
 ## 2026-05-28 - ETAPA 1-B - Modelo base de usuarios, relaciones, recuperación y auditoría
 
 ### Resumen
