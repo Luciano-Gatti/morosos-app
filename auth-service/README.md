@@ -4,7 +4,7 @@
 
 ## Estado de esta etapa
 
-La base técnica de **ETAPA 0** se mantiene y la **ETAPA 1-B** completa el modelo persistente base para usuarios, roles, permisos, identidades externas, recuperación de contraseña, intentos de login y auditoría técnica.
+La base técnica de **ETAPA 0** se mantiene y la **ETAPA 1-C** agrega seeds controlados sobre el modelo persistente base para usuarios, roles, permisos, identidades externas, recuperación de contraseña, intentos de login y auditoría técnica.
 
 Esta etapa incluye:
 
@@ -24,7 +24,8 @@ Esta etapa incluye:
 - estructura persistente para identidades externas;
 - estructura persistente para tokens de recuperación de contraseña;
 - estructura persistente para intentos de login;
-- estructura persistente para auditoría técnica.
+- estructura persistente para auditoría técnica;
+- seeds idempotentes de permisos, roles y matriz rol-permiso.
 
 ## Puerto
 
@@ -101,6 +102,9 @@ Las migraciones Flyway actuales son:
 
 - `V1__auth_schema.sql`: crea `permisos`, `roles` y `rol_permisos`.
 - `V2__complete_auth_base_schema.sql`: crea `usuarios`, `usuario_roles`, `identidades_externas`, `password_reset_tokens`, `login_attempts` y `audit_log`.
+- `V3__seed_permissions.sql`: carga 81 permisos descriptivos y modulares.
+- `V4__seed_roles.sql`: carga roles base (`ADMIN`, `SUPERVISOR`, `OPERADOR`, `CONSULTA`, `AUDITOR`).
+- `V5__seed_role_permissions.sql`: carga la matriz inicial rol-permiso.
 
 ### Usuarios, roles y permisos
 
@@ -136,6 +140,14 @@ La etapa deja tablas y entidades para:
 
 La etapa incluye repositories JPA para `Usuario`, `Rol`, `Permiso`, `RolPermiso`, `UsuarioRol`, `IdentidadExterna`, `PasswordResetToken`, `LoginAttempt` y `AuditLog`.
 
+## Seeds de ETAPA 1-C
+
+Los seeds de ETAPA 1-C cargan permisos con `codigo`, `nombre`, `descripcion`, `modulo`, `recurso`, `accion` y `activo`, junto con roles base y asignaciones iniciales. Las migraciones son idempotentes mediante `ON CONFLICT DO NOTHING`.
+
+No se crea usuario admin dev en SQL porque no hay una forma limpia y segura de generar BCrypt condicionado por variables de entorno desde las migraciones. Ese usuario queda diferido para un initializer Java de la etapa de login local.
+
+La documentación detallada está en `docs/auth/01-etapa-1/seeds-roles-permisos.md`.
+
 ## No implementado todavía
 
 Esta etapa **no** implementa:
@@ -148,8 +160,6 @@ Esta etapa **no** implementa:
 - envío de correos;
 - endpoints administrativos de usuarios, roles o permisos;
 - seeds de usuarios;
-- seeds de roles;
-- seeds de permisos;
 - seed de usuario admin;
 - tabla `endpoint_permisos`;
 - asociaciones endpoint -> permiso en base de datos;
