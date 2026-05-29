@@ -98,12 +98,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T = any>(path: string) => request<T>(path),
-  post: <T = any>(path: string, body?: unknown) =>
+  get: <T = unknown>(path: string) => request<T>(path),
+  post: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body instanceof FormData ? body : JSON.stringify(body ?? {}) }),
-  put: <T = any>(path: string, body?: unknown) =>
+  put: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body ?? {}) }),
-  patch: <T = any>(path: string, body?: unknown) =>
+  patch: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
-  delete: <T = any>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T = unknown>(path: string) => request<T>(path, { method: "DELETE" }),
 };

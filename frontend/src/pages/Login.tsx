@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +12,8 @@ import { authService, isAuthError } from "@/services/api/authService";
 import type { LoginFormValues } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/hooks/useAuth";
+import { AuthServiceError } from "@/services/api/authService";
 import {
   Form,
   FormControl,
@@ -39,7 +42,7 @@ interface LocationState {
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const { login } = useAuth();
@@ -62,7 +65,7 @@ export default function Login() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     setLoginError(null);
     setInfoMessage(null);
 
@@ -78,7 +81,7 @@ export default function Login() {
         setLoginError("No se pudo conectar con el servicio de autenticación.");
       }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -162,7 +165,7 @@ export default function Login() {
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
                           autoComplete="current-password"
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                           className="h-11 border-[hsl(215,35%,28%)] bg-[hsl(215,40%,14%)] pr-10 text-white placeholder:text-[hsl(215,15%,50%)] focus-visible:ring-[hsl(215,65%,32%)]"
                           {...field}
                         />
@@ -203,7 +206,7 @@ export default function Login() {
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        disabled={isLoading}
+                        disabled={isSubmitting}
                         className="border-[hsl(215,35%,35%)] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                       />
                     </FormControl>
@@ -217,10 +220,10 @@ export default function Login() {
               {/* Botón principal */}
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="h-11 w-full bg-[hsl(215,65%,28%)] text-white hover:bg-[hsl(215,65%,24%)]"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Iniciando sesión…
@@ -246,7 +249,7 @@ export default function Login() {
             type="button"
             variant="outline"
             onClick={handleGoogleLogin}
-            disabled={isLoading}
+            disabled={isSubmitting}
             className="h-11 w-full border-[hsl(215,35%,28%)] bg-transparent text-[hsl(210,20%,85%)] hover:bg-[hsl(215,40%,16%)] hover:text-white"
           >
             <svg
