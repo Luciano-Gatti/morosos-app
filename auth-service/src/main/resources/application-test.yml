@@ -19,3 +19,16 @@ app:
     allowed-origins:
       - http://localhost:5173
       - http://127.0.0.1:5173
+  jwt:
+    issuer: http://localhost:8080
+    audience: morosos-app
+    access-token-minutes: 15
+    secret: test-only-secret-with-at-least-32-bytes
+  seed:
+    admin:
+      enabled: false
+      username: admin
+      email: admin@local.test
+      password:
+      nombre: Administrador
+      apellido: Local

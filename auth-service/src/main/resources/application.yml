@@ -41,3 +41,16 @@ app:
     allowed-origins:
       - ${FRONTEND_URL:http://localhost:5173}
       - http://127.0.0.1:5173
+  jwt:
+    issuer: ${JWT_ISSUER:http://localhost:8080}
+    audience: ${JWT_AUDIENCE:morosos-app}
+    access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
+    secret: ${JWT_SECRET:}
+  seed:
+    admin:
+      enabled: ${AUTH_SEED_ADMIN_ENABLED:false}
+      username: ${AUTH_SEED_ADMIN_USERNAME:admin}
+      email: ${AUTH_SEED_ADMIN_EMAIL:admin@local.test}
+      password: ${AUTH_SEED_ADMIN_PASSWORD:}
+      nombre: ${AUTH_SEED_ADMIN_NOMBRE:Administrador}
+      apellido: ${AUTH_SEED_ADMIN_APELLIDO:Local}

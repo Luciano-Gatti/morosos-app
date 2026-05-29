@@ -167,3 +167,69 @@ Esta etapa **no** implementa:
 - asociaciones endpoint -> permiso en base de datos;
 - integración con frontend;
 - protección de `morosos-service`.
+
+## ETAPA 2 - Login local con BCrypt y JWT
+
+`auth-service` ahora expone autenticación local real para usuarios internos:
+
+- `POST /api/v1/auth/login`: valida username/email + password con BCrypt y emite JWT propio.
+- `GET /api/v1/auth/me`: requiere JWT válido y devuelve el usuario actual con roles/permisos consultados desde base.
+- `POST /api/v1/auth/logout`: requiere JWT válido, registra auditoría y responde OK en modo stateless.
+
+### Dependencia JWT elegida
+
+Se agregó `com.nimbusds:nimbus-jose-jwt` para generar y validar JWT HS256. Se eligió Nimbus porque es una librería JOSE/JWT madura y compatible con el ecosistema Spring Security. En esta etapa se usa HS256 para facilitar el arranque local; la opción recomendada a futuro para microservicios es RS256 con JWKS.
+
+### Variables nuevas
+
+| Variable | Default | Uso |
+| --- | --- | --- |
+| `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
+| `JWT_AUDIENCE` | `morosos-app` | Claim `aud` esperado y emitido. |
+| `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token. |
+| `JWT_SECRET` | vacío | Secreto HS256. Debe tener al menos 32 bytes; local/dev tiene fallback de desarrollo y prod no permite vacío/inseguro. |
+| `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
+| `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
+| `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
+| `AUTH_SEED_ADMIN_PASSWORD` | vacío | Password inicial; si está vacío, no se crea el usuario. |
+| `AUTH_SEED_ADMIN_NOMBRE` | `Administrador` | Nombre del admin dev. |
+| `AUTH_SEED_ADMIN_APELLIDO` | `Local` | Apellido del admin dev. |
+
+### Crear admin dev local
+
+Ejemplo:
+
+```bash
+AUTH_SEED_ADMIN_ENABLED=true \
+AUTH_SEED_ADMIN_PASSWORD=unaClaveSeguraLocal \
+JWT_SECRET=local-secret-with-at-least-32-bytes \
+mvn spring-boot:run
+```
+
+El initializer no crea roles ni permisos: usa los seeds Flyway existentes y asigna el rol `ADMIN` si existe. Nunca loggea password ni hash.
+
+### Ejemplo de login
+
+```http
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "usernameOrEmail": "admin",
+  "password": "unaClaveSeguraLocal"
+}
+```
+
+La respuesta incluye `accessToken`, `tokenType=Bearer`, `expiresIn` y el usuario con `roles` y `permissions`.
+
+### Claims JWT
+
+El JWT incluye `sub`, `userId`, `username`, `email`, `roles`, `permissions`, `iss`, `aud`, `iat`, `exp`, `jti` y `authProvider=LOCAL`. No incluye password hash, tokens de reset ni información sensible.
+
+### Auditoría
+
+Los logins registran filas en `login_attempts` con resultado `SUCCESS`, `INVALID_CREDENTIALS` o `USER_DISABLED`, usuario resuelto si aplica, IP y user-agent. Además se registran eventos seguros en `audit_log`: `LOGIN_SUCCESS`, `LOGIN_FAILURE` y `LOGOUT`.
+
+### Limitaciones de ETAPA 2
+
+No se implementa todavía Google login, forgot/reset password funcional, envío de correos, refresh token, blacklist de tokens, conexión con frontend, protección de `morosos-service`, tabla `endpoint_permisos`, asociación endpoint-permiso en base de datos ni endpoints administrativos.
