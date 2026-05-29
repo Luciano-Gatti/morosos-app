@@ -1,3 +1,27 @@
+# Auth Changelog
+
+## 2026-05-29 - ETAPA 2 - Login local con BCrypt y JWT
+
+### Resumen
+
+Se implementó autenticación local real en `auth-service`: admin dev opcional por initializer Java, validación BCrypt, emisión de JWT HS256 con Nimbus JOSE JWT, endpoints `POST /api/v1/auth/login`, `GET /api/v1/auth/me` y `POST /api/v1/auth/logout`, registro de intentos de login y auditoría básica de login/logout.
+
+### Archivos principales creados/modificados
+
+- `auth-service/pom.xml`
+- `auth-service/src/main/java/pe/morosos/auth/api/AuthController.java`
+- `auth-service/src/main/java/pe/morosos/auth/dto/*.java`
+- `auth-service/src/main/java/pe/morosos/auth/security/**/*.java`
+- `auth-service/src/main/java/pe/morosos/auth/service/*.java`
+- `auth-service/src/main/java/pe/morosos/auth/seed/*.java`
+- `auth-service/src/main/resources/application.yml`
+- `auth-service/README.md`
+- `docs/auth/02-etapa-2/login-local-jwt.md`
+
+### Restricciones respetadas
+
+No se implementó Google login, forgot/reset password funcional, envío de correos, conexión con frontend, protección de `morosos-service`, `endpoint_permisos`, asociaciones endpoint-permiso en base de datos ni endpoints administrativos.
+
 # Changelog Auth Service
 
 ## 2026-05-29 - ETAPA 1-C - Correcciones de auditoría de seeds
