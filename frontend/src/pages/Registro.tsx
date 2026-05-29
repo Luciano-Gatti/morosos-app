@@ -54,21 +54,12 @@ export default function Registro() {
     },
   });
 
-  const onSubmit = async (data: RegistroFormData) => {
+  const onSubmit = async (_data: RegistroFormData) => {
     setIsLoading(true);
     setRegistroError(null);
 
     try {
-      // TODO: conectar con authService.register()
       await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      // eslint-disable-next-line no-console
-      console.log("Registro simulado:", {
-        nombre: data.nombre,
-        apellido: data.apellido,
-        email: data.email,
-      });
-
       setRegistroOk(true);
     } catch {
       setRegistroError("No se pudo completar el registro. Intentá de nuevo.");
@@ -91,9 +82,8 @@ export default function Registro() {
               ¡Cuenta creada!
             </h1>
             <p className="mt-3 text-sm text-[hsl(210,20%,70%)]">
-              Revisá tu email para confirmar la cuenta. Las cuentas nuevas
-              pueden requerir aprobación de un administrador antes de acceder
-              al sistema.
+              El registro real todavía está pendiente de integración. No se creó
+              ningún usuario en el backend.
             </p>
             <Button asChild className="mt-6 h-11 w-full bg-[hsl(215,65%,28%)] text-white hover:bg-[hsl(215,65%,24%)]">
               <Link to="/login">Ir al inicio de sesión</Link>

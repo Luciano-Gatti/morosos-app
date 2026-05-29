@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { BrandMark } from "@/components/BrandMark";
+import { authService } from "@/services/api/authService";
 
 const olvideSchema = z.object({
   email: z
@@ -45,21 +46,14 @@ export default function OlvideContrasena() {
     },
   });
 
-  const onSubmit = async (data: OlvideFormData) => {
+  const onSubmit = async (_data: OlvideFormData) => {
     setIsLoading(true);
 
     try {
-      // Simulación de envío — reemplazar por authService.resetPassword(data.email)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // eslint-disable-next-line no-console
-      console.log("Solicitud de restablecimiento simulada:", {
-        email: data.email,
-      });
-
+      await authService.forgotPassword();
       setEnviado(true);
     } catch {
-      // Por seguridad, no mostramos error al usuario
+      // Por seguridad, no mostramos error al usuario.
       setEnviado(true);
     } finally {
       setIsLoading(false);

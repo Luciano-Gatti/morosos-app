@@ -1,5 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { PublicRoute } from "@/components/auth/PublicRoute";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -33,9 +36,12 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
+        <AuthProvider>
+          <Routes>
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/inmuebles" element={<Inmuebles />} />
             <Route path="/inmuebles/:id" element={<InmuebleDetalle />} />
             <Route path="/inmuebles/:id/seguimiento" element={<HistorialSeguimiento />} />
@@ -59,16 +65,20 @@ const App = () => (
             <Route path="/configuracion/grupos" element={<ConfiguracionGrupos />} />
             <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
             <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
-            <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
-          </Route>
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
-          <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
-          <Route path="/forgot-password" element={<OlvideContrasena />} />
-          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
-          <Route path="/reset-password" element={<RestablecerContrasena />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+                <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Route>
+            <Route element={<PublicRoute />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/registro" element={<Registro />} />
+              <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+              <Route path="/forgot-password" element={<OlvideContrasena />} />
+              <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
+              <Route path="/reset-password" element={<RestablecerContrasena />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -1,3 +1,5 @@
+import { clearStoredAccessToken, getStoredAccessToken } from "@/lib/authStorage";
+
 export class ApiError extends Error {
   status: number;
   data: unknown;
@@ -29,51 +31,67 @@ export function buildQueryParams(params?: Record<string, QueryValue>): string {
   return query ? `?${query}` : "";
 }
 
+function redirectToLoginAfterUnauthorized() {
+  if (typeof window === "undefined") return;
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+
+  if (window.location.pathname !== "/login") {
+    window.location.assign(`/login?from=${encodeURIComponent(currentPath)}`);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = API_BASE_URL.endsWith(API_PREFIX) && path.startsWith(API_PREFIX)
     ? path.slice(API_PREFIX.length) || "/"
     : path;
   const url = `${API_BASE_URL}${normalizedPath}`;
-  const method = init?.method ?? "GET";
-  console.debug("[apiClient] request:start", { url, method });
+  const token = getStoredAccessToken();
+  const headers = new Headers(init?.headers);
+
+  if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  headers.set("Accept", "application/json");
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const response = await fetch(url, {
     ...init,
-    headers: {
-      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      Accept: "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
 
   const contentType = response.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");
   const rawResponseText = await response.text();
 
-  console.debug("[apiClient] request:response", {
-    url,
-    method,
-    status: response.status,
-    ok: response.ok,
-    rawResponseText,
-  });
-
   let payload: unknown = rawResponseText;
   if (isJson && rawResponseText) {
     try {
       payload = JSON.parse(rawResponseText);
-      console.debug("[apiClient] request:parsed-json", { url, method, payload });
     } catch (error) {
-      console.warn("[apiClient] request:json-parse-error", { url, method, error });
+      if (import.meta.env.DEV) {
+        console.warn("[apiClient] No se pudo parsear una respuesta JSON.", { status: response.status, error });
+      }
     }
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearStoredAccessToken();
+      redirectToLoginAfterUnauthorized();
+    }
+
+    if (response.status === 403) {
+      throw new ApiError("No tenés permisos para realizar esta acción.", response.status);
+    }
+
     const message =
       (typeof payload === "object" && payload && "message" in payload && String(payload.message)) ||
       (typeof payload === "string" && payload.trim()) ||
       `${response.status} ${response.statusText}`.trim();
-    throw new ApiError(`${response.status} ${message}`.trim(), response.status, { rawResponseText, payload });
+    throw new ApiError(`${response.status} ${message}`.trim(), response.status);
   }
 
   return payload as T;
