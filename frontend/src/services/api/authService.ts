@@ -1,97 +1,104 @@
-import type {
-  AuthErrorResponse,
-  AuthUser,
-  ForgotPasswordRequest,
-  LoginRequest,
-  LoginResponse,
-  ResetPasswordRequest,
-} from "@/types/auth";
+import { AuthError, type ApiErrorResponse, type AuthUser, type LoginRequest, type LoginResponse } from "@/types/auth";
 
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
-const AUTH_API_PREFIX = "/api/v1/auth";
 
-export class AuthServiceError extends Error {
-  status: number;
-  code?: string;
-  details?: unknown;
-  traceId?: string;
-
-  constructor(message: string, status: number, response?: AuthErrorResponse) {
-    super(message);
-    this.name = "AuthServiceError";
-    this.status = status;
-    this.code = response?.code;
-    this.details = response?.details;
-    this.traceId = response?.traceId;
-    Object.setPrototypeOf(this, AuthServiceError.prototype);
-  }
-}
-
-async function parseResponse(response: Response): Promise<unknown> {
+async function parseResponseBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type") || "";
-  const raw = await response.text();
-  if (!raw) return null;
-  if (!contentType.includes("application/json")) return raw;
+  const rawBody = await response.text();
+
+  if (!rawBody) return null;
+  if (!contentType.includes("application/json")) return rawBody;
 
   try {
-    return JSON.parse(raw);
+    return JSON.parse(rawBody);
   } catch {
     return null;
   }
 }
 
-function buildAuthErrorMessage(status: number, payload: unknown, fallback: string) {
-  if (typeof payload === "object" && payload && "message" in payload && typeof payload.message === "string") {
-    return payload.message;
-  }
-  if (typeof payload === "string" && payload.trim()) return payload.trim();
-  return fallback || `Error de autenticación (${status})`;
+function normalizeError(response: Response, payload: unknown): ApiErrorResponse {
+  const payloadObject = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+  const message =
+    (typeof payloadObject.message === "string" && payloadObject.message) ||
+    (typeof payloadObject.error === "string" && payloadObject.error) ||
+    (typeof payload === "string" && payload.trim()) ||
+    `${response.status} ${response.statusText}`.trim() ||
+    "Error de autenticación";
+
+  return {
+    status: response.status,
+    code: typeof payloadObject.code === "string" ? payloadObject.code : undefined,
+    message,
+    details: payloadObject.details,
+    traceId: typeof payloadObject.traceId === "string" ? payloadObject.traceId : undefined,
+  };
 }
 
-async function authRequest<T>(path: string, init?: RequestInit, accessToken?: string | null): Promise<T> {
-  const response = await fetch(`${AUTH_BASE_URL}${AUTH_API_PREFIX}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      Accept: "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...init?.headers,
-    },
-  });
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  let response: Response;
 
-  const payload = await parseResponse(response);
+  try {
+    response = await fetch(`${AUTH_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        ...init.headers,
+      },
+    });
+  } catch {
+    throw new AuthError("No se pudo conectar con el servicio de autenticación.");
+  }
+
+  const payload = await parseResponseBody(response);
+
   if (!response.ok) {
-    const errorPayload = typeof payload === "object" && payload ? payload as AuthErrorResponse : undefined;
-    throw new AuthServiceError(
-      buildAuthErrorMessage(response.status, payload, response.statusText),
-      response.status,
-      errorPayload,
-    );
+    const error = normalizeError(response, payload);
+    throw new AuthError(error.message ?? "Error de autenticación", error);
   }
 
   return payload as T;
 }
 
 export const authService = {
-  login: ({ usernameOrEmail, password }: LoginRequest) =>
-    authRequest<LoginResponse>("/login", {
+  login(payload: LoginRequest): Promise<LoginResponse> {
+    return request<LoginResponse>("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ usernameOrEmail, password }),
-    }),
-
-  me: (accessToken: string) => authRequest<AuthUser>("/me", { method: "GET" }, accessToken),
-
-  logout: (accessToken: string) => authRequest<void>("/logout", { method: "POST", body: JSON.stringify({}) }, accessToken),
-
-  forgotPassword: async (_payload: ForgotPasswordRequest) => {
-    throw new AuthServiceError("Recuperación de contraseña pendiente de integración.", 501);
+      body: JSON.stringify(payload),
+    });
   },
 
-  resetPassword: async (_payload: ResetPasswordRequest) => {
-    throw new AuthServiceError("Restablecimiento de contraseña pendiente de integración.", 501);
+  me(token: string): Promise<AuthUser> {
+    return request<AuthUser>("/api/v1/auth/me", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   },
 
-  googleLogin: async () => {
-    throw new AuthServiceError("Inicio con Google pendiente de integración.", 501);
+  async logout(token: string): Promise<void> {
+    await request<void>("/api/v1/auth/logout", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  },
+
+  async forgotPassword(): Promise<{ message: string }> {
+    return { message: "Si la cuenta existe, enviaremos instrucciones para restablecer la contraseña." };
+  },
+
+  async resetPassword(): Promise<{ message: string }> {
+    return { message: "Restablecimiento de contraseña pendiente de integración." };
+  },
+
+  async googleLogin(): Promise<{ message: string }> {
+    return { message: "Inicio con Google pendiente de integración." };
   },
 };
+
+export function isAuthError(error: unknown): error is AuthError {
+  return error instanceof AuthError;
+}

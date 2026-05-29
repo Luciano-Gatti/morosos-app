@@ -1,18 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 export function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Validando sesión…
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Cargando sesión…
       </div>
     );
   }

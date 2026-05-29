@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { ChevronRight, Bell, LogOut, Settings, UserRound } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Bell, ChevronRight, LogOut, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 export interface Crumb {
@@ -33,26 +33,33 @@ interface Props {
   actions?: React.ReactNode;
 }
 
-function getDisplayName(user: ReturnType<typeof useAuth>["user"]) {
-  if (!user) return "Usuario";
-  const fullName = [user.nombre, user.apellido].filter(Boolean).join(" ").trim();
-  return fullName || user.username || user.email;
+function buildDisplayName(nombre?: string, apellido?: string | null, username?: string) {
+  const fullName = [nombre, apellido].filter(Boolean).join(" ").trim();
+  return fullName || username || "Usuario";
 }
 
-function getInitials(user: ReturnType<typeof useAuth>["user"]) {
-  const displayName = getDisplayName(user);
-  const parts = displayName.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return displayName.slice(0, 2).toUpperCase();
+function buildInitials(nombre?: string, apellido?: string | null, username?: string) {
+  const source = [nombre, apellido].filter(Boolean);
+  if (source.length > 0) {
+    return source.map((part) => part.charAt(0)).join("").slice(0, 2).toUpperCase();
+  }
+  return (username ?? "U").slice(0, 2).toUpperCase();
 }
 
 export function AppHeader({ title, description, breadcrumb, actions }: Props) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const displayName = useMemo(() => getDisplayName(user), [user]);
-  const initials = useMemo(() => getInitials(user), [user]);
-  const rolesLabel = user?.roles?.length ? user.roles.join(", ") : "Sin rol informado";
+
+  const displayName = buildDisplayName(user?.nombre, user?.apellido, user?.username);
+  const initials = buildInitials(user?.nombre, user?.apellido, user?.username);
+  const primaryRole = user?.roles?.[0] ?? "Sin rol informado";
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
@@ -78,26 +85,24 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="ml-1 flex items-center gap-2 border-l border-border pl-3 text-left outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                aria-label="Abrir menú de sesión"
-              >
+              <Button variant="ghost" className="ml-1 h-auto gap-2 border-l border-border px-0 pl-3 hover:bg-transparent">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                   {initials}
                 </div>
                 <div className="hidden text-right md:block">
-                  <div className="max-w-[180px] truncate text-[12px] font-medium leading-tight text-foreground">{displayName}</div>
-                  <div className="max-w-[180px] truncate text-[10px] leading-tight text-muted-foreground">{user?.email}</div>
-                  <div className="max-w-[180px] truncate text-[10px] leading-tight text-muted-foreground">{rolesLabel}</div>
+                  <div className="max-w-40 truncate text-[12px] font-medium leading-tight text-foreground">{displayName}</div>
+                  <div className="max-w-40 truncate text-[10px] leading-tight text-muted-foreground">{primaryRole}</div>
                 </div>
-              </button>
+              </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuLabel>
                 <div className="flex flex-col gap-1">
-                  <span>{displayName}</span>
-                  <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
+                  <span className="truncate text-sm font-semibold">{displayName}</span>
+                  <span className="truncate text-xs font-normal text-muted-foreground">{user?.email ?? "Sin email informado"}</span>
+                  {user?.roles?.length ? (
+                    <span className="truncate text-[11px] font-normal text-muted-foreground">{user.roles.join(", ")}</span>
+                  ) : null}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -110,7 +115,7 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
                 Configurar datos de sesión
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void logout()} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onSelect={(event) => { event.preventDefault(); void handleLogout(); }}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Cerrar sesión
               </DropdownMenuItem>
@@ -136,43 +141,38 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Mi sesión</DialogTitle>
-            <DialogDescription>Datos reales recibidos desde el servicio de autenticación.</DialogDescription>
+            <DialogDescription>Datos reales devueltos por el servicio de autenticación.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-5 text-sm">
+          <div className="space-y-4 text-sm">
             <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nombre</div>
-                <div className="mt-1 text-foreground">{displayName}</div>
+                <p className="text-xs text-muted-foreground">Nombre</p>
+                <p className="font-medium">{displayName}</p>
               </div>
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Usuario</div>
-                <div className="mt-1 text-foreground">{user?.username}</div>
+                <p className="text-xs text-muted-foreground">Usuario</p>
+                <p className="font-medium">{user?.username ?? "—"}</p>
               </div>
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</div>
-                <div className="mt-1 text-foreground">{user?.email}</div>
+                <p className="text-xs text-muted-foreground">Email</p>
+                <p className="font-medium">{user?.email ?? "—"}</p>
               </div>
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">ID</div>
-                <div className="mt-1 break-all text-foreground">{user?.id}</div>
+                <p className="text-xs text-muted-foreground">ID</p>
+                <p className="font-medium">{user?.id ?? "—"}</p>
               </div>
             </div>
-            <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Roles informativos</div>
-              <div className="flex flex-wrap gap-2">
-                {user?.roles?.length ? user.roles.map((role) => <Badge key={role} variant="secondary">{role}</Badge>) : <span className="text-muted-foreground">Sin roles informados.</span>}
+            <div className="rounded-lg border p-4">
+              <div className="mb-2 flex items-center gap-2 font-medium">
+                <ShieldCheck className="h-4 w-4" />
+                Roles
               </div>
+              <p className="text-muted-foreground">{user?.roles?.length ? user.roles.join(", ") : "Sin roles informados."}</p>
             </div>
-            <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Permisos de lectura</div>
-              <div className="max-h-48 overflow-y-auto rounded-lg border p-3">
-                {user?.permissions?.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {user.permissions.map((permission) => <Badge key={permission} variant="outline">{permission}</Badge>)}
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground">Sin permisos informados.</span>
-                )}
+            <div className="rounded-lg border p-4">
+              <p className="mb-2 font-medium">Permisos en modo lectura</p>
+              <div className="max-h-44 overflow-auto rounded bg-muted/40 p-3 text-xs text-muted-foreground">
+                {user?.permissions?.length ? user.permissions.join(", ") : "Sin permisos informados."}
               </div>
             </div>
           </div>
@@ -184,9 +184,12 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
           <DialogHeader>
             <DialogTitle>Configurar datos de sesión</DialogTitle>
             <DialogDescription>
-              Funcionalidad preparada para una próxima etapa. Actualmente no hay un endpoint disponible para guardar cambios de sesión desde el frontend.
+              Funcionalidad pendiente de integración. No se guardan cambios reales desde esta pantalla.
             </DialogDescription>
           </DialogHeader>
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            La edición de datos de sesión quedará disponible cuando el auth-service exponga el endpoint correspondiente.
+          </div>
         </DialogContent>
       </Dialog>
     </header>

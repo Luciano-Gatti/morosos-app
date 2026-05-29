@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { BrandMark } from "@/components/BrandMark";
+import { authService } from "@/services/api/authService";
 
 const restablecerSchema = z
   .object({
@@ -57,20 +58,12 @@ export default function RestablecerContrasena() {
     }
   }, [token]);
 
-  const onSubmit = async (data: RestablecerFormData) => {
+  const onSubmit = async (_data: RestablecerFormData) => {
     setIsLoading(true);
     setErrorMsg(null);
 
     try {
-      // Simulación de restablecimiento — reemplazar por authService.resetPassword(token, data.password)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // eslint-disable-next-line no-console
-      console.log("Restablecimiento simulado:", {
-        token,
-        password: data.password,
-      });
-
+      await authService.resetPassword();
       setExito(true);
     } catch {
       setErrorMsg(
@@ -146,8 +139,8 @@ export default function RestablecerContrasena() {
               ¡Contraseña actualizada!
             </h1>
             <p className="mt-3 text-sm text-[hsl(210,20%,70%)]">
-              Tu contraseña se restableció correctamente. Ya podés iniciar sesión
-              con tu nueva contraseña.
+              El restablecimiento real todavía está pendiente de integración.
+              No se envió ninguna contraseña al backend.
             </p>
 
             <Button

@@ -3,7 +3,7 @@ export interface AuthUser {
   username: string;
   email: string;
   nombre: string;
-  apellido: string;
+  apellido?: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -11,7 +11,12 @@ export interface AuthUser {
 export interface LoginRequest {
   usernameOrEmail: string;
   password: string;
-  rememberMe?: boolean;
+}
+
+export interface LoginFormValues {
+  email: string;
+  password: string;
+  rememberMe: boolean;
 }
 
 export interface LoginResponse {
@@ -28,7 +33,7 @@ export interface AuthState {
   isLoading: boolean;
 }
 
-export interface AuthErrorResponse {
+export interface ApiErrorResponse {
   status?: number;
   code?: string;
   message?: string;
@@ -36,11 +41,19 @@ export interface AuthErrorResponse {
   traceId?: string;
 }
 
-export interface ForgotPasswordRequest {
-  email: string;
-}
+export class AuthError extends Error {
+  status?: number;
+  code?: string;
+  details?: unknown;
+  traceId?: string;
 
-export interface ResetPasswordRequest {
-  token: string;
-  password: string;
+  constructor(message: string, error?: ApiErrorResponse) {
+    super(message);
+    this.name = "AuthError";
+    this.status = error?.status;
+    this.code = error?.code;
+    this.details = error?.details;
+    this.traceId = error?.traceId;
+    Object.setPrototypeOf(this, AuthError.prototype);
+  }
 }

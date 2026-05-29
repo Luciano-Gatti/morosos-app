@@ -2,11 +2,14 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService, isAuthError } from "@/services/api/authService";
+import type { LoginFormValues } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,22 +26,34 @@ import {
 const loginSchema = z.object({
   email: z
     .string()
-    .min(1, "El email es requerido")
-    .email("Ingresá un email válido"),
+    .min(1, "El email o usuario es requerido"),
   password: z.string().min(1, "La contraseña es requerida"),
   rememberMe: z.boolean().default(false),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = LoginFormValues;
+
+interface LocationState {
+  from?: {
+    pathname?: string;
+    search?: string;
+  };
+}
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = location.state?.from?.pathname || "/";
+  const [searchParams] = useSearchParams();
+  const state = location.state as LocationState | null;
+  const fromQuery = searchParams.get("from");
+  const redirectTo = state?.from?.pathname
+    ? `${state.from.pathname}${state.from.search ?? ""}`
+    : fromQuery || "/dashboard";
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -52,33 +67,28 @@ export default function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsSubmitting(true);
     setLoginError(null);
+    setInfoMessage(null);
 
     try {
-      await login({
-        usernameOrEmail: data.email,
-        password: data.password,
-        rememberMe: data.rememberMe,
-      });
+      await login(data.email, data.password, data.rememberMe);
       navigate(redirectTo, { replace: true });
     } catch (error) {
-      if (error instanceof AuthServiceError) {
-        if (error.status === 401) {
-          setLoginError("Credenciales inválidas.");
-          return;
-        }
-        if (error.status === 403) {
-          setLoginError("El usuario se encuentra inactivo o no autorizado.");
-          return;
-        }
+      if (isAuthError(error) && error.status === 401) {
+        setLoginError("Credenciales inválidas.");
+      } else if (isAuthError(error) && error.status === 403) {
+        setLoginError("El usuario se encuentra inactivo o no autorizado.");
+      } else {
+        setLoginError("No se pudo conectar con el servicio de autenticación.");
       }
-      setLoginError("No se pudo conectar con el servicio de autenticación.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    toast.info("Inicio con Google pendiente de integración.");
+  const handleGoogleLogin = async () => {
+    const response = await authService.googleLogin();
+    setLoginError(null);
+    setInfoMessage(response.message);
   };
 
   return (
@@ -108,24 +118,29 @@ export default function Login() {
               {loginError}
             </div>
           )}
+          {infoMessage && (
+            <div className="mb-5 rounded-lg border border-[hsl(210,60%,35%)] bg-[hsl(210,60%,20%)]/40 px-4 py-3 text-sm text-[hsl(210,60%,80%)]">
+              {infoMessage}
+            </div>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Email */}
+              {/* Email o usuario */}
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-[hsl(210,20%,85%)]">
-                      Email
+                      Email o usuario
                     </FormLabel>
                     <FormControl>
                       <Input
-                        type="email"
-                        placeholder="nombre@aosc.gob.ar"
-                        autoComplete="email"
-                        disabled={isSubmitting}
+                        type="text"
+                        placeholder="usuario o nombre@aosc.gob.ar"
+                        autoComplete="username email"
+                        disabled={isLoading}
                         className="h-11 border-[hsl(215,35%,28%)] bg-[hsl(215,40%,14%)] text-white placeholder:text-[hsl(215,15%,50%)] focus-visible:ring-[hsl(215,65%,32%)]"
                         {...field}
                       />
