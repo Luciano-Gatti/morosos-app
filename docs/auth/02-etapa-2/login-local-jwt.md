@@ -21,7 +21,9 @@ No se agregó OAuth2 Client, Spring Mail ni Resource Server para `morosos-servic
 
 ## JWT
 
-La etapa usa HS256 para simplificar el arranque local. La arquitectura recomendada a futuro para microservicios es migrar a RS256 con JWKS para que servicios consumidores validen tokens sin compartir secretos simétricos.
+La etapa usa HS256 para simplificar el arranque local. Al leer tokens se valida explícitamente que el header JOSE declare `alg=HS256` antes de aceptar claims o construir el principal autenticado. Se rechazan `none`, `HS384`, `HS512` y cualquier otro algoritmo.
+
+La arquitectura recomendada a futuro para microservicios es migrar a RS256 con JWKS para que servicios consumidores validen tokens sin compartir secretos simétricos, pero RS256/JWKS no está implementado en esta etapa.
 
 Claims incluidos:
 
@@ -47,7 +49,7 @@ No se incluye `passwordHash`, tokens de reset ni datos sensibles.
 | `JWT_ISSUER` | `http://localhost:8080` | Emisor esperado y emitido en los JWT. |
 | `JWT_AUDIENCE` | `morosos-app` | Audiencia esperada y emitida en los JWT. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Vida del access token en minutos. |
-| `JWT_SECRET` | vacío | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. En local/dev hay fallback de desarrollo; en prod no se permite vacío/inseguro. |
+| `JWT_SECRET` | vacío | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. El fallback de desarrollo solo se permite si el perfil activo real incluye `local` o `dev`. No se habilita por perfiles default. En `prod`, sin perfiles activos o fuera de `local`/`dev`, el secreto debe configurarse explícitamente y no puede coincidir con el fallback conocido de desarrollo. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita el initializer del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
@@ -56,6 +58,18 @@ No se incluye `passwordHash`, tokens de reset ni datos sensibles.
 | `AUTH_SEED_ADMIN_APELLIDO` | `Local` | Apellido del admin dev. |
 
 Nunca se loggea el secreto JWT, el password, el hash ni los tokens.
+
+### Reglas de fallback de `JWT_SECRET`
+
+El fallback local/dev de `JWT_SECRET` solo se usa cuando `environment.getActiveProfiles()` contiene `local` o `dev`. No se consulta `environment.getDefaultProfiles()` para habilitar fallback, aunque `application.yml` declare `spring.profiles.default=local`.
+
+Reglas vigentes:
+
+- si `prod` está activo, nunca se permite fallback;
+- si no hay perfiles activos, no se permite fallback;
+- si `JWT_SECRET` está vacío fuera de perfiles activos `local`/`dev`, el arranque falla;
+- si `JWT_SECRET` coincide con el fallback conocido de desarrollo fuera de perfiles activos `local`/`dev`, el arranque falla;
+- el secreto debe tener al menos 32 bytes para HS256.
 
 ## Admin dev initializer
 
@@ -160,7 +174,21 @@ Protegidos:
 - `GET /api/v1/auth/me`;
 - `POST /api/v1/auth/logout`.
 
-Se mantiene sesión stateless, CSRF deshabilitado para API y CORS habilitado.
+Se mantiene sesión stateless, CSRF deshabilitado para API y CORS habilitado. El filtro JWT construye authorities desde `permissions` y no sobrescribe el `SecurityContext` si ya existe una autenticación previa en la request.
+
+## Authorities y roles
+
+La autorización real se basa en permisos. Las authorities de Spring Security se construyen desde el claim/listado `permissions`; los roles no se agregan como authorities `ROLE_*` y no son requisito para proteger endpoints con `hasRole()`.
+
+Ejemplos esperados para microservicios consumidores:
+
+```java
+@PreAuthorize("hasAuthority('INMUEBLES_VER_LISTADO')")
+@PreAuthorize("hasAuthority('SEGUIMIENTO_CERRAR_PROCESO')")
+@PreAuthorize("hasAuthority('REPORTES_EXPORTAR_PDF')")
+```
+
+Los roles siguen existiendo en base de datos, siguen incluidos en el JWT y siguen devolviéndose en `/me`, pero funcionan como agrupadores administrativos de permisos e información útil para UI/administración.
 
 ## Limitaciones explícitas
 
