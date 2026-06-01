@@ -1,5 +1,24 @@
 # Auth Changelog
 
+## 2026-06-01 - Tests de auth-service con PostgreSQL/Testcontainers
+
+### Resumen
+
+Se corrigió la configuración de tests de `auth-service` para dejar de usar H2 y ejecutar los tests de integración contra PostgreSQL real mediante Testcontainers. El perfil `test` mantiene Flyway habilitado y `ddl-auto=validate`; el datasource se inyecta desde `PostgresIntegrationTest` con `@DynamicPropertySource`, permitiendo validar las migraciones `V1` a `V5` contra PostgreSQL.
+
+### Archivos principales creados/modificados
+
+- `auth-service/pom.xml`
+- `auth-service/src/main/resources/application-test.yml`
+- `auth-service/src/test/java/pe/morosos/auth/PostgresIntegrationTest.java`
+- `auth-service/src/test/java/pe/morosos/auth/AuthServiceApplicationTests.java`
+- `auth-service/README.md`
+- `docs/auth/02-etapa-2/login-local-jwt.md`
+
+### Restricciones respetadas
+
+No se modificó `morosos-service`, no se modificó frontend, no se cambió la lógica funcional de login/JWT, no se desactivó Flyway globalmente, no se eliminaron migraciones, no se adaptaron migraciones productivas a H2 y no se documentó H2 como alternativa de tests.
+
 ## 2026-05-29 - ETAPA 2 - Login local con BCrypt y JWT
 
 ### Resumen

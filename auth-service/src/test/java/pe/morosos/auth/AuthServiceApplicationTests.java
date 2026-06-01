@@ -1,7 +1,7 @@
 package pe.morosos.auth;
 
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,7 +18,7 @@ import pe.morosos.auth.common.HttpHeadersConstants;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class AuthServiceApplicationTests {
+class AuthServiceApplicationTests extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
