@@ -1,14 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PublicRoute } from "@/components/auth/PublicRoute";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { PublicRoute } from "@/components/auth/PublicRoute";
 import { AuthProvider } from "@/context/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import Inmuebles from "./pages/Inmuebles";
@@ -45,32 +42,31 @@ const App = () => (
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/inmuebles" element={<Inmuebles />} />
-            <Route path="/inmuebles/:id" element={<InmuebleDetalle />} />
-            <Route path="/inmuebles/:id/seguimiento" element={<HistorialSeguimiento />} />
-            <Route path="/inmuebles/:id/historial-deuda" element={<HistorialDeudaInmueble />} />
-            <Route path="/inmuebles/:id/observaciones-expediente" element={<ObservacionesExpedienteInmueble />} />
-            <Route path="/deuda" element={<GestionDeuda />} />
-            <Route path="/deuda/:id" element={<CargaDetalle />} />
-            <Route path="/etapas" element={<GestionEtapas />} />
-            <Route path="/reportes" element={<Reportes />} />
-            <Route path="/reportes/:reporteId" element={<Reportes />} />
-            <Route
-              path="/configuracion"
-              element={
-                <PlaceholderPage
-                  title="Configuración"
-                  description="Parámetros generales del sistema."
-                  breadcrumb={[{ label: "Configuración" }]}
+                <Route path="/inmuebles" element={<Inmuebles />} />
+                <Route path="/inmuebles/:id" element={<InmuebleDetalle />} />
+                <Route path="/inmuebles/:id/seguimiento" element={<HistorialSeguimiento />} />
+                <Route path="/inmuebles/:id/historial-deuda" element={<HistorialDeudaInmueble />} />
+                <Route path="/inmuebles/:id/observaciones-expediente" element={<ObservacionesExpedienteInmueble />} />
+                <Route path="/deuda" element={<GestionDeuda />} />
+                <Route path="/deuda/:id" element={<CargaDetalle />} />
+                <Route path="/etapas" element={<GestionEtapas />} />
+                <Route path="/reportes" element={<Reportes />} />
+                <Route path="/reportes/:reporteId" element={<Reportes />} />
+                <Route
+                  path="/configuracion"
+                  element={
+                    <PlaceholderPage
+                      title="Configuración"
+                      description="Parámetros generales del sistema."
+                      breadcrumb={[{ label: "Configuración" }]}
+                    />
+                  }
                 />
-              }
-            />
-            <Route path="/configuracion/grupos" element={<ConfiguracionGrupos />} />
-            <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
-            <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
+                <Route path="/configuracion/grupos" element={<ConfiguracionGrupos />} />
+                <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
+                <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
                 <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
               </Route>
-              <Route path="*" element={<NotFound />} />
             </Route>
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<Login />} />
@@ -80,6 +76,7 @@ const App = () => (
               <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
               <Route path="/reset-password" element={<RestablecerContrasena />} />
             </Route>
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>

@@ -1,4 +1,4 @@
-import { clearStoredAccessToken, getStoredAccessToken } from "@/lib/authStorage";
+import { clearStoredAuth, getStoredAccessToken } from "@/services/api/authStorage";
 
 export class ApiError extends Error {
   status: number;
@@ -33,11 +33,11 @@ export function buildQueryParams(params?: Record<string, QueryValue>): string {
 
 function redirectToLoginAfterUnauthorized() {
   if (typeof window === "undefined") return;
-  const currentPath = `${window.location.pathname}${window.location.search}`;
 
-  if (window.location.pathname !== "/login") {
-    window.location.assign(`/login?from=${encodeURIComponent(currentPath)}`);
-  }
+  if (window.location.pathname === "/login") return;
+
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?from=${encodeURIComponent(currentPath)}`);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -70,16 +70,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (isJson && rawResponseText) {
     try {
       payload = JSON.parse(rawResponseText);
-    } catch (error) {
+    } catch {
       if (import.meta.env.DEV) {
-        console.warn("[apiClient] No se pudo parsear una respuesta JSON.", { status: response.status, error });
+        console.warn("[apiClient] No se pudo parsear una respuesta JSON.", { status: response.status });
       }
     }
   }
 
   if (!response.ok) {
     if (response.status === 401) {
-      clearStoredAccessToken();
+      clearStoredAuth();
       redirectToLoginAfterUnauthorized();
     }
 
