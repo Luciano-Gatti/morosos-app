@@ -4,8 +4,6 @@ server:
 spring:
   application:
     name: auth-service
-  profiles:
-    default: local
   datasource:
     url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/auth_db}
     username: ${AUTH_DB_USERNAME:postgres}
@@ -43,7 +41,7 @@ app:
       - http://127.0.0.1:5173
   jwt:
     issuer: ${JWT_ISSUER:http://localhost:8080}
-    audience: ${JWT_AUDIENCE:morosos-app}
+    audience: ${JWT_AUDIENCE}
     access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
     secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
   seed:

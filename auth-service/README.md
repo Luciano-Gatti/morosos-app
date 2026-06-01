@@ -69,8 +69,10 @@ No se usa H2 en los tests porque las migraciones del servicio son específicas d
 
 ## Ejecutar
 
+No se usa `spring.profiles.default=local`. Para desarrollo local, el perfil `local` debe activarse explícitamente; ejecutar sin perfil activo no habilita el fallback de `JWT_SECRET`.
+
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 ## Ejecución local
@@ -88,21 +90,21 @@ PowerShell con `JWT_SECRET` manual:
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE="local"
-$env:JWT_SECRET="mi_clave_local_de_32_caracteres_minimo_123"
+$env:JWT_SECRET="mi_clave_local_segura_distinta_de_32_caracteres_123"
 mvn spring-boot:run
 ```
 
-NetBeans:
+NetBeans/Maven:
 
 - Maven goal: `spring-boot:run`
-- Profile/perfil: `local`
-- Opción recomendada: `-Dspring-boot.run.profiles=local`
-- Con secret manual, se puede pasar: `-Dspring-boot.run.arguments="--app.jwt.secret=mi_clave_local_de_32_caracteres_minimo_123"`
+- Opción recomendada: `spring-boot:run -Dspring-boot.run.profiles=local`
+- Con secret manual, se puede pasar: `-Dspring-boot.run.arguments="--app.jwt.secret=mi_clave_local_segura_distinta_de_32_caracteres_123"`
 
 Reglas de seguridad:
 
-- No commitear secrets reales.
+- No commitear secrets reales en YAML ni en documentación.
 - En producción `JWT_SECRET` es obligatorio y debe venir de una variable/gestor de secretos.
+- El fallback conocido de desarrollo solo se permite con perfiles activos `local` o `dev`; no se permite en `prod` ni sin perfil activo `local`/`dev`.
 - Los defaults `local`, `dev` y `test` son solo de desarrollo/pruebas y no deben usarse en producción.
 - No se loggea `JWT_SECRET` ni tokens.
 
@@ -145,7 +147,7 @@ GET http://localhost:8080/actuator/info
 | `AUTH_DB_PASSWORD` | `postgres` | Password de base de datos. |
 | `FRONTEND_URL` | `http://localhost:5173` | Origen principal permitido para CORS. |
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
-| `JWT_AUDIENCE` | `morosos-app` | Claim `aud` esperado y emitido. |
+| `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Claim `aud` esperado y emitido. Debe configurarse por entorno fuera de tests. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
 | `JWT_SECRET` | vacío en base/prod; default no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfiles `local`/`dev` se usa un default de desarrollo solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
@@ -255,7 +257,7 @@ Ejemplo local:
 AUTH_SEED_ADMIN_ENABLED=true \
 AUTH_SEED_ADMIN_PASSWORD=unaClaveSeguraLocal \
 JWT_SECRET=local-secret-with-at-least-32-bytes \
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 ## Endpoints de autenticación
