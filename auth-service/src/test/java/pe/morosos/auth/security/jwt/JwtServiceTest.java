@@ -28,9 +28,8 @@ class JwtServiceTest {
     private static final String LOCAL_DEV_SECRET = "local-dev-only-change-me-32-bytes-minimum-secret";
 
     @Test
-    void validateConfigurationDoesNotUseDefaultProfilesForFallbackSecret() {
+    void validateConfigurationRejectsEmptySecretWithoutActiveProfiles() {
         MockEnvironment environment = new MockEnvironment();
-        environment.setDefaultProfiles("local");
         JwtService jwtService = new JwtService(jwtProperties(""), environment);
 
         assertThatThrownBy(jwtService::validateConfiguration)
@@ -39,7 +38,54 @@ class JwtServiceTest {
     }
 
     @Test
-    void validateConfigurationAllowsFallbackOnlyWithLocalOrDevActiveProfile() {
+    void validateConfigurationRejectsKnownFallbackSecretWithoutActiveProfiles() {
+        MockEnvironment environment = new MockEnvironment();
+        JwtService jwtService = new JwtService(jwtProperties(LOCAL_DEV_SECRET), environment);
+
+        assertThatThrownBy(jwtService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fallback conocido de desarrollo");
+    }
+
+    @Test
+    void validateConfigurationDoesNotUseDefaultProfilesForFallbackSecret() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setDefaultProfiles("local");
+        JwtService jwtService = new JwtService(jwtProperties(LOCAL_DEV_SECRET), environment);
+
+        assertThatThrownBy(jwtService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fallback conocido de desarrollo");
+    }
+
+    @Test
+    void validateConfigurationAllowsKnownFallbackSecretWithLocalActiveProfile() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        JwtService jwtService = new JwtService(jwtProperties(LOCAL_DEV_SECRET), environment);
+
+        jwtService.validateConfiguration();
+
+        String token = jwtService.generateAccessToken(user());
+        AuthPrincipal principal = jwtService.validateAccessToken(token);
+        assertThat(principal.permissions()).containsExactly("INMUEBLES_VER_LISTADO");
+    }
+
+    @Test
+    void validateConfigurationAllowsKnownFallbackSecretWithDevActiveProfile() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+        JwtService jwtService = new JwtService(jwtProperties(LOCAL_DEV_SECRET), environment);
+
+        jwtService.validateConfiguration();
+
+        String token = jwtService.generateAccessToken(user());
+        AuthPrincipal principal = jwtService.validateAccessToken(token);
+        assertThat(principal.roles()).containsExactly("ADMIN");
+    }
+
+    @Test
+    void validateConfigurationAllowsEmptySecretFallbackWithLocalActiveProfile() {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("local");
         JwtService jwtService = new JwtService(jwtProperties(""), environment);
@@ -60,6 +106,28 @@ class JwtServiceTest {
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("fallback conocido de desarrollo");
+    }
+
+    @Test
+    void validateConfigurationRejectsEmptySecretWhenProdIsActive() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+        JwtService jwtService = new JwtService(jwtProperties(""), environment);
+
+        assertThatThrownBy(jwtService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("JWT_SECRET debe estar configurado");
+    }
+
+    @Test
+    void validateConfigurationRejectsSecretShorterThan32Bytes() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("test");
+        JwtService jwtService = new JwtService(jwtProperties("short-secret"), environment);
+
+        assertThatThrownBy(jwtService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("JWT_SECRET debe estar configurado");
     }
 
     @Test
