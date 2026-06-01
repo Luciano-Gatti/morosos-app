@@ -11,6 +11,7 @@ export interface AuthUser {
 export interface LoginRequest {
   usernameOrEmail: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export interface LoginFormValues {

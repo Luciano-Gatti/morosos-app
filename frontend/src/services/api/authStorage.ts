@@ -3,6 +3,7 @@ import type { AuthUser } from "@/types/auth";
 const ACCESS_TOKEN_KEY = "morosos.auth.accessToken";
 const USER_KEY = "morosos.auth.user";
 const STORAGE_KIND_KEY = "morosos.auth.storageKind";
+const LEGACY_ACCESS_TOKEN_KEY = "morosos_access_token";
 
 type StorageKind = "local" | "session";
 
@@ -11,10 +12,46 @@ function getBrowserStorage(kind: StorageKind): Storage | null {
   return kind === "local" ? window.localStorage : window.sessionStorage;
 }
 
+function getPreferredStorageKind(): StorageKind {
+  const local = getBrowserStorage("local");
+  const session = getBrowserStorage("session");
+  const storedKind = local?.getItem(STORAGE_KIND_KEY) ?? session?.getItem(STORAGE_KIND_KEY);
+
+  if (storedKind === "local" || storedKind === "session") return storedKind;
+  if (local?.getItem(ACCESS_TOKEN_KEY)) return "local";
+  return "session";
+}
+
 export function getStoredAccessToken(): string | null {
   return getBrowserStorage("local")?.getItem(ACCESS_TOKEN_KEY)
     ?? getBrowserStorage("session")?.getItem(ACCESS_TOKEN_KEY)
     ?? null;
+}
+
+export function setStoredAccessToken(token: string, rememberMe?: boolean): void {
+  const targetKind: StorageKind = rememberMe ? "local" : "session";
+  const otherKind: StorageKind = rememberMe ? "session" : "local";
+  const target = getBrowserStorage(targetKind);
+  const other = getBrowserStorage(otherKind);
+
+  other?.removeItem(ACCESS_TOKEN_KEY);
+  other?.removeItem(USER_KEY);
+  other?.removeItem(STORAGE_KIND_KEY);
+  other?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+
+  target?.setItem(ACCESS_TOKEN_KEY, token);
+  target?.setItem(STORAGE_KIND_KEY, targetKind);
+  target?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+}
+
+export function clearStoredAuth(): void {
+  (["local", "session"] as StorageKind[]).forEach((kind) => {
+    const storage = getBrowserStorage(kind);
+    storage?.removeItem(ACCESS_TOKEN_KEY);
+    storage?.removeItem(USER_KEY);
+    storage?.removeItem(STORAGE_KIND_KEY);
+    storage?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  });
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -30,31 +67,25 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-export function persistSession(accessToken: string, user: AuthUser, rememberMe?: boolean) {
-  const targetKind: StorageKind = rememberMe ? "local" : "session";
-  const otherKind: StorageKind = rememberMe ? "session" : "local";
-  const target = getBrowserStorage(targetKind);
-  const other = getBrowserStorage(otherKind);
+export function setStoredUser(user: AuthUser, rememberMe?: boolean): void {
+  const targetKind = rememberMe === undefined ? getPreferredStorageKind() : rememberMe ? "local" : "session";
+  const otherKind: StorageKind = targetKind === "local" ? "session" : "local";
 
-  other?.removeItem(ACCESS_TOKEN_KEY);
-  other?.removeItem(USER_KEY);
-  other?.removeItem(STORAGE_KIND_KEY);
-
-  target?.setItem(ACCESS_TOKEN_KEY, accessToken);
-  target?.setItem(USER_KEY, JSON.stringify(user));
-  target?.setItem(STORAGE_KIND_KEY, targetKind);
+  getBrowserStorage(otherKind)?.removeItem(USER_KEY);
+  getBrowserStorage(targetKind)?.setItem(USER_KEY, JSON.stringify(user));
+  getBrowserStorage(targetKind)?.setItem(STORAGE_KIND_KEY, targetKind);
 }
 
-export function persistUser(user: AuthUser) {
-  const kind: StorageKind = getBrowserStorage("local")?.getItem(ACCESS_TOKEN_KEY) ? "local" : "session";
-  getBrowserStorage(kind)?.setItem(USER_KEY, JSON.stringify(user));
-}
-
-export function clearStoredSession() {
-  ["local", "session"].forEach((kind) => {
-    const storage = getBrowserStorage(kind as StorageKind);
-    storage?.removeItem(ACCESS_TOKEN_KEY);
-    storage?.removeItem(USER_KEY);
-    storage?.removeItem(STORAGE_KIND_KEY);
+export function clearStoredUser(): void {
+  (["local", "session"] as StorageKind[]).forEach((kind) => {
+    getBrowserStorage(kind)?.removeItem(USER_KEY);
   });
 }
+
+export function persistSession(accessToken: string, user: AuthUser, rememberMe?: boolean): void {
+  setStoredAccessToken(accessToken, rememberMe);
+  setStoredUser(user, rememberMe);
+}
+
+export const persistUser = setStoredUser;
+export const clearStoredSession = clearStoredAuth;

@@ -119,14 +119,8 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
     setError(null);
     setFase("procesando");
     try {
-      if (import.meta.env.DEV) {
-        console.log("[ImportarInmuebles] selectedFile", file);
-        console.log("[ImportarInmuebles] selectedFile.name", file.name);
-        console.log("[ImportarInmuebles] selectedFile.size", file.size);
-      }
       if (!USE_API) throw new Error("VITE_USE_API debe estar en true para usar importación real.");
       const imp = await inmueblesApi.importarInmuebles(file);
-      if (import.meta.env.DEV) console.log("[ImportarInmuebles] response.data", imp);
       const id = String(imp.id ?? "");
       if (!id) throw new Error("La API no devolvió el ID de la importación.");
       const estado = await inmueblesApi.getImportacionInmueble(id);
@@ -147,9 +141,6 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
       onImported?.();
       toast({ title: "Importación finalizada", description: "El archivo fue procesado correctamente." });
     } catch (error) {
-      console.error("[ImportarInmuebles] error", error);
-      console.error("[ImportarInmuebles] response", (error as { response?: { data?: unknown } })?.response?.data);
-      console.error("[ImportarInmuebles] status", (error as { response?: { status?: number } })?.response?.status);
       setResultado(null);
       const detail =
         error instanceof ApiError &&

@@ -4,16 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
 import { authService, isAuthError } from "@/services/api/authService";
 import type { LoginFormValues } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
-import { AuthServiceError } from "@/services/api/authService";
 import {
   Form,
   FormControl,
@@ -70,7 +66,7 @@ export default function Login() {
     setInfoMessage(null);
 
     try {
-      await login(data.email, data.password, data.rememberMe);
+      await login({ usernameOrEmail: data.email, password: data.password, rememberMe: data.rememberMe });
       navigate(redirectTo, { replace: true });
     } catch (error) {
       if (isAuthError(error) && error.status === 401) {
@@ -140,7 +136,7 @@ export default function Login() {
                         type="text"
                         placeholder="usuario o nombre@aosc.gob.ar"
                         autoComplete="username email"
-                        disabled={isLoading}
+                        disabled={isSubmitting}
                         className="h-11 border-[hsl(215,35%,28%)] bg-[hsl(215,40%,14%)] text-white placeholder:text-[hsl(215,15%,50%)] focus-visible:ring-[hsl(215,65%,32%)]"
                         {...field}
                       />

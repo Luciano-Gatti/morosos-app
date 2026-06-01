@@ -1,5 +1,7 @@
 import { AuthError, type ApiErrorResponse, type AuthUser, type LoginRequest, type LoginResponse } from "@/types/auth";
 
+export { AuthError } from "@/types/auth";
+
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -61,10 +63,10 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 export const authService = {
-  login(payload: LoginRequest): Promise<LoginResponse> {
+  login({ usernameOrEmail, password }: LoginRequest): Promise<LoginResponse> {
     return request<LoginResponse>("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ usernameOrEmail, password }),
     });
   },
 

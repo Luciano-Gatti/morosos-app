@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { authService, AuthServiceError } from "@/services/api/authService";
+import { AuthError, authService } from "@/services/api/authService";
 import {
   clearStoredSession,
   getStoredAccessToken,
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ user, accessToken, isAuthenticated: true, isLoading: false });
     } catch (error) {
       clearSession();
-      if (error instanceof AuthServiceError && (error.status === 401 || error.status === 403)) {
+      if (error instanceof AuthError && (error.status === 401 || error.status === 403)) {
         navigate("/login", { replace: true });
       }
     }
