@@ -49,7 +49,7 @@ No se incluye `passwordHash`, tokens de reset ni datos sensibles.
 | `JWT_ISSUER` | `http://localhost:8080` | Emisor esperado y emitido en los JWT. |
 | `JWT_AUDIENCE` | `morosos-app` | Audiencia esperada y emitida en los JWT. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Vida del access token en minutos. |
-| `JWT_SECRET` | vacío | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. El fallback de desarrollo solo se permite si el perfil activo real incluye `local` o `dev`. No se habilita por perfiles default. En `prod`, sin perfiles activos o fuera de `local`/`dev`, el secreto debe configurarse explícitamente y no puede coincidir con el fallback conocido de desarrollo. |
+| `JWT_SECRET` | vacío en base/prod; default no real en `local`, `dev` y `test` | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. `application-local.yml` y `application-dev.yml` definen un default de desarrollo si no se pasa la variable; `application-test.yml` define un default de test. En `prod`, sin perfiles activos o fuera de `local`/`dev`, el secreto debe configurarse explícitamente y no puede coincidir con el fallback conocido de desarrollo. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita el initializer del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
@@ -58,6 +58,31 @@ No se incluye `passwordHash`, tokens de reset ni datos sensibles.
 | `AUTH_SEED_ADMIN_APELLIDO` | `Local` | Apellido del admin dev. |
 
 Nunca se loggea el secreto JWT, el password, el hash ni los tokens.
+
+### Ejecución local con JWT
+
+Para levantar `auth-service` localmente sin pasar siempre `JWT_SECRET`, activar explícitamente el perfil `local`:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="local"
+mvn spring-boot:run
+```
+
+Con ese perfil, `application-local.yml` usa un default de desarrollo de al menos 32 caracteres si `JWT_SECRET` no existe. Si se prefiere usar un valor manual:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="local"
+$env:JWT_SECRET="mi_clave_local_de_32_caracteres_minimo_123"
+mvn spring-boot:run
+```
+
+En NetBeans se recomienda usar el goal Maven `spring-boot:run` con `-Dspring-boot.run.profiles=local`. Para pasar un secret manual desde argumentos del run:
+
+```text
+-Dspring-boot.run.arguments="--app.jwt.secret=mi_clave_local_de_32_caracteres_minimo_123"
+```
+
+No commitear secrets reales. En producción `JWT_SECRET` es obligatorio y los defaults de `local`, `dev` y `test` no deben usarse.
 
 ### Reglas de fallback de `JWT_SECRET`
 
