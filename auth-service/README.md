@@ -73,6 +73,39 @@ No se usa H2 en los tests porque las migraciones del servicio son específicas d
 mvn spring-boot:run
 ```
 
+## Ejecución local
+
+Para desarrollo local, activar explícitamente el perfil `local` permite usar el `JWT_SECRET` default de desarrollo definido en `application-local.yml` cuando no se configura la variable de entorno. Ese valor no es un secreto real, solo existe para facilitar el arranque local y tiene más de 32 caracteres para cumplir HS256. Si se define `JWT_SECRET`, Spring usa esa variable por encima del default del perfil.
+
+PowerShell con default local de desarrollo:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="local"
+mvn spring-boot:run
+```
+
+PowerShell con `JWT_SECRET` manual:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="local"
+$env:JWT_SECRET="mi_clave_local_de_32_caracteres_minimo_123"
+mvn spring-boot:run
+```
+
+NetBeans:
+
+- Maven goal: `spring-boot:run`
+- Profile/perfil: `local`
+- Opción recomendada: `-Dspring-boot.run.profiles=local`
+- Con secret manual, se puede pasar: `-Dspring-boot.run.arguments="--app.jwt.secret=mi_clave_local_de_32_caracteres_minimo_123"`
+
+Reglas de seguridad:
+
+- No commitear secrets reales.
+- En producción `JWT_SECRET` es obligatorio y debe venir de una variable/gestor de secretos.
+- Los defaults `local`, `dev` y `test` son solo de desarrollo/pruebas y no deben usarse en producción.
+- No se loggea `JWT_SECRET` ni tokens.
+
 ## Health checks
 
 Endpoint técnico del microservicio:
@@ -114,7 +147,7 @@ GET http://localhost:8080/actuator/info
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
 | `JWT_AUDIENCE` | `morosos-app` | Claim `aud` esperado y emitido. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
-| `JWT_SECRET` | vacío | Secreto HS256. Debe tener al menos 32 bytes. El fallback de desarrollo solo se permite con perfil activo real `local` o `dev`; en `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
+| `JWT_SECRET` | vacío en base/prod; default no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfiles `local`/`dev` se usa un default de desarrollo solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |

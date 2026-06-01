@@ -1,5 +1,23 @@
 # Auth Changelog
 
+## 2026-06-01 - Defaults JWT solo para perfiles local/dev/test
+
+### Resumen
+
+Se configuró un `JWT_SECRET` default no real únicamente en los perfiles `local` y `dev`, y un default de test para evitar que el `ApplicationContext` falle por falta de secret durante pruebas. `application.yml` y `application-prod.yml` siguen sin incluir un secret usable por default, por lo que producción requiere un `JWT_SECRET` real por entorno.
+
+### Archivos principales modificados
+
+- `auth-service/src/main/resources/application-local.yml`
+- `auth-service/src/main/resources/application-dev.yml`
+- `auth-service/src/main/resources/application-test.yml`
+- `auth-service/README.md`
+- `docs/auth/02-etapa-2/login-local-jwt.md`
+
+### Restricciones respetadas
+
+No se modificó `morosos-service`, no se modificó frontend, no se loggean secretos ni tokens, no se hardcodearon secrets reales, no se debilitó `JwtService` y producción sigue rechazando `JWT_SECRET` vacío o el fallback conocido de desarrollo.
+
 ## 2026-06-01 - Tests de auth-service con PostgreSQL/Testcontainers
 
 ### Resumen

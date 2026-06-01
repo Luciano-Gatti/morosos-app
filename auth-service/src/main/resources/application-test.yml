@@ -18,7 +18,7 @@ app:
     issuer: http://localhost:8080
     audience: morosos-app
     access-token-minutes: 15
-    secret: test-only-secret-with-at-least-32-bytes
+    secret: ${JWT_SECRET:test-only-secret-with-at-least-32-bytes}
   seed:
     admin:
       enabled: false
