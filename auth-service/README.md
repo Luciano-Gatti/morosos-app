@@ -57,6 +57,16 @@ AUTH_SERVICE_PORT=8081
 mvn clean compile
 ```
 
+## Tests
+
+```bash
+mvn test
+```
+
+Los tests de integración de `auth-service` usan PostgreSQL real mediante Testcontainers. El perfil `test` no configura datasource propio: la URL, usuario, password y driver JDBC se registran dinámicamente desde el contenedor PostgreSQL de los tests. Flyway permanece habilitado y Hibernate valida el esquema con `ddl-auto=validate`, por lo que las migraciones `V1` a `V5` se aplican y se validan contra PostgreSQL real.
+
+No se usa H2 en los tests porque las migraciones del servicio son específicas de PostgreSQL, incluyendo índices funcionales sobre `lower(...)`, columnas `jsonb`, UUID, casts a UUID y sentencias `ON CONFLICT`.
+
 ## Ejecutar
 
 ```bash
