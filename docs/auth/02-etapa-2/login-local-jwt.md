@@ -15,7 +15,7 @@ Esta etapa implementa autenticación local real para usuarios internos en `auth-
 
 ## Dependencias
 
-Se usa `spring-boot-starter-security` para seguridad, filtros y BCrypt, y `nimbus-jose-jwt` para firmar/validar JWT. Se mantiene `spring-boot-starter-validation` y `spring-boot-starter-data-jpa`.
+Se usa `spring-boot-starter-security` para seguridad, filtros y BCrypt, y `nimbus-jose-jwt` para firmar/validar JWT. Se mantiene `spring-boot-starter-validation` y `spring-boot-starter-data-jpa`. Para tests de integración, `auth-service` usa Testcontainers con PostgreSQL y valida Flyway contra una base PostgreSQL real; no se usa H2 porque las migraciones son específicas de PostgreSQL.
 
 No se agregó OAuth2 Client, Spring Mail ni Resource Server para `morosos-service`.
 
