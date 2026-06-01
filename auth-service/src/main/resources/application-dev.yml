@@ -3,4 +3,4 @@ app:
     allowed-origins:
       - ${FRONTEND_URL:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET:local-dev-only-change-me-32-bytes-minimum-secret}
+    secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
