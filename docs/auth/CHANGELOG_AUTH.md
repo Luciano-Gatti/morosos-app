@@ -1,5 +1,22 @@
 # Auth Changelog
 
+## 2026-06-01 - Perfil local explícito para fallback JWT
+
+### Resumen
+
+Se quitó `spring.profiles.default=local` de `auth-service` para eliminar la ambigüedad entre perfil default y perfil activo. El fallback conocido de `JWT_SECRET` sigue permitido solo con perfiles activos `local` o `dev`; sin perfil activo, con `prod` activo o fuera de `local`/`dev`, el arranque falla si se usa el fallback conocido o si falta un secreto válido.
+
+### Archivos principales modificados
+
+- `auth-service/src/main/resources/application.yml`
+- `auth-service/src/test/java/pe/morosos/auth/security/jwt/JwtServiceTest.java`
+- `auth-service/README.md`
+- `docs/auth/02-etapa-2/login-local-jwt.md`
+
+### Restricciones respetadas
+
+No se modificó `morosos-service`, no se modificó frontend, no se loggean secretos ni tokens, no se hardcodearon secrets reales, no se debilitó `JwtService`, no se usa `environment.getDefaultProfiles()` para autorizar fallback y producción sigue requiriendo `JWT_SECRET` por variable/gestor de secretos.
+
 ## 2026-06-01 - Defaults JWT solo para perfiles local/dev/test
 
 ### Resumen
