@@ -46,9 +46,9 @@ app:
     secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
   seed:
     admin:
-      enabled: ${AUTH_SEED_ADMIN_ENABLED:false}
+      enabled: ${AUTH_SEED_ADMIN_ENABLED:true}
       username: ${AUTH_SEED_ADMIN_USERNAME:admin}
       email: ${AUTH_SEED_ADMIN_EMAIL:admin@local.test}
-      password: ${AUTH_SEED_ADMIN_PASSWORD:}
+      password: ${AUTH_SEED_ADMIN_PASSWORD:L12345678}
       nombre: ${AUTH_SEED_ADMIN_NOMBRE:Administrador}
       apellido: ${AUTH_SEED_ADMIN_APELLIDO:Local}
