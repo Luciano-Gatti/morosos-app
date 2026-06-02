@@ -1,5 +1,26 @@
 # Auth Changelog
 
+## 2026-06-02 - JWT compartido temporal para integración local
+
+### Resumen
+
+Se alineó el fallback temporal de `JWT_SECRET` de `auth-service` y `morosos-service` para pruebas locales de integración con JWT HS256. La clave local es no productiva, no definitiva, reemplazable por variable de entorno y queda prohibida en `application-prod.yml`.
+
+### Archivos principales modificados
+
+- `auth-service/src/main/resources/application.yml`
+- `auth-service/src/main/resources/application-local.yml`
+- `auth-service/src/main/resources/application-test.yml`
+- `auth-service/src/main/resources/application-prod.yml`
+- `morosos-service/src/main/resources/application-local.yml`
+- `morosos-service/src/main/resources/application-prod.yml`
+- `auth-service/src/main/java/pe/morosos/auth/security/jwt/JwtService.java`
+- `morosos-service/README.md`
+
+### Restricciones respetadas
+
+`application.yml` base sigue sin secret usable por default, `application-prod.yml` exige `JWT_SECRET` real por entorno o gestor de secretos, no se loggean secretos ni tokens, no se cambian permisos ni endpoints protegidos, y se mantienen las validaciones de longitud mínima, firma, expiración, issuer, audience y algoritmo HS256. A futuro se recomienda migrar a RS256/JWKS para evitar compartir secretos simétricos.
+
 ## 2026-06-01 - Perfil local explícito para fallback JWT
 
 ### Resumen

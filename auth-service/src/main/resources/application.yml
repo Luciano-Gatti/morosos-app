@@ -43,7 +43,7 @@ app:
     issuer: ${JWT_ISSUER:http://localhost:8080}
     audience: ${JWT_AUDIENCE}
     access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
-    secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
+    secret: ${JWT_SECRET:}
   seed:
     admin:
       enabled: ${AUTH_SEED_ADMIN_ENABLED:true}
