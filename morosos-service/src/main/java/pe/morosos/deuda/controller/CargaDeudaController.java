@@ -3,6 +3,7 @@ package pe.morosos.deuda.controller;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,12 +32,14 @@ public class CargaDeudaController {
     private final CargaDeudaQueryService service;
     private final ImportacionDeudaService importacionDeudaService;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DEUDA_IMPORTAR_CARGA)")
     @PostMapping
     public CargaDeudaResponse importar(@RequestParam("periodo") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodo,
                                        @RequestParam("file") MultipartFile file) {
         return importacionDeudaService.importar(periodo, file);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DEUDA_VER_CARGAS)")
     @GetMapping
     public Page<CargaDeudaResponse> findCargas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodo,
@@ -49,11 +52,13 @@ public class CargaDeudaController {
         return service.findCargas(periodo, fromDate, estado, search, pageable);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DEUDA_VER_DETALLE_CARGA)")
     @GetMapping("/{id}")
     public CargaDeudaResponse findById(@PathVariable UUID id) {
         return service.findCargaById(id);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DEUDA_VER_DETALLE_CARGA)")
     @GetMapping("/{id}/detalles")
     public Page<CargaDeudaDetalleResponse> findDetalles(@PathVariable UUID id,
                                                         @RequestParam(required = false) String search,
@@ -63,6 +68,7 @@ public class CargaDeudaController {
         return service.findDetalles(id, search, cuotasMin, montoMin, pageable);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DEUDA_VER_ERRORES_CARGA)")
     @GetMapping("/{id}/errores")
     public Page<CargaDeudaErrorResponse> findErrores(@PathVariable UUID id,
                                                      @RequestParam(required = false) String search,

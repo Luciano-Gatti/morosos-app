@@ -3,6 +3,7 @@ package pe.morosos.dashboard.controller;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).DASHBOARD_VER_RESUMEN)")
     @GetMapping("/resumen")
     public ResponseEntity<DashboardResumenResponse> resumen(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
