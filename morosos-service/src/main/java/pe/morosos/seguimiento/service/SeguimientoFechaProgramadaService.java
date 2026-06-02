@@ -23,6 +23,7 @@ public class SeguimientoFechaProgramadaService {
     private static final List<CasoEventoTipo> EVENTOS_ENTRADA_ETAPA = List.of(
             CasoEventoTipo.INICIO_PROCESO,
             CasoEventoTipo.AVANCE_ETAPA,
+            CasoEventoTipo.ENVIAR_ETAPA,
             CasoEventoTipo.REPETICION_ETAPA
     );
 

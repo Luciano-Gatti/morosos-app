@@ -3,6 +3,7 @@ package pe.morosos.seguimiento.entity;
 public enum CasoEventoTipo {
     INICIO_PROCESO,
     AVANCE_ETAPA,
+    ENVIAR_ETAPA,
     REPETICION_ETAPA,
     CIERRE_PROCESO,
     PAUSA_PROCESO,

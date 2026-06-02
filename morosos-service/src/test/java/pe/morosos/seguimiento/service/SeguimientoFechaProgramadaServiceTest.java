@@ -1,7 +1,9 @@
 package pe.morosos.seguimiento.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -16,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pe.morosos.etapa.entity.EtapaConfig;
@@ -44,20 +47,53 @@ class SeguimientoFechaProgramadaServiceTest {
     }
 
     @Test
-    void calculaFechaProgramadaConFechaEntradaMasDiasEntreEtapas() {
+    void inicioDeProcesoCalculaFechaProgramadaConFechaEntradaMasDiasEntreEtapas() {
         UUID casoId = UUID.randomUUID();
         UUID etapaId = UUID.randomUUID();
         when(parametroRulesService.diasMinimosEntreEtapas()).thenReturn(3);
         when(etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(2)).thenReturn(Optional.of(new EtapaConfig()));
         when(casoEventoRepository.findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
                 eq(casoId), eq(etapaId), any(Collection.class)))
-                .thenReturn(Optional.of(evento(CasoEventoTipo.AVANCE_ETAPA, "2026-05-30T14:20:00Z")));
+                .thenReturn(Optional.of(evento(CasoEventoTipo.INICIO_PROCESO, "2026-06-02T11:26:00Z")));
 
         var resultado = service.calcular(caso(casoId, etapaId, 2, CasoSeguimientoEstado.ABIERTO, false));
 
-        assertEquals(LocalDate.of(2026, 5, 30), resultado.fechaEntradaEtapaActual());
-        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaProgramada());
+        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaEntradaEtapaActual());
+        assertEquals(LocalDate.of(2026, 6, 5), resultado.fechaProgramada());
         assertEquals(3, resultado.diasEntreEtapasAplicado());
+    }
+
+
+    @Test
+    void enviarAEtapaCalculaFechaProgramadaDesdeMovimiento() {
+        UUID casoId = UUID.randomUUID();
+        UUID etapaId = UUID.randomUUID();
+        when(parametroRulesService.diasMinimosEntreEtapas()).thenReturn(3);
+        when(etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(2)).thenReturn(Optional.of(new EtapaConfig()));
+        when(casoEventoRepository.findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
+                eq(casoId), eq(etapaId), any(Collection.class)))
+                .thenReturn(Optional.of(evento(CasoEventoTipo.ENVIAR_ETAPA, "2026-06-02T11:26:00Z")));
+
+        var resultado = service.calcular(caso(casoId, etapaId, 2, CasoSeguimientoEstado.ABIERTO, false));
+
+        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaEntradaEtapaActual());
+        assertEquals(LocalDate.of(2026, 6, 5), resultado.fechaProgramada());
+    }
+
+    @Test
+    void etapaSiguienteCalculaFechaProgramadaDesdeMovimiento() {
+        UUID casoId = UUID.randomUUID();
+        UUID etapaId = UUID.randomUUID();
+        when(parametroRulesService.diasMinimosEntreEtapas()).thenReturn(3);
+        when(etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(2)).thenReturn(Optional.of(new EtapaConfig()));
+        when(casoEventoRepository.findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
+                eq(casoId), eq(etapaId), any(Collection.class)))
+                .thenReturn(Optional.of(evento(CasoEventoTipo.AVANCE_ETAPA, "2026-06-02T11:26:00Z")));
+
+        var resultado = service.calcular(caso(casoId, etapaId, 2, CasoSeguimientoEstado.ABIERTO, false));
+
+        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaEntradaEtapaActual());
+        assertEquals(LocalDate.of(2026, 6, 5), resultado.fechaProgramada());
     }
 
     @Test
@@ -68,11 +104,25 @@ class SeguimientoFechaProgramadaServiceTest {
         when(etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(2)).thenReturn(Optional.of(new EtapaConfig()));
         when(casoEventoRepository.findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
                 eq(casoId), eq(etapaId), any(Collection.class)))
-                .thenReturn(Optional.of(evento(CasoEventoTipo.AVANCE_ETAPA, "2026-05-30T00:00:00Z")));
+                .thenReturn(Optional.of(evento(CasoEventoTipo.AVANCE_ETAPA, "2026-06-02T11:26:00Z")));
 
         var resultado = service.calcular(caso(casoId, etapaId, 2, CasoSeguimientoEstado.PAUSADO, false));
 
-        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaProgramada());
+        assertEquals(LocalDate.of(2026, 6, 5), resultado.fechaProgramada());
+
+        ArgumentCaptor<Collection<CasoEventoTipo>> tiposCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(casoEventoRepository).findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
+                eq(casoId), eq(etapaId), tiposCaptor.capture());
+        Collection<CasoEventoTipo> tiposEntrada = tiposCaptor.getValue();
+        assertTrue(tiposEntrada.contains(CasoEventoTipo.INICIO_PROCESO));
+        assertTrue(tiposEntrada.contains(CasoEventoTipo.AVANCE_ETAPA));
+        assertTrue(tiposEntrada.contains(CasoEventoTipo.ENVIAR_ETAPA));
+        assertTrue(tiposEntrada.contains(CasoEventoTipo.REPETICION_ETAPA));
+        assertFalse(tiposEntrada.contains(CasoEventoTipo.OBSERVACION_ETAPA));
+        assertFalse(tiposEntrada.contains(CasoEventoTipo.COMPROMISO_REGISTRADO));
+        assertFalse(tiposEntrada.contains(CasoEventoTipo.ACTUALIZAR_COMPROMISO));
+        assertFalse(tiposEntrada.contains(CasoEventoTipo.PAUSA_PROCESO));
+        assertFalse(tiposEntrada.contains(CasoEventoTipo.REANUDAR_PROCESO));
     }
 
     @Test
@@ -83,12 +133,12 @@ class SeguimientoFechaProgramadaServiceTest {
         when(etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(2)).thenReturn(Optional.of(new EtapaConfig()));
         when(casoEventoRepository.findFirstByCasoSeguimientoIdAndEtapaDestinoIdAndTipoEventoInOrderByFechaEventoDesc(
                 eq(casoId), eq(etapaId), any(Collection.class)))
-                .thenReturn(Optional.of(evento(CasoEventoTipo.REPETICION_ETAPA, "2026-06-01T09:00:00Z")));
+                .thenReturn(Optional.of(evento(CasoEventoTipo.REPETICION_ETAPA, "2026-06-02T11:26:00Z")));
 
         var resultado = service.calcular(caso(casoId, etapaId, 2, CasoSeguimientoEstado.ABIERTO, false));
 
-        assertEquals(LocalDate.of(2026, 6, 1), resultado.fechaEntradaEtapaActual());
-        assertEquals(LocalDate.of(2026, 6, 4), resultado.fechaProgramada());
+        assertEquals(LocalDate.of(2026, 6, 2), resultado.fechaEntradaEtapaActual());
+        assertEquals(LocalDate.of(2026, 6, 5), resultado.fechaProgramada());
     }
 
     @Test

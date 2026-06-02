@@ -226,7 +226,7 @@ public class SeguimientoService {
                         caso.setFechaUltimoMovimiento(Instant.now());
                         caso.setUpdatedAt(Instant.now());
                         casoRepository.save(caso);
-                        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, null, etapaDestino, request.observacion(), null);
+                        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ENVIAR_ETAPA, null, etapaDestino, request.observacion(), null);
                         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                         result.aplicado(id, "Enviado a etapa destino.");
                     } else {
@@ -240,7 +240,7 @@ public class SeguimientoService {
                     caso.setFechaUltimoMovimiento(Instant.now());
                     caso.setUpdatedAt(Instant.now());
                     casoRepository.save(caso);
-                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
+                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ENVIAR_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
                     auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                     result.aplicado(id, "Enviado a etapa destino.");
                 } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {

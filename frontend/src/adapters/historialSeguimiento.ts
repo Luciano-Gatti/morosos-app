@@ -79,6 +79,7 @@ const EVENTO_LABELS: Record<string, string> = {
   REANUDAR_PROCESO: "Proceso reanudado",
   REPETICION_ETAPA: "Repetición de etapa",
   AVANCE_ETAPA: "Avance de etapa",
+  ENVIAR_ETAPA: "Envío a etapa",
   CIERRE_PROCESO: "Cierre de proceso",
   PAUSA_PROCESO: "Proceso pausado",
   OBSERVACION_ETAPA: "Observación de etapa",
