@@ -75,6 +75,8 @@ No se usa `spring.profiles.default=local`. Para desarrollo local, el perfil `loc
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
+Si el arranque falla creando `jwtService` con el mensaje `JWT_SECRET debe estar configurado con al menos 32 bytes para HS256`, el servicio se inició sin un perfil local/dev activo y sin una clave válida. Para resolverlo, usar el comando anterior, definir `SPRING_PROFILES_ACTIVE=local` en la terminal/IDE, o configurar `JWT_SECRET` con una clave de al menos 32 bytes.
+
 ## Ejecución local
 
 Para pruebas locales de integración con `morosos-service`, activar explícitamente el perfil `local` permite usar el `JWT_SECRET` temporal definido como fallback en `application-local.yml` cuando no se configura la variable de entorno. Ese valor no es un secreto productivo ni un secreto definitivo de desarrollo: solo existe para que `auth-service` emita JWT HS256 compatibles con `morosos-service` en localhost y tiene más de 32 bytes para cumplir HS256. Si se define `JWT_SECRET`, Spring usa esa variable por encima del fallback del perfil.

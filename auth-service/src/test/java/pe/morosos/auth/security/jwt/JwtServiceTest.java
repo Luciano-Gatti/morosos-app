@@ -34,7 +34,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("JWT_SECRET debe estar configurado");
+                .hasMessageContaining("JWT_SECRET debe estar configurado")
+                .hasMessageContaining("No hay perfiles activos")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
@@ -44,7 +46,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("fallback conocido de desarrollo");
+                .hasMessageContaining("fallback conocido de desarrollo")
+                .hasMessageContaining("No hay perfiles activos")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
@@ -55,7 +59,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("fallback conocido de desarrollo");
+                .hasMessageContaining("fallback conocido de desarrollo")
+                .hasMessageContaining("No hay perfiles activos")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
@@ -105,7 +111,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("fallback conocido de desarrollo");
+                .hasMessageContaining("fallback conocido de desarrollo")
+                .hasMessageContaining("Perfiles activos: [prod]")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
@@ -116,7 +124,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("JWT_SECRET debe estar configurado");
+                .hasMessageContaining("JWT_SECRET debe estar configurado")
+                .hasMessageContaining("Perfiles activos: [prod]")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
@@ -127,7 +137,9 @@ class JwtServiceTest {
 
         assertThatThrownBy(jwtService::validateConfiguration)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("JWT_SECRET debe estar configurado");
+                .hasMessageContaining("JWT_SECRET debe estar configurado")
+                .hasMessageContaining("Perfiles activos: [test]")
+                .hasMessageContaining("SPRING_PROFILES_ACTIVE=local");
     }
 
     @Test
