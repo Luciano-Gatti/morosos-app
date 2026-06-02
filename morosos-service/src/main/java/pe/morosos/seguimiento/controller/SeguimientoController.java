@@ -3,6 +3,7 @@ package pe.morosos.seguimiento.controller;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -50,6 +51,7 @@ public class SeguimientoController {
     private final CasoSeguimientoMapper casoSeguimientoMapper;
     private final CompromisoPagoMapper compromisoPagoMapper;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_VER_BANDEJA)")
     @GetMapping("/bandeja")
     public PageResponse<SeguimientoBandejaRowResponse> getBandeja(
             @RequestParam(required = false) String query,
@@ -63,36 +65,43 @@ public class SeguimientoController {
         return PageResponse.from(seguimientoService.findBandeja(query, grupoId, distritoId, etapaId, estado, cuotasMin, pageable));
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_INICIAR_PROCESO)")
     @PostMapping("/iniciar")
     public BulkActionResultResponse iniciar(@Valid @RequestBody IniciarSeguimientoRequest request) {
         return seguimientoService.iniciar(request.inmuebleIds(), request.observacion());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_AVANZAR_ETAPA)")
     @PostMapping("/avanzar")
     public BulkActionResultResponse avanzar(@Valid @RequestBody AvanzarEtapaRequest request) {
         return seguimientoService.avanzar(request.casoIds(), request.observacion());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_ENVIAR_ETAPA)")
     @PostMapping("/enviar-etapa")
     public BulkActionResultResponse enviarEtapa(@Valid @RequestBody EnviarEtapaRequest request) {
         return seguimientoService.enviarEtapa(request);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_REPETIR_ETAPA)")
     @PostMapping("/repetir")
     public BulkActionResultResponse repetir(@Valid @RequestBody RepetirEtapaRequest request) {
         return seguimientoService.repetir(request.casoIds(), request.observacion());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_PAUSAR_PROCESO)")
     @PostMapping("/pausar")
     public BulkActionResultResponse pausar(@Valid @RequestBody PausarCasoRequest request) {
         return seguimientoService.pausar(request.casoIds(), request.motivoPausa(), request.observacion());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_REANUDAR_PROCESO)")
     @PostMapping("/reanudar")
     public BulkActionResultResponse reanudar(@Valid @RequestBody ReanudarCasoRequest request) {
         return seguimientoService.reanudar(request.casoIds(), request.observacion());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_CERRAR_PROCESO)")
     @PostMapping("/cerrar")
     public HistorialCasoResponse cerrar(@Valid @RequestBody CerrarProcesoRequest request) {
         ProcesoCierreService.PlanPagoData planPagoData = request.planPago() == null
@@ -121,6 +130,7 @@ public class SeguimientoController {
         ));
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_CERRAR_PROCESOS_MASIVO)")
     @PostMapping("/cerrar/bulk")
     public BulkActionResultResponse cerrarBulk(@Valid @RequestBody CerrarProcesosBulkRequest request) {
         ProcesoCierreService.PlanPagoData planPagoData = request.planPago() == null
@@ -148,6 +158,7 @@ public class SeguimientoController {
         );
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_CREAR_COMPROMISO)")
     @PostMapping("/compromisos")
     public CompromisoPagoResponse registrarCompromiso(@Valid @RequestBody CompromisoPagoRequest request) {
         return compromisoPagoMapper.toResponse(seguimientoService.registrarCompromiso(
@@ -159,6 +170,7 @@ public class SeguimientoController {
         ));
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_CREAR_COMPROMISO_MASIVO)")
     @PostMapping("/compromisos/bulk")
     public BulkActionResultResponse registrarCompromisosBulk(@Valid @RequestBody RegistrarCompromisosBulkRequest request) {
         return seguimientoService.registrarCompromisosBulk(
@@ -170,11 +182,13 @@ public class SeguimientoController {
         );
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_VER_COMPROMISO_VIGENTE)")
     @GetMapping("/casos/{casoId}/compromiso-vigente")
     public CompromisoPagoResponse getCompromisoVigente(@PathVariable UUID casoId) {
         return compromisoPagoMapper.toResponse(seguimientoService.obtenerCompromisoVigente(casoId));
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_EDITAR_COMPROMISO)")
     @PutMapping("/compromisos/{compromisoId}")
     public CompromisoPagoResponse actualizarCompromiso(@PathVariable UUID compromisoId, @Valid @RequestBody UpdateCompromisoPagoRequest request) {
         return compromisoPagoMapper.toResponse(seguimientoService.actualizarCompromiso(
@@ -186,11 +200,13 @@ public class SeguimientoController {
         ));
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_VER_HISTORIAL_INMUEBLE)")
     @GetMapping("/inmuebles/{inmuebleId}/historial")
     public HistorialSeguimientoResponse getHistorial(@PathVariable UUID inmuebleId) {
         return seguimientoService.getHistorialByInmueble(inmuebleId);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).SEGUIMIENTO_AGREGAR_OBSERVACION_ETAPA)")
     @PostMapping("/observaciones-etapa")
     public ObservacionEtapaResponse agregarObservacionEtapa(@Valid @RequestBody ObservacionEtapaRequest request) {
         return seguimientoService.agregarObservacionEtapa(

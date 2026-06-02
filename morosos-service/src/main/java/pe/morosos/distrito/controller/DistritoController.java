@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,22 +27,26 @@ public class DistritoController {
 
     private final DistritoService distritoService;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_VER_DISTRITOS)")
     @GetMapping
     public List<DistritoResponse> findAll() {
         return distritoService.findAll();
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_CREAR_DISTRITO)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DistritoResponse create(@Valid @RequestBody DistritoRequest request) {
         return distritoService.create(request);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_EDITAR_DISTRITO)")
     @PutMapping("/{id}")
     public DistritoResponse update(@PathVariable UUID id, @Valid @RequestBody DistritoRequest request) {
         return distritoService.update(id, request);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_ACTIVAR_DESACTIVAR_DISTRITO)")
     @PatchMapping("/{id}/activo")
     public DistritoResponse updateActivo(@PathVariable UUID id, @Valid @RequestBody ToggleActivoRequest request) {
         return distritoService.updateActivo(id, request.activo());

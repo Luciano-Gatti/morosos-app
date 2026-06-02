@@ -3,6 +3,7 @@ package pe.morosos.audit.controller;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,6 +23,7 @@ import pe.morosos.common.api.PageResponse;
 public class AuditoriaController {
     private final AuditoriaConsultaService auditoriaConsultaService;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).AUDITORIA_VER_MOVIMIENTOS)")
     @GetMapping("/movimientos")
     public PageResponse<AuditLogResponse> getMovimientos(@RequestParam(required = false) String entityType,
                                                          @RequestParam(required = false) UUID entityId,

@@ -8,11 +8,17 @@ public class TechnicalActorProvider {
 
     public static final String TECHNICAL_ACTOR = "SYSTEM_MOROSOS";
 
+    private final CurrentUser currentUser;
+
+    public TechnicalActorProvider(CurrentUser currentUser) {
+        this.currentUser = currentUser;
+    }
+
     public UUID getActorIdOrNull() {
-        return null;
+        return currentUser.userId().orElse(null);
     }
 
     public String getActorName() {
-        return TECHNICAL_ACTOR;
+        return currentUser.username().orElse(TECHNICAL_ACTOR);
     }
 }

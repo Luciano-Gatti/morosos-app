@@ -2,6 +2,7 @@ package pe.morosos.reporte.controller;
 
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -20,6 +21,7 @@ import pe.morosos.reporte.service.ReporteService;
 public class ReporteController {
     private final ReporteService reporteService;
 
+    @PreAuthorize("@reportPermissionEvaluator.canRead(authentication, #reporteId)")
     @GetMapping("/{reporteId}")
     public Object getReporte(@PathVariable String reporteId,
                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
