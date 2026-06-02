@@ -174,7 +174,7 @@ type CatalogOption = {
 type CompromisoVigente = { id: string; fechaDesde: string; fechaHasta: string; montoComprometido?: number; observacion?: string; estado?: string };
 
 type AccionDialogConfirmPayload =
-  | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
+  | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; repetirMismaEtapa?: boolean } }
   | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
   | { kind: "observacion-etapa"; payload: { observacion: string } }
   | { kind: "pausar"; payload: Omit<BulkSeguimientoPayload, "ids"> & { motivoPausa: string } }
@@ -526,7 +526,6 @@ export default function GestionEtapas() {
           casoIds,
           etapaDestinoId: data.payload.etapaDestinoId,
           observacion: data.payload.observacion,
-          fechaProgramada: data.payload.fechaProgramada,
           repetirMismaEtapa: Boolean(data.payload.repetirMismaEtapa),
         });
       } else if (data.kind === "repetir-etapa") {
@@ -2437,7 +2436,6 @@ function MoverEtapaDialog({
       payload: {
         observacion: observacion.trim() || undefined,
         etapaDestinoId: etapaDestinoId,
-        fechaProgramada: fecha ? format(fecha, "yyyy-MM-dd") : undefined,
         repetirMismaEtapa: accionMismaEtapa === "repetir",
       },
     });
