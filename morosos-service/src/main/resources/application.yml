@@ -5,8 +5,8 @@ spring:
     default: dev
   datasource:
     url: jdbc:postgresql://localhost:5432/morosos_db
-    username: morosos_user
-    password: morosos_pass
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
@@ -44,7 +44,7 @@ app:
   security:
     jwt:
       issuer: ${JWT_ISSUER:http://localhost:8080}
-      audience: ${JWT_AUDIENCE:morosos-app}
+      audience: ${JWT_AUDIENCE:gestion-aosc}
       secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
 
 management:

@@ -4,4 +4,5 @@ app:
       - ${FRONTEND_URL:http://localhost:5173}
       - http://127.0.0.1:5173
   jwt:
+    audience: ${JWT_AUDIENCE:gestion-aosc}
     secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}

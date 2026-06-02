@@ -41,7 +41,7 @@ app:
       - http://127.0.0.1:5173
   jwt:
     issuer: ${JWT_ISSUER:http://localhost:8080}
-    audience: ${JWT_AUDIENCE}
+    audience: ${JWT_AUDIENCE:gestion-aosc}
     access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
     secret: ${JWT_SECRET:}
   seed:
