@@ -25,16 +25,15 @@ import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
-import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
+import pe.morosos.deuda.service.ClasificacionDeudaService;
+import pe.morosos.deuda.service.EstadoDeuda;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.reporte.dto.*;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ReporteService {
-    private static final int CUOTAS_MIN_DEFAULT = 2;
-    private static final String PARAM_CUOTAS_MIN = "CUOTAS_PARA_MOROSO";
-    private static final String PARAM_CUOTAS_MIN_LEGACY = "CUOTAS_MINIMAS_MOROSIDAD";
     private static final String SIN_GRUPO = "Sin grupo";
     private static final String SIN_DISTRITO = "Sin distrito";
     private static final Set<String> EVENTOS_OPERATIVOS_ETAPA = Set.of("INICIO_PROCESO", "AVANCE_ETAPA", "REPETICION_ETAPA");
@@ -43,7 +42,8 @@ public class ReporteService {
     private final CargaDeudaRepository cargaDeudaRepository;
     private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
     private final DeudaEfectivaActualRepository deudaEfectivaActualRepository;
-    private final ParametroSeguimientoRepository parametroSeguimientoRepository;
+    private final ParametroSeguimientoRulesService parametroSeguimientoRulesService;
+    private final ClasificacionDeudaService clasificacionDeudaService;
     private final AuditLogRepository auditLogRepository;
     private final EntityManager entityManager;
 
@@ -65,7 +65,7 @@ public class ReporteService {
     private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(UUID distritoIdFiltro){
         try {
             log.info("[morosos-grupo-distrito] Inicio armado de reporte");
-            int min = cuotasMinimas();
+            int min = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
             log.info("[morosos-grupo-distrito] Umbral cuotas mínimas: {}", min);
             List<Inmueble> activos = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
@@ -210,7 +210,7 @@ public class ReporteService {
     }
 
     private EstadoInmueblesResponse reporteEstadoInmuebles(UUID distritoIdFiltro) {
-        int cuotasMoroso = cuotasMinimas();
+        int cuotasMoroso = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
         List<Inmueble> inmuebles = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
                 .filter(i -> i.getId() != null)
@@ -233,16 +233,12 @@ public class ReporteService {
             int cuotasAdeudadas = deudaInmueble == null ? 0 : asIntegerOrZero(deudaInmueble[1]);
             BigDecimal deudaInmuebleTotal = deudaInmueble == null ? BigDecimal.ZERO : asBigDecimalOrZero(deudaInmueble[2]);
 
-            String estado;
-            if (cuotasAdeudadas >= cuotasMoroso) {
-                estado = "Moroso";
-                morosos++;
-            } else if (cuotasAdeudadas > 0) {
-                estado = "Deudor";
-                deudores++;
-            } else {
-                estado = "Al día";
-                alDia++;
+            EstadoDeuda estadoDeuda = clasificacionDeudaService.clasificar(cuotasAdeudadas, cuotasMoroso);
+            String estado = clasificacionDeudaService.etiqueta(estadoDeuda);
+            switch (estadoDeuda) {
+                case AL_DIA -> alDia++;
+                case DEUDOR -> deudores++;
+                case MOROSO -> morosos++;
             }
 
             deudaTotal = deudaTotal.add(deudaInmuebleTotal);
@@ -273,26 +269,9 @@ public class ReporteService {
     }
     private PageResponse<MovimientoReporteResponse> reporteHistorialMovimientos(LocalDate desde, LocalDate hasta,String action,String entityType,Pageable pageable){Specification<AuditLog> s=Specification.where(null); if(desde!=null){Instant i=desde.atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.greaterThanOrEqualTo(r.get("createdAt"),i));} if(hasta!=null){Instant i=hasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.lessThan(r.get("createdAt"),i));} if(action!=null&&!action.isBlank()) s=s.and((r,q,c)->c.equal(r.get("action"),action)); if(entityType!=null&&!entityType.isBlank()) s=s.and((r,q,c)->c.equal(r.get("entityType"),entityType));
         Page<MovimientoReporteResponse> m=auditLogRepository.findAll(s,pageable).map(a->new MovimientoReporteResponse(a.getCreatedAt()==null?null:a.getCreatedAt().atOffset(ZoneOffset.UTC),a.getAction(),a.getEntityType(),a.getEntityId(),a.getActorId(),"%s %s".formatted(a.getEntityType(),a.getAction()),a.getOldValues(),a.getNewValues())); return PageResponse.from(m);}    
-    private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=cuotasMinimas(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}
+    private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=parametroSeguimientoRulesService.cuotasMinimasMorosidad(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}
         List<PorcentajesMorosidadDetalleResponse> pg=buildDetalle(activos,deuda,min,true); List<PorcentajesMorosidadDetalleResponse> pd=buildDetalle(activos,deuda,min,false); long t=activos.size(); return new PorcentajesMorosidadResponse(t,con,mor,t-mor,t==0?0:con*100d/t,t==0?0:mor*100d/t,t==0?0:(t-mor)*100d/t,monto,pg,pd);}    
     private List<PorcentajesMorosidadDetalleResponse> buildDetalle(List<Inmueble> activos,Map<UUID,Object[]> deuda,int min,boolean grupo){Map<UUID,List<Inmueble>> map=activos.stream().collect(Collectors.groupingBy(i->grupo?i.getGrupo().getId():i.getDistrito().getId())); List<PorcentajesMorosidadDetalleResponse> out=new ArrayList<>(); for(List<Inmueble> v:map.values()){Inmueble r=v.get(0); long t=v.size(),c=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:v){Object[] x=deuda.get(i.getId()); if(x!=null){c++; Integer cc=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(cc!=null&&cc>=min)m++;}} out.add(new PorcentajesMorosidadDetalleResponse(grupo?r.getGrupo().getId():r.getDistrito().getId(),grupo?r.getGrupo().getNombre():r.getDistrito().getNombre(),t,c,m,t-m,t==0?0:c*100d/t,t==0?0:m*100d/t,t==0?0:(t-m)*100d/t,mt));} return out;}
-    private int cuotasMinimas() {
-        return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
-                .or(() -> parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN_LEGACY))
-                .map(p -> {
-                    String valor = p.getValor();
-                    if (valor == null || valor.isBlank()) {
-                        return CUOTAS_MIN_DEFAULT;
-                    }
-                    try {
-                        return Integer.parseInt(valor.trim());
-                    } catch (NumberFormatException ex) {
-                        return CUOTAS_MIN_DEFAULT;
-                    }
-                })
-                .orElse(CUOTAS_MIN_DEFAULT);
-    }
-
 
     private AccionesFechasResponse reporteAccionesFechas(LocalDate fechaDesde, LocalDate fechaHasta, String tipoAccion, UUID grupoId, UUID distritoId, UUID actorId, Pageable pageable) {
         Instant inicio = (fechaDesde == null ? LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1) : fechaDesde).atStartOfDay().toInstant(ZoneOffset.UTC);

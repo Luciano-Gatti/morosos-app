@@ -21,21 +21,18 @@ import pe.morosos.dashboard.dto.DashboardResumenResponse;
 import pe.morosos.deuda.entity.CargaDeuda;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
-import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.seguimiento.entity.CasoEventoTipo;
 
 @Service
 @RequiredArgsConstructor
 public class DashboardService {
-    private static final int CUOTAS_MIN_DEFAULT = 2;
-    private static final String PARAM_CUOTAS_MIN = "CUOTAS_MINIMAS_MOROSIDAD";
-
     private final CargaDeudaRepository cargaDeudaRepository;
-    private final ParametroSeguimientoRepository parametroSeguimientoRepository;
+    private final ParametroSeguimientoRulesService parametroSeguimientoRulesService;
     private final EntityManager entityManager;
 
     public DashboardResumenResponse resumen(LocalDate fechaDesde, LocalDate fechaHasta, UUID grupoId, UUID distritoId) {
-        int cuotasMin = cuotasMinimas();
+        int cuotasMin = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
         Optional<CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
                 List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
 
@@ -333,11 +330,6 @@ public class DashboardService {
                 .getSingleResult();
     }
 
-    private int cuotasMinimas() {
-        return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
-                .map(p -> Integer.parseInt(p.getValor()))
-                .orElse(CUOTAS_MIN_DEFAULT);
-    }
 
     private Instant inicioRango(LocalDate desde) {
         LocalDate base = desde == null ? LocalDate.now(ZoneOffset.UTC).with(TemporalAdjusters.firstDayOfMonth()) : desde;

@@ -47,6 +47,8 @@ import pe.morosos.deuda.entity.DeudaEfectivaActual;
 import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
 import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
+import pe.morosos.deuda.service.ClasificacionDeudaService;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.seguimiento.entity.CasoEvento;
 import pe.morosos.seguimiento.entity.CasoEventoTipo;
 import pe.morosos.seguimiento.entity.CasoSeguimiento;
@@ -70,6 +72,8 @@ public class InmuebleService {
     private final DeudaEfectivaActualRepository deudaEfectivaActualRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
     private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
+    private final ParametroSeguimientoRulesService parametroSeguimientoRulesService;
+    private final ClasificacionDeudaService clasificacionDeudaService;
 
     @Transactional(readOnly = true)
     public Page<InmuebleResponse> findAll(InmuebleFilterRequest filter, Pageable pageable) {
@@ -299,11 +303,9 @@ public class InmuebleService {
     }
 
     private String mapEstadoProceso(String estado) { return "ABIERTO".equalsIgnoreCase(estado) ? "INICIADO" : estado; }
-    private String calcularEstadoDeuda(int cuotas) {
-        int umbralMoroso = 5;
-        if (cuotas <= 0) return "AL_DIA";
-        if (cuotas < umbralMoroso) return "DEUDOR";
-        return "MOROSO";
+    private String calcularEstadoDeuda(Integer cuotas) {
+        int umbralMoroso = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
+        return clasificacionDeudaService.clasificar(cuotas, umbralMoroso).name();
     }
 
     private Inmueble findEntity(UUID id) {
