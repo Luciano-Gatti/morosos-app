@@ -26,7 +26,7 @@ import pe.morosos.auth.security.AuthPrincipal;
 @Service
 public class JwtService {
 
-    private static final String LOCAL_DEV_SECRET = "local-dev-only-change-me-32-bytes-minimum-secret";
+    private static final String LOCAL_DEV_SECRET = "3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA";
     private static final int MIN_HS256_SECRET_BYTES = 32;
 
     private final JwtProperties properties;
