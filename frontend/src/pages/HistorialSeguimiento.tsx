@@ -1019,18 +1019,60 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
   );
 }
 
-function EstadoPill({ estado }: { estado: EstadoProceso }) {
-  const map: Record<EstadoProceso, { cls: string; Icon: typeof PlayCircle }> = {
-    "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
-    "Activo": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
-    "Pausado": { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle },
-    "Cerrado": { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck },
+const formatEstadoLabel = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Sin estado";
+
+  return raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || "Sin estado";
+};
+
+const normalizeEstadoKey = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "SIN_ESTADO";
+
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+};
+
+type EstadoPillConfig = { cls: string; Icon: typeof PlayCircle; label: string };
+
+function EstadoPill({ estado }: { estado?: EstadoProceso | string | null }) {
+  const map: Record<string, EstadoPillConfig> = {
+    SIN_ESTADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "Sin estado" },
+    NO_INICIADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "No iniciado" },
+    INICIADO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Iniciado" },
+    ACTIVO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Activo" },
+    ABIERTO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Abierto" },
+    PAUSADO: { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle, label: "Pausado" },
+    PENDIENTE: { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: CircleDashed, label: "Pendiente" },
+    CERRADO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Cerrado" },
+    FINALIZADO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Finalizado" },
+    CUMPLIDO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Cumplido" },
+    INCUMPLIDO: { cls: "border-destructive/20 bg-destructive/10 text-destructive", Icon: AlertCircle, label: "Incumplido" },
+    CANCELADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "Cancelado" },
   };
-  const { cls, Icon } = map[estado];
+  const estadoKey = normalizeEstadoKey(estado);
+  const fallback: EstadoPillConfig = {
+    cls: "border-border bg-muted text-muted-foreground",
+    Icon: CircleDashed,
+    label: formatEstadoLabel(estado),
+  };
+  const { cls, Icon, label } = map[estadoKey] ?? fallback;
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium", cls)}>
       <Icon className="h-3 w-3" />
-      {estado}
+      {label}
     </span>
   );
 }
