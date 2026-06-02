@@ -13,6 +13,7 @@ import java.text.ParseException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +29,9 @@ public class JwtService {
 
     private static final String LOCAL_DEV_SECRET = "3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA";
     private static final int MIN_HS256_SECRET_BYTES = 32;
+    private static final String LOCAL_RUN_HINT = "Para desarrollo local active el perfil local "
+            + "(SPRING_PROFILES_ACTIVE=local o -Dspring-boot.run.profiles=local) "
+            + "o configure JWT_SECRET/app.jwt.secret con una clave de al menos 32 bytes.";
 
     private final JwtProperties properties;
     private final Environment environment;
@@ -50,14 +54,16 @@ public class JwtService {
 
         if (LOCAL_DEV_SECRET.equals(secret) && !localOrDevActiveProfile) {
             throw new IllegalStateException(
-                    "JWT_SECRET no puede usar el fallback conocido de desarrollo fuera de perfiles activos local/dev."
+                    "JWT_SECRET no puede usar el fallback conocido de desarrollo fuera de perfiles activos local/dev. "
+                            + activeProfilesHint() + " " + LOCAL_RUN_HINT
             );
         }
 
         if (!StringUtils.hasText(secret) || secret.getBytes(StandardCharsets.UTF_8).length < MIN_HS256_SECRET_BYTES) {
             throw new IllegalStateException(
                     "JWT_SECRET debe estar configurado con al menos 32 bytes para HS256. "
-                            + "Solo local/dev permite un fallback seguro de desarrollo."
+                            + "Solo local/dev permite un fallback seguro de desarrollo. "
+                            + activeProfilesHint() + " " + LOCAL_RUN_HINT
             );
         }
         if (!StringUtils.hasText(properties.issuer())) {
@@ -148,6 +154,14 @@ public class JwtService {
     private List<String> getStringListClaim(JWTClaimsSet claims, String claimName) throws ParseException {
         List<String> values = claims.getStringListClaim(claimName);
         return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private String activeProfilesHint() {
+        String[] activeProfiles = environment.getActiveProfiles();
+        if (activeProfiles.length == 0) {
+            return "No hay perfiles activos.";
+        }
+        return "Perfiles activos: " + Arrays.toString(activeProfiles) + ".";
     }
 
     private boolean isLocalOrDevActiveProfile() {
