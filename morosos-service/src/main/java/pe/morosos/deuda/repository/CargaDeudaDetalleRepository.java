@@ -40,6 +40,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 c.estado as estado,
                 e.id as etapaActualId,
                 e.nombre as etapaActualNombre,
+                e.orden as etapaActualOrden,
                 c.fechaUltimoMovimiento as fechaUltimoMovimiento,
                 e.esFinal as etapaFinal
             from CargaDeudaDetalle d
@@ -99,6 +100,7 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
                 c.estado as estado,
                 e.id as etapaActualId,
                 e.nombre as etapaActualNombre,
+                e.orden as etapaActualOrden,
                 c.fechaUltimoMovimiento as fechaUltimoMovimiento,
                 e.esFinal as etapaFinal
             from CargaDeudaDetalle d
@@ -175,6 +177,6 @@ public interface CargaDeudaDetalleRepository extends JpaRepository<CargaDeudaDet
         UUID getGrupoId(); String getGrupoNombre(); UUID getDistritoId(); String getDistritoNombre();
         Integer getCuotasAdeudadas(); BigDecimal getMontoAdeudado(); UUID getCasoId();
         CasoSeguimientoEstado getEstado(); UUID getEtapaActualId(); String getEtapaActualNombre();
-        java.time.Instant getFechaUltimoMovimiento(); Boolean getEtapaFinal();
+        Integer getEtapaActualOrden(); java.time.Instant getFechaUltimoMovimiento(); Boolean getEtapaFinal();
     }
 }

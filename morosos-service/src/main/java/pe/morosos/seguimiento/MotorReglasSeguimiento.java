@@ -1,7 +1,6 @@
 package pe.morosos.seguimiento;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -19,12 +18,12 @@ import pe.morosos.grupodistrito.repository.GrupoDistritoConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
 import pe.morosos.motivocierre.entity.MotivoCierre;
-import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.motivocierre.repository.MotivoCierreRepository;
 import pe.morosos.seguimiento.entity.CasoSeguimiento;
 import pe.morosos.seguimiento.entity.CasoSeguimientoEstado;
 import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
 import pe.morosos.seguimiento.repository.ProcesoCierreRepository;
+import pe.morosos.seguimiento.service.SeguimientoFechaProgramadaService;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +39,7 @@ public class MotorReglasSeguimiento {
     private final EtapaConfigRepository etapaConfigRepository;
     private final MotivoCierreRepository motivoCierreRepository;
     private final ProcesoCierreRepository procesoCierreRepository;
-    private final ParametroSeguimientoRulesService parametroRulesService;
+    private final SeguimientoFechaProgramadaService fechaProgramadaService;
 
     public Inmueble validarInicioSeguimiento(UUID inmuebleId) {
         Inmueble inmueble = inmuebleRepository.findById(inmuebleId)
@@ -95,13 +94,18 @@ public class MotorReglasSeguimiento {
         if (caso.getEtapaActual() == null) throw new BusinessRuleException("El caso no tiene etapa actual");
         if (caso.getEtapaActual().isEsFinal()) throw new BusinessRuleException("El caso ya está en etapa final");
 
-        int diasMinimos = parametroRulesService.diasMinimosEntreEtapas();
-        Instant ultimoMovimiento = caso.getFechaUltimoMovimiento();
-        if (ultimoMovimiento != null) {
-            long diasTranscurridos = java.time.Duration.between(ultimoMovimiento, Instant.now()).toDays();
-            if (diasTranscurridos < diasMinimos) {
-                throw new BusinessRuleException("No se puede avanzar etapa: se requieren " + diasMinimos + " días mínimos en la etapa actual");
-            }
+        SeguimientoFechaProgramadaService.FechaProgramadaResultado fechaProgramada = fechaProgramadaService.calcular(
+                new SeguimientoFechaProgramadaService.UUIDCasoEtapa(
+                        caso.getId(),
+                        caso.getEtapaActual().getId(),
+                        caso.getEtapaActual().getOrden(),
+                        caso.getEstado(),
+                        caso.getEtapaActual().isEsFinal()
+                )
+        );
+        if (fechaProgramada.fechaProgramada() != null
+                && LocalDate.now(java.time.ZoneOffset.UTC).isBefore(fechaProgramada.fechaProgramada())) {
+            throw new BusinessRuleException("No se puede avanzar etapa: se requieren " + fechaProgramada.diasEntreEtapasAplicado() + " días mínimos en la etapa actual");
         }
 
         return etapaConfigRepository.findFirstByOrdenGreaterThanAndActivoTrueOrderByOrdenAsc(caso.getEtapaActual().getOrden())

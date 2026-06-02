@@ -317,7 +317,7 @@ export default function GestionEtapas() {
         cuotas: "cuotasAdeudadas",
         montoAdeudado: "montoAdeudado",
         etapaActual: "etapaActualNombre",
-        fechaProgramada: "fechaUltimoMovimiento",
+        fechaProgramada: "fechaProgramada",
         estado: "estado",
       };
 
@@ -909,6 +909,16 @@ function SortableHead({ label, k, sortKey, sortDir, onClick, className }: Sortab
   return <TableHead className={cn("h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground", className)}><button type="button" onClick={() => onClick(k)} className={cn("flex items-center gap-1.5 transition-colors hover:text-foreground", active && "text-foreground")}>{label}<Icon className={cn("h-3 w-3 opacity-60", active && "opacity-100")} /></button></TableHead>;
 }
 
+function parseBackendDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function InmuebleRow({
   m,
   checked,
@@ -918,7 +928,7 @@ function InmuebleRow({
   checked: boolean;
   onToggle: () => void;
 }) {
-  const fecha = m.fechaProgramada ? new Date(m.fechaProgramada) : null;
+  const fecha = parseBackendDate(m.fechaProgramada);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const vencida = fecha ? fecha.getTime() < today.getTime() : false;

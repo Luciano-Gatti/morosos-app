@@ -49,6 +49,7 @@ public class SeguimientoService {
     private final InmuebleRepository inmuebleRepository;
     private final ParametroSeguimientoRulesService parametroRulesService;
     private final DeudaEfectivaService deudaEfectivaService;
+    private final SeguimientoFechaProgramadaService fechaProgramadaService;
 
     
 
@@ -93,6 +94,7 @@ public class SeguimientoService {
                 "montoAdeudado", "montoAdeudado",
                 "etapaActualNombre", "etapaActualNombre",
                 "fechaUltimoMovimiento", "fechaUltimoMovimiento",
+                "fechaProgramada", "fechaUltimoMovimiento",
                 "estado", "estado"
         );
 
@@ -109,6 +111,15 @@ public class SeguimientoService {
         Instant ultimo = row.getFechaUltimoMovimiento();
         Long dias = ultimo == null ? null : Duration.between(ultimo, Instant.now()).toDays();
         CasoSeguimientoEstado estado = row.getEstado();
+        SeguimientoFechaProgramadaService.FechaProgramadaResultado fechaProgramada = fechaProgramadaService.calcular(
+                new SeguimientoFechaProgramadaService.UUIDCasoEtapa(
+                        row.getCasoId(),
+                        row.getEtapaActualId(),
+                        row.getEtapaActualOrden(),
+                        estado,
+                        row.getEtapaFinal()
+                )
+        );
         return new SeguimientoBandejaRowResponse(
                 row.getCasoId(),
                 row.getInmuebleId(),
@@ -126,6 +137,9 @@ public class SeguimientoService {
                 estado == null ? "NO_INICIADO" : estado.name(),
                 ultimo,
                 dias,
+                fechaProgramada.fechaEntradaEtapaActual(),
+                fechaProgramada.fechaProgramada(),
+                fechaProgramada.diasEntreEtapasAplicado(),
                 estado == null
                         ? new SeguimientoBandejaAccionesResponse(true, false, false, false, false, false, false)
                         : accionesDisponibles(estado, Boolean.TRUE.equals(row.getEtapaFinal()))

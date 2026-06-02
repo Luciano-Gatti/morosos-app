@@ -22,7 +22,8 @@ public class ParametroSeguimientoRulesService {
     }
 
     public int diasMinimosEntreEtapas() {
-        return parametroEntero(PARAM_DIAS_ENTRE_ETAPAS, DEFAULT_DIAS_ENTRE_ETAPAS);
+        int dias = parametroEntero(PARAM_DIAS_ENTRE_ETAPAS, DEFAULT_DIAS_ENTRE_ETAPAS);
+        return dias < 0 ? DEFAULT_DIAS_ENTRE_ETAPAS : dias;
     }
 
     private int parametroEntero(String codigo, int valorDefault) {
