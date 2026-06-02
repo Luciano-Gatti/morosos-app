@@ -219,6 +219,10 @@ export default function GestionEtapas() {
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
   const universoMorosos = useMemo(() => rows, [rows]);
   const etapasOperativas = etapasApi.map((e) => e.nombre as EtapaSeguimiento);
+  const etapaIdByNombre = useMemo(
+    () => new Map(etapasApi.map((e) => [e.nombre, e.id])),
+    [etapasApi],
+  );
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -462,7 +466,7 @@ export default function GestionEtapas() {
         observacionEtapa: !hasAny ? blockedNoSelection : canObservacionEtapa ? null : "Disponible solo para procesos iniciados o pausados con etapa actual.",
       },
     };
-  }, [rows, selected, etapasApi, motivosCierreApi]);
+  }, [rows, selected, etapasApi, motivosCierreApi, etapaIdByNombre]);
 
   const hasFilters =
     query !== "" ||
@@ -522,9 +526,10 @@ export default function GestionEtapas() {
         result = await seguimientoApi.avanzar({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "enviar-etapa") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        const etapaDestinoId = etapaIdByNombre.get(data.payload.etapaDestinoId) ?? data.payload.etapaDestinoId;
         result = await seguimientoApi.enviarEtapa({
           casoIds,
-          etapaDestinoId: data.payload.etapaDestinoId,
+          etapaDestinoId,
           observacion: data.payload.observacion,
           repetirMismaEtapa: Boolean(data.payload.repetirMismaEtapa),
         });
