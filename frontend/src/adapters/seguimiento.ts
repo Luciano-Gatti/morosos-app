@@ -45,7 +45,7 @@ export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
     montoAdeudado: Number(row.montoAdeudado ?? row.montoVencido ?? 0),
     etapa: row.etapaActual ?? row.etapa ?? null,
     estado: mapEstadoCasoLabel(row.estadoCaso ?? row.estado),
-    fechaProgramada: row.fechaProgramada ?? row.fechaUltimoMovimiento ?? null,
+    fechaProgramada: row.fechaProgramada ?? null,
     accionesDisponibles:
       row && typeof row.accionesDisponibles === "object" && !Array.isArray(row.accionesDisponibles)
         ? row.accionesDisponibles

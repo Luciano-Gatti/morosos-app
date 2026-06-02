@@ -28,6 +28,9 @@ public class SeguimientoBandejaMapper {
                 caso == null ? null : caso.getEstado().name(),
                 caso == null ? null : caso.getFechaUltimoMovimiento(),
                 null,
+                null,
+                null,
+                null,
                 caso == null ? null : new SeguimientoBandejaAccionesResponse(false, false, false, false, false, false, false)
         );
     }
