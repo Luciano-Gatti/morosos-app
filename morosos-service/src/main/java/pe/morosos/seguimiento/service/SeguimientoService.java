@@ -16,6 +16,10 @@ import pe.morosos.seguimiento.dto.*;
 import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.service.AuditService;
 import pe.morosos.common.exception.BusinessRuleException;
+import pe.morosos.common.exception.ConflictException;
+import pe.morosos.common.exception.ResourceNotFoundException;
+import pe.morosos.common.exception.ValidationException;
+import pe.morosos.common.api.ErrorResponse;
 import pe.morosos.etapa.entity.EtapaConfig;
 import pe.morosos.etapa.repository.EtapaConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
@@ -201,65 +205,85 @@ public class SeguimientoService {
 
     @Transactional
     public BulkActionResultResponse enviarEtapa(EnviarEtapaRequest request) {
+        validarEnviarEtapaRequest(request);
         BulkActionResultResponse result = new BulkActionResultResponse(request.casoIds().size());
         EtapaConfig etapaDestino = etapaRepository.findById(request.etapaDestinoId())
-                .orElseThrow(() -> new BusinessRuleException("La etapa destino no existe."));
+                .orElseThrow(() -> new ResourceNotFoundException("La etapa destino no existe."));
         if (!etapaDestino.isActivo()) {
-            throw new BusinessRuleException("La etapa destino está inactiva.");
+            throw new ConflictException("La etapa destino está inactiva.");
         }
         EtapaConfig primeraEtapa = etapaRepository.findFirstByActivoTrueOrderByOrdenAsc()
-                .orElseThrow(() -> new BusinessRuleException("No existe etapa activa para operar seguimiento"));
+                .orElseThrow(() -> new ConflictException("No existe etapa activa para operar seguimiento"));
 
+        Map<UUID, CasoSeguimiento> casos = new LinkedHashMap<>();
         for (UUID id : request.casoIds()) {
-            try {
-                CasoSeguimiento caso = casoRepository.findById(id)
-                        .orElseThrow(() -> new BusinessRuleException("Caso de seguimiento no encontrado."));
-                if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
-                    result.omitido(id, "No se permiten acciones sobre procesos cerrados.");
-                    continue;
-                }
+            CasoSeguimiento caso = casoRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Caso de seguimiento no encontrado: " + id));
+            if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
+                throw new ConflictException("No se permiten acciones sobre procesos cerrados: " + id);
+            }
+            casos.put(id, caso);
+        }
 
-                EtapaConfig etapaActual = caso.getEtapaActual();
-                if (etapaActual == null) {
-                    if (primeraEtapa.getId().equals(etapaDestino.getId())) {
-                        caso.setEtapaActual(etapaDestino);
-                        caso.setFechaUltimoMovimiento(Instant.now());
-                        caso.setUpdatedAt(Instant.now());
-                        casoRepository.save(caso);
-                        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ENVIAR_ETAPA, null, etapaDestino, request.observacion(), null);
-                        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
-                        result.aplicado(id, "Enviado a etapa destino.");
-                    } else {
-                        result.omitido(id, "No se puede iniciar directamente en una etapa avanzada.");
-                    }
-                    continue;
-                }
-
-                if (etapaActual.getOrden() < etapaDestino.getOrden()) {
-                    caso.setEtapaActual(etapaDestino);
-                    caso.setFechaUltimoMovimiento(Instant.now());
-                    caso.setUpdatedAt(Instant.now());
-                    casoRepository.save(caso);
-                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ENVIAR_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
+        for (Map.Entry<UUID, CasoSeguimiento> entry : casos.entrySet()) {
+            UUID id = entry.getKey();
+            CasoSeguimiento caso = entry.getValue();
+            EtapaConfig etapaActual = caso.getEtapaActual();
+            if (etapaActual == null) {
+                if (primeraEtapa.getId().equals(etapaDestino.getId())) {
+                    aplicarMovimientoEtapa(caso, CasoEventoTipo.ENVIAR_ETAPA, null, etapaDestino, request.observacion());
                     auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                     result.aplicado(id, "Enviado a etapa destino.");
-                } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
-                    result.omitido(id, "No se puede retroceder.");
-                } else if (request.repetirMismaEtapa()) {
-                    caso.setFechaUltimoMovimiento(Instant.now());
-                    caso.setUpdatedAt(Instant.now());
-                    casoRepository.save(caso);
-                    CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion(), null);
-                    auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
-                    result.aplicado(id, "Etapa repetida.");
                 } else {
-                    result.omitido(id, "El caso ya se encuentra en la etapa destino.");
+                    throw new ConflictException("No se puede iniciar directamente en una etapa avanzada: " + id);
                 }
-            } catch (Exception ex) {
-                result.error(id, ex.getMessage());
+                continue;
+            }
+
+            if (etapaActual.getOrden() == null || etapaDestino.getOrden() == null) {
+                throw new ConflictException("La etapa actual o destino no tiene orden configurado.");
+            }
+
+            if (etapaActual.getOrden() < etapaDestino.getOrden()) {
+                aplicarMovimientoEtapa(caso, CasoEventoTipo.ENVIAR_ETAPA, etapaActual, etapaDestino, request.observacion());
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
+                result.aplicado(id, "Enviado a etapa destino.");
+            } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
+                throw new ConflictException("No se puede retroceder: " + id);
+            } else if (request.repetirMismaEtapa()) {
+                aplicarMovimientoEtapa(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion());
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
+                result.aplicado(id, "Etapa repetida.");
+            } else {
+                throw new ConflictException("El caso ya se encuentra en la etapa destino: " + id);
             }
         }
         return result;
+    }
+
+    private void validarEnviarEtapaRequest(EnviarEtapaRequest request) {
+        if (request == null) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("request", "Requerido")));
+        }
+        if (request.casoIds() == null || request.casoIds().isEmpty()) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("casoIds", "Debe incluir al menos un caso")));
+        }
+        if (request.casoIds().stream().anyMatch(Objects::isNull)) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("casoIds", "No debe contener valores nulos")));
+        }
+        if (request.etapaDestinoId() == null) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("etapaDestinoId", "Requerido")));
+        }
+    }
+
+    private void aplicarMovimientoEtapa(CasoSeguimiento caso, CasoEventoTipo tipoEvento, EtapaConfig etapaOrigen,
+                                        EtapaConfig etapaDestino, String observacion) {
+        Instant fechaMovimiento = Instant.now();
+        caso.setEtapaActual(etapaDestino);
+        caso.setFechaUltimoMovimiento(fechaMovimiento);
+        caso.setUpdatedAt(fechaMovimiento);
+        casoRepository.save(caso);
+        casoEventoService.crearEvento(caso, tipoEvento, etapaOrigen, etapaDestino, observacion, null, fechaMovimiento);
     }
 
     @Transactional

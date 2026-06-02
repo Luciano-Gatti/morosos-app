@@ -15,6 +15,13 @@ public class CasoEventoService {
 
     public CasoEvento crearEvento(CasoSeguimiento caso, CasoEventoTipo tipo, pe.morosos.etapa.entity.EtapaConfig etapaOrigen,
                                   pe.morosos.etapa.entity.EtapaConfig etapaDestino, String observacion, JsonNode metadata) {
+        return crearEvento(caso, tipo, etapaOrigen, etapaDestino, observacion, metadata, Instant.now());
+    }
+
+    public CasoEvento crearEvento(CasoSeguimiento caso, CasoEventoTipo tipo, pe.morosos.etapa.entity.EtapaConfig etapaOrigen,
+                                  pe.morosos.etapa.entity.EtapaConfig etapaDestino, String observacion, JsonNode metadata,
+                                  Instant fechaEvento) {
+        Instant fechaMovimiento = fechaEvento == null ? Instant.now() : fechaEvento;
         CasoEvento e = new CasoEvento();
         e.setCasoSeguimiento(caso);
         e.setTipoEvento(tipo);
@@ -22,8 +29,8 @@ public class CasoEventoService {
         e.setEtapaDestino(etapaDestino);
         e.setObservacion(observacion);
         e.setMetadata(metadata);
-        e.setFechaEvento(Instant.now());
-        e.setCreatedAt(Instant.now());
+        e.setFechaEvento(fechaMovimiento);
+        e.setCreatedAt(fechaMovimiento);
         e.setCreatedBy((UUID) null);
         return repository.save(e);
     }
