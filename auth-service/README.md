@@ -77,9 +77,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 
 ## Ejecución local
 
-Para desarrollo local, activar explícitamente el perfil `local` permite usar el `JWT_SECRET` default de desarrollo definido en `application-local.yml` cuando no se configura la variable de entorno. Ese valor no es un secreto real, solo existe para facilitar el arranque local y tiene más de 32 caracteres para cumplir HS256. Si se define `JWT_SECRET`, Spring usa esa variable por encima del default del perfil.
+Para pruebas locales de integración con `morosos-service`, activar explícitamente el perfil `local` permite usar el `JWT_SECRET` temporal definido como fallback en `application-local.yml` cuando no se configura la variable de entorno. Ese valor no es un secreto productivo ni un secreto definitivo de desarrollo: solo existe para que `auth-service` emita JWT HS256 compatibles con `morosos-service` en localhost y tiene más de 32 bytes para cumplir HS256. Si se define `JWT_SECRET`, Spring usa esa variable por encima del fallback del perfil.
 
-PowerShell con default local de desarrollo:
+PowerShell con fallback local temporal:
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE="local"
@@ -104,8 +104,11 @@ Reglas de seguridad:
 
 - No commitear secrets reales en YAML ni en documentación.
 - En producción `JWT_SECRET` es obligatorio y debe venir de una variable/gestor de secretos.
-- El fallback conocido de desarrollo solo se permite con perfiles activos `local` o `dev`; no se permite en `prod` ni sin perfil activo `local`/`dev`.
+- Mientras se use HS256, `auth-service` y `morosos-service` deben compartir exactamente el mismo `JWT_SECRET`.
+- El fallback local temporal solo se permite con perfiles activos `local` o `dev`; no se permite en `prod` ni sin perfil activo `local`/`dev`.
 - Los defaults `local`, `dev` y `test` son solo de desarrollo/pruebas y no deben usarse en producción.
+- Para cambiar la clave local, definir `JWT_SECRET` por variable de entorno en ambos servicios.
+- Futuro recomendado: migrar a RS256/JWKS para que `morosos-service` valide con clave pública y no comparta secreto con `auth-service`.
 - No se loggea `JWT_SECRET` ni tokens.
 
 ## Health checks
@@ -149,7 +152,7 @@ GET http://localhost:8080/actuator/info
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
 | `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Claim `aud` esperado y emitido. Debe configurarse por entorno fuera de tests. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
-| `JWT_SECRET` | vacío en base/prod; default no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfiles `local`/`dev` se usa un default de desarrollo solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
+| `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfil `local` se usa una clave temporal de integración local con `morosos-service` solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
