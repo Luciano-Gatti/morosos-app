@@ -11,4 +11,4 @@ app:
     jwt:
       issuer: http://localhost:8080
       audience: morosos-app
-      secret: test_secret_32_bytes_minimum_value
+      secret: 3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA
