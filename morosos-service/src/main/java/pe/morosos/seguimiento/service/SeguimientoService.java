@@ -84,18 +84,18 @@ public class SeguimientoService {
 
 
     private Pageable sanitizeSort(Pageable pageable) {
-        Map<String, String> allowlist = Map.of(
-                "cuenta", "cuenta",
-                "titular", "titular",
-                "direccion", "direccion",
-                "grupoNombre", "grupoNombre",
-                "distritoNombre", "distritoNombre",
-                "cuotasAdeudadas", "cuotasAdeudadas",
-                "montoAdeudado", "montoAdeudado",
-                "etapaActualNombre", "etapaActualNombre",
-                "fechaUltimoMovimiento", "fechaUltimoMovimiento",
-                "fechaProgramada", "fechaUltimoMovimiento",
-                "estado", "estado"
+        Map<String, String> allowlist = Map.ofEntries(
+                Map.entry("cuenta", "cuenta"),
+                Map.entry("titular", "titular"),
+                Map.entry("direccion", "direccion"),
+                Map.entry("grupoNombre", "grupoNombre"),
+                Map.entry("distritoNombre", "distritoNombre"),
+                Map.entry("cuotasAdeudadas", "cuotasAdeudadas"),
+                Map.entry("montoAdeudado", "montoAdeudado"),
+                Map.entry("etapaActualNombre", "etapaActualNombre"),
+                Map.entry("fechaUltimoMovimiento", "fechaUltimoMovimiento"),
+                Map.entry("fechaProgramada", "fechaUltimoMovimiento"),
+                Map.entry("estado", "estado")
         );
 
         Sort.Order selected = pageable.getSort().stream()
