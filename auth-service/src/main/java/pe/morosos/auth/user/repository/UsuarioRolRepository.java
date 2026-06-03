@@ -4,10 +4,15 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import pe.morosos.auth.user.entity.UsuarioRol;
 
 public interface UsuarioRolRepository extends JpaRepository<UsuarioRol, UUID> {
+
+    @Modifying
+    @Query("delete from UsuarioRol ur where ur.usuario.id = :usuarioId")
+    void deleteByUsuarioId(@Param("usuarioId") UUID usuarioId);
 
     boolean existsByUsuarioIdAndRolId(UUID usuarioId, UUID rolId);
 

@@ -27,6 +27,7 @@ import Login from "./pages/Login";
 import Registro from "./pages/Registro";
 import OlvideContrasena from "./pages/OlvideContrasena";
 import RestablecerContrasena from "./pages/RestablecerContrasena";
+import AdminUsuarios from "./pages/AdminUsuarios";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ const App = () => (
                 <Route path="/configuracion/seguimiento" element={<ConfiguracionSeguimiento />} />
                 <Route path="/configuracion/etapas" element={<ConfiguracionEtapas />} />
                 <Route path="/configuracion/motivos-cierre" element={<ConfiguracionMotivosCierre />} />
+                <Route path="/configuracion/usuarios" element={<AdminUsuarios />} />
               </Route>
             </Route>
             <Route element={<PublicRoute />}>

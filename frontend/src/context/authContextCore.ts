@@ -3,6 +3,7 @@ import type { AuthState, LoginRequest } from "@/types/auth";
 
 export interface AuthContextValue extends AuthState {
   login: (payload: LoginRequest) => Promise<void>;
+  loginWithGoogleToken: (idToken: string) => Promise<string | null>;
   logout: () => Promise<void>;
   refreshSessionFromMe: () => Promise<void>;
   hasPermission: (permissionCode: string) => boolean;

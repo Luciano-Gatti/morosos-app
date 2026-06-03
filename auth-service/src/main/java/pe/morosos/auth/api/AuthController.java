@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.morosos.auth.dto.AuthUserResponse;
 import pe.morosos.auth.dto.ForgotPasswordRequest;
+import pe.morosos.auth.dto.GoogleAuthRequest;
 import pe.morosos.auth.dto.LoginRequest;
+import pe.morosos.auth.dto.MessageResponse;
+import pe.morosos.auth.dto.RegisterRequest;
 import pe.morosos.auth.dto.LoginResponse;
 import pe.morosos.auth.dto.LogoutResponse;
 import pe.morosos.auth.dto.PasswordResetResponse;
@@ -41,6 +44,24 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         return ResponseEntity.ok(authService.login(request, httpRequest));
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "Registro público", description = "Crea una cuenta local pendiente de aprobación administrativa.")
+    public ResponseEntity<MessageResponse> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(authService.register(request, httpRequest));
+    }
+
+    @PostMapping("/google")
+    @Operation(summary = "Login o registro con Google", description = "Verifica un Google ID token y aplica aprobación interna antes de emitir JWT.")
+    public ResponseEntity<?> google(
+            @Valid @RequestBody GoogleAuthRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(authService.google(request, httpRequest));
     }
 
     @PostMapping("/forgot-password")

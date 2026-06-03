@@ -446,3 +446,53 @@ Los JSON guardados son seguros y no incluyen passwords, hashes ni tokens.
 
 - `docs/auth/01-etapa-1/seeds-roles-permisos.md`
 - `docs/auth/02-etapa-2/login-local-jwt.md`
+
+## Registro controlado, Google y aprobación administrativa
+
+### Variables nuevas
+
+```yaml
+app:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    enabled: ${GOOGLE_LOGIN_ENABLED:false}
+```
+
+- `GOOGLE_LOGIN_ENABLED=false` deshabilita `POST /api/v1/auth/google` con error controlado.
+- `GOOGLE_CLIENT_ID` debe coincidir con el audience del ID token recibido desde Google Identity Services.
+
+### Estados de usuario
+
+Los usuarios tienen `estado`:
+
+- `PENDIENTE_APROBACION`: puede existir por registro local o Google, pero no recibe JWT funcional.
+- `ACTIVO`: puede iniciar sesión y recibe JWT con roles activos y permisos efectivos.
+- `INACTIVO`: login bloqueado con `ACCOUNT_DISABLED`.
+- `RECHAZADO`: login bloqueado con `ACCOUNT_REJECTED`.
+
+### Endpoints públicos
+
+- `POST /api/v1/auth/register`: crea cuenta local pendiente con contraseña BCrypt. No devuelve token.
+- `POST /api/v1/auth/google`: verifica el ID token con Google, identifica por `provider=GOOGLE` + `provider_subject=sub`, vincula o crea cuenta pendiente. Google no asigna roles ni permisos.
+
+### Endpoints administrativos
+
+- `GET /api/v1/admin/users` (`USUARIOS_VER_LISTADO`)
+- `GET /api/v1/admin/users/{id}` (`USUARIOS_VER_DETALLE`)
+- `POST /api/v1/admin/users` (`USUARIOS_CREAR`)
+- `PUT /api/v1/admin/users/{id}` (`USUARIOS_EDITAR`)
+- `PATCH /api/v1/admin/users/{id}/status` (`USUARIOS_ACTIVAR_DESACTIVAR`)
+- `POST /api/v1/admin/users/{id}/approve` (`USUARIOS_APROBAR`)
+- `POST /api/v1/admin/users/{id}/reject` (`USUARIOS_RECHAZAR`)
+- `GET /api/v1/admin/roles` (`ROLES_VER_LISTADO`)
+- `GET /api/v1/admin/permissions` (`PERMISOS_VER_LISTADO`)
+
+Los roles siguen siendo agrupadores administrativos. La autorización efectiva se realiza con authorities/permissions, no con roles.
+
+### Permisos efectivos
+
+`permissions efectivos = permisos de roles activos + permisos directos activos del usuario`, ordenados y sin duplicados. `/api/v1/auth/me` y la emisión del JWT usan esa misma resolución.
+
+### Seguridad de secretos
+
+No se guardan contraseñas en texto plano, no se devuelve `password_hash`, y los flujos no registran passwords, Google ID tokens ni JWT en auditoría o logs.

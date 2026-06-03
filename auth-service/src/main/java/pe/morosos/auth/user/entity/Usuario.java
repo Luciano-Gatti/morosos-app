@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -17,6 +19,7 @@ import java.util.UUID;
         name = "usuarios",
         indexes = {
                 @Index(name = "idx_usuarios_activo", columnList = "activo"),
+                @Index(name = "idx_usuarios_estado", columnList = "estado"),
                 @Index(name = "idx_usuarios_email_verificado", columnList = "email_verificado")
         }
 )
@@ -43,6 +46,10 @@ public class Usuario {
 
     @Column(name = "activo", nullable = false)
     private boolean activo = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado", nullable = false, length = 40)
+    private EstadoUsuario estado = EstadoUsuario.ACTIVO;
 
     @Column(name = "email_verificado", nullable = false)
     private boolean emailVerificado = false;
@@ -128,6 +135,18 @@ public class Usuario {
 
     public void setActivo(boolean activo) {
         this.activo = activo;
+        if (!activo && estado == EstadoUsuario.ACTIVO) {
+            estado = EstadoUsuario.INACTIVO;
+        }
+    }
+
+    public EstadoUsuario getEstado() {
+        return estado;
+    }
+
+    public void setEstado(EstadoUsuario estado) {
+        this.estado = estado;
+        this.activo = estado == EstadoUsuario.ACTIVO;
     }
 
     public boolean isEmailVerificado() {

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { authService, isAuthError } from "@/services/api/authService";
+import { isAuthError } from "@/services/api/authService";
 import type { LoginFormValues } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,7 +41,8 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const { login } = useAuth();
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const { login, loginWithGoogleToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -69,7 +70,13 @@ export default function Login() {
       await login({ usernameOrEmail: data.email, password: data.password, rememberMe: data.rememberMe });
       navigate(redirectTo, { replace: true });
     } catch (error) {
-      if (isAuthError(error) && error.status === 401) {
+      if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
+        setInfoMessage(error.message);
+      } else if (isAuthError(error) && error.code === "ACCOUNT_REJECTED") {
+        setLoginError(error.message);
+      } else if (isAuthError(error) && error.code === "ACCOUNT_DISABLED") {
+        setLoginError(error.message);
+      } else if (isAuthError(error) && error.status === 401) {
         setLoginError("Credenciales inválidas.");
       } else if (isAuthError(error) && error.status === 403) {
         setLoginError("El usuario se encuentra inactivo o no autorizado.");
@@ -81,10 +88,61 @@ export default function Login() {
     }
   };
 
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !googleButtonRef.current) return;
+
+    const initializeGoogle = () => {
+      const google = window.google;
+      if (!google?.accounts?.id || !googleButtonRef.current) return;
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async ({ credential }: { credential?: string }) => {
+          if (!credential) {
+            setLoginError("Google no devolvió credenciales válidas.");
+            return;
+          }
+          setLoginError(null);
+          setInfoMessage(null);
+          try {
+            const pendingMessage = await loginWithGoogleToken(credential);
+            if (pendingMessage) {
+              setInfoMessage(pendingMessage);
+              return;
+            }
+            navigate(redirectTo, { replace: true });
+          } catch (error) {
+            if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
+              setInfoMessage(error.message);
+            } else if (isAuthError(error) && error.code === "GOOGLE_LOGIN_DISABLED") {
+              setLoginError("El inicio de sesión con Google está deshabilitado.");
+            } else {
+              setLoginError(isAuthError(error) ? error.message : "No se pudo iniciar sesión con Google.");
+            }
+          }
+        },
+      });
+      google.accounts.id.renderButton(googleButtonRef.current, { theme: "outline", size: "large", width: 340, text: "signin_with" });
+    };
+
+    if (window.google?.accounts?.id) {
+      initializeGoogle();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = initializeGoogle;
+    document.head.appendChild(script);
+  }, [loginWithGoogleToken, navigate, redirectTo]);
+
   const handleGoogleLogin = async () => {
-    const response = await authService.googleLogin();
-    setLoginError(null);
-    setInfoMessage(response.message);
+    if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+      setLoginError("Configurá VITE_GOOGLE_CLIENT_ID para habilitar Google.");
+      return;
+    }
+    setInfoMessage("Usá el botón oficial de Google para continuar.");
   };
 
   return (
