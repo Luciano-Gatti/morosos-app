@@ -61,6 +61,11 @@ export default function RestablecerContrasena() {
   }, [token]);
 
   const onSubmit = async (data: RestablecerFormData) => {
+    if (!token) {
+      setErrorMsg("El enlace de restablecimiento no es válido o está incompleto.");
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg(null);
 

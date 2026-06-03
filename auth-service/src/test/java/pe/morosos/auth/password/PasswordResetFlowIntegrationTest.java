@@ -7,6 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
@@ -17,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,6 +71,9 @@ class PasswordResetFlowIntegrationTest extends PostgresIntegrationTest {
     @Autowired
     private PasswordResetService passwordResetService;
 
+    @MockBean
+    private PasswordResetEmailService passwordResetEmailService;
+
     @BeforeEach
     void setUp() {
         loginAttemptRepository.deleteAll();
@@ -88,6 +99,7 @@ class PasswordResetFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(tokens.getFirst().getTokenHash()).isNotEqualTo("RESET-USER@local.test");
         assertThat(tokens.getFirst().getUsedAt()).isNull();
         assertThat(tokens.getFirst().getExpiresAt()).isAfter(OffsetDateTime.now());
+        verify(passwordResetEmailService).sendPasswordResetInstructions(eq(usuario), eq(usuario.getEmail()), any(String.class), eq(30L));
     }
 
     @Test
@@ -99,6 +111,7 @@ class PasswordResetFlowIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.message").value(GENERIC_FORGOT_MESSAGE));
 
         assertThat(passwordResetTokenRepository.findAll()).isEmpty();
+        verifyNoInteractions(passwordResetEmailService);
     }
 
     @Test
@@ -112,6 +125,45 @@ class PasswordResetFlowIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.message").value(GENERIC_FORGOT_MESSAGE));
 
         assertThat(passwordResetTokenRepository.findByUsuarioId(usuario.getId())).isEmpty();
+        verifyNoInteractions(passwordResetEmailService);
+    }
+
+
+    @Test
+    void forgotPasswordRevokesPreviousActiveTokens() throws Exception {
+        Usuario usuario = saveUser("revoked-reset", "revoked-reset@local.test", true, OLD_PASSWORD);
+        PasswordResetToken previousToken = saveToken(usuario, "previous-token", OffsetDateTime.now().plusMinutes(30), null);
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "revoked-reset@local.test"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(GENERIC_FORGOT_MESSAGE));
+
+        PasswordResetToken revokedToken = passwordResetTokenRepository.findById(previousToken.getId()).orElseThrow();
+        List<PasswordResetToken> tokens = passwordResetTokenRepository.findByUsuarioId(usuario.getId());
+        assertThat(tokens).hasSize(2);
+        assertThat(revokedToken.getUsedAt()).isNotNull();
+        assertThat(tokens).filteredOn(token -> token.getUsedAt() == null).hasSize(1);
+    }
+
+    @Test
+    void forgotPasswordSmtpErrorKeepsGenericResponseAndAuditsFailure() throws Exception {
+        Usuario usuario = saveUser("smtp-error", "smtp-error@local.test", true, OLD_PASSWORD);
+        doThrow(new PasswordResetEmailException("smtp error", new RuntimeException("boom")))
+                .when(passwordResetEmailService)
+                .sendPasswordResetInstructions(eq(usuario), eq(usuario.getEmail()), any(String.class), anyLong());
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "smtp-error@local.test"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(GENERIC_FORGOT_MESSAGE));
+
+        assertThat(passwordResetTokenRepository.findByUsuarioId(usuario.getId())).hasSize(1);
+        assertThat(auditLogRepository.findAll())
+                .extracting("action")
+                .contains("PASSWORD_RESET_EMAIL_FAILED");
     }
 
     @Test
@@ -165,6 +217,8 @@ class PasswordResetFlowIntegrationTest extends PostgresIntegrationTest {
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PASSWORD_RESET_TOKEN_INVALID"));
+
+        verify(passwordResetEmailService, never()).sendPasswordResetInstructions(any(), any(), any(), anyLong());
     }
 
     @Test
