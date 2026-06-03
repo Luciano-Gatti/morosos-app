@@ -1,5 +1,19 @@
 # Auth Changelog
 
+## 2026-06-03 - Envío SMTP real para recuperación/restablecimiento de contraseña
+
+### Resumen
+
+Se agregó `spring-boot-starter-mail` y una implementación SMTP real de `PasswordResetEmailService` para el flujo de recuperación/restablecimiento. La configuración se toma de `spring.mail.*` y `app.mail.*` mediante variables de entorno, con `AUTH_MAIL_ENABLED=false` por defecto para local/dev. En local/dev con mail deshabilitado se mantiene el log de URL de reset para pruebas; en producción no se loguea token ni URL completa y, si el mail está habilitado, se valida configuración SMTP mínima al arrancar.
+
+### Auditoría
+
+Se agregan `PASSWORD_RESET_EMAIL_SENT`, `PASSWORD_RESET_EMAIL_FAILED`, `PASSWORD_RESET_FAILED_INVALID_TOKEN` y `PASSWORD_RESET_FAILED_EXPIRED_TOKEN` al flujo, manteniendo eventos seguros sin passwords, tokens planos ni hashes sensibles.
+
+### Restricciones respetadas
+
+No se modificó `morosos-service`, no se cambió la validación JWT, no se implementó Google login, refresh token ni endpoints admin, y no se hardcodearon credenciales SMTP.
+
 ## 2026-06-03 - Recuperación/restablecimiento funcional de contraseña
 
 ### Resumen
@@ -10,9 +24,9 @@ Se implementó el flujo backend real para solicitar recuperación y restablecer 
 
 - `auth-service/src/main/java/pe/morosos/auth/api/AuthController.java`
 - `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetService.java`
-- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetNotificationService.java`
-- `auth-service/src/main/java/pe/morosos/auth/password/LocalPasswordResetNotificationService.java`
-- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetProperties.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetEmailService.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/SmtpPasswordResetEmailService.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/AppMailProperties.java`
 - `auth-service/src/main/java/pe/morosos/auth/dto/ForgotPasswordRequest.java`
 - `auth-service/src/main/java/pe/morosos/auth/dto/ResetPasswordRequest.java`
 - `auth-service/src/main/java/pe/morosos/auth/dto/PasswordResetResponse.java`
@@ -28,11 +42,11 @@ Se implementó el flujo backend real para solicitar recuperación y restablecer 
 
 ### Auditoría
 
-Se registran `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_SUCCESS`, `PASSWORD_RESET_FAILED_TOKEN_INVALID`, `PASSWORD_RESET_FAILED_TOKEN_EXPIRED` y `PASSWORD_RESET_FAILED_PASSWORD_POLICY` sin persistir tokens, contraseñas, hashes de contraseña ni headers de autorización.
+Se registran `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_SUCCESS`, `PASSWORD_RESET_FAILED_INVALID_TOKEN`, `PASSWORD_RESET_FAILED_EXPIRED_TOKEN` y `PASSWORD_RESET_FAILED_PASSWORD_POLICY` sin persistir tokens, contraseñas, hashes de contraseña ni headers de autorización.
 
 ### Restricciones respetadas
 
-No se modificó `morosos-service`. No se cambió la seguridad JWT existente salvo permitir los dos endpoints públicos nuevos. No se implementó Google login, refresh token, endpoints admin ni SMTP real.
+No se modificó `morosos-service`. No se cambió la seguridad JWT existente salvo permitir los dos endpoints públicos nuevos. No se implementó Google login, refresh token ni endpoints admin.
 
 ## 2026-06-02 - JWT compartido temporal para integración local
 

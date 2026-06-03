@@ -8,6 +8,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class PasswordResetService {
     public static final String FORGOT_PASSWORD_MESSAGE =
             "Si los datos corresponden a una cuenta registrada, recibirás instrucciones para restablecer la contraseña.";
     public static final String RESET_PASSWORD_MESSAGE = "Contraseña restablecida correctamente.";
+    private static final Logger LOGGER = LoggerFactory.getLogger(PasswordResetService.class);
     private static final int TOKEN_RANDOM_BYTES = 32;
     private static final String TOKEN_ERROR_MESSAGE = "El token de restablecimiento es inválido o expiró.";
     private static final String PASSWORD_POLICY_MESSAGE =
@@ -35,8 +38,8 @@ public class PasswordResetService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final PasswordResetProperties passwordResetProperties;
-    private final PasswordResetNotificationService notificationService;
+    private final AppMailProperties appMailProperties;
+    private final PasswordResetEmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuthAuditService authAuditService;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -44,15 +47,15 @@ public class PasswordResetService {
     public PasswordResetService(
             UsuarioRepository usuarioRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
-            PasswordResetProperties passwordResetProperties,
-            PasswordResetNotificationService notificationService,
+            AppMailProperties appMailProperties,
+            PasswordResetEmailService emailService,
             PasswordEncoder passwordEncoder,
             AuthAuditService authAuditService
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
-        this.passwordResetProperties = passwordResetProperties;
-        this.notificationService = notificationService;
+        this.appMailProperties = appMailProperties;
+        this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.authAuditService = authAuditService;
     }
@@ -80,7 +83,7 @@ public class PasswordResetService {
         PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> {
                     authAuditService.recordAuthEvent(
-                            "PASSWORD_RESET_FAILED_TOKEN_INVALID",
+                            "PASSWORD_RESET_FAILED_INVALID_TOKEN",
                             null,
                             httpRequest,
                             "{\"reason\":\"TOKEN_NOT_FOUND\"}"
@@ -90,7 +93,7 @@ public class PasswordResetService {
 
         if (passwordResetToken.getUsedAt() != null) {
             authAuditService.recordAuthEvent(
-                    "PASSWORD_RESET_FAILED_TOKEN_INVALID",
+                    "PASSWORD_RESET_FAILED_INVALID_TOKEN",
                     passwordResetToken.getUsuario(),
                     httpRequest,
                     "{\"reason\":\"TOKEN_ALREADY_USED\"}"
@@ -100,7 +103,7 @@ public class PasswordResetService {
 
         if (passwordResetToken.getExpiresAt().isBefore(OffsetDateTime.now())) {
             authAuditService.recordAuthEvent(
-                    "PASSWORD_RESET_FAILED_TOKEN_EXPIRED",
+                    "PASSWORD_RESET_FAILED_EXPIRED_TOKEN",
                     passwordResetToken.getUsuario(),
                     httpRequest,
                     "{\"reason\":\"TOKEN_EXPIRED\"}"
@@ -111,7 +114,7 @@ public class PasswordResetService {
         Usuario usuario = passwordResetToken.getUsuario();
         if (usuario == null || !usuario.isActivo()) {
             authAuditService.recordAuthEvent(
-                    "PASSWORD_RESET_FAILED_TOKEN_INVALID",
+                    "PASSWORD_RESET_FAILED_INVALID_TOKEN",
                     usuario,
                     httpRequest,
                     "{\"reason\":\"USER_INACTIVE_OR_MISSING\"}"
@@ -135,11 +138,27 @@ public class PasswordResetService {
         PasswordResetToken passwordResetToken = new PasswordResetToken();
         passwordResetToken.setUsuario(usuario);
         passwordResetToken.setTokenHash(hashToken(plainToken));
-        passwordResetToken.setExpiresAt(now.plusMinutes(passwordResetProperties.tokenTtlMinutes()));
+        passwordResetToken.setExpiresAt(now.plusMinutes(appMailProperties.passwordReset().tokenTtlMinutes()));
         passwordResetTokenRepository.save(passwordResetToken);
 
-        authAuditService.recordAuthEvent("PASSWORD_RESET_REQUESTED", usuario, httpRequest, "{\"delivery\":\"LOCAL_OR_PENDING_SMTP\"}");
-        notificationService.sendPasswordResetInstructions(usuario, buildResetUrl(plainToken));
+        authAuditService.recordAuthEvent("PASSWORD_RESET_REQUESTED", usuario, httpRequest, "{\"delivery\":\"EMAIL\"}");
+        try {
+            emailService.sendPasswordResetInstructions(
+                    usuario,
+                    usuario.getEmail(),
+                    buildResetUrl(plainToken),
+                    appMailProperties.passwordReset().tokenTtlMinutes()
+            );
+            authAuditService.recordAuthEvent("PASSWORD_RESET_EMAIL_SENT", usuario, httpRequest, "{\"delivery\":\"EMAIL\"}");
+        } catch (PasswordResetEmailException exception) {
+            LOGGER.error("Password reset email delivery failed. userId={} mailEnabled={}", usuario.getId(), appMailProperties.enabled(), exception);
+            authAuditService.recordAuthEvent(
+                    "PASSWORD_RESET_EMAIL_FAILED",
+                    usuario,
+                    httpRequest,
+                    "{\"delivery\":\"EMAIL\",\"reason\":\"DELIVERY_FAILED\"}"
+            );
+        }
     }
 
     private String resolveUsernameOrEmail(ForgotPasswordRequest request) {
@@ -174,7 +193,7 @@ public class PasswordResetService {
     }
 
     private boolean isStrongEnough(String password) {
-        if (!StringUtils.hasText(password) || password.length() < 8) {
+        if (!StringUtils.hasText(password) || password.trim().length() < 8) {
             return false;
         }
         boolean hasLetter = password.chars().anyMatch(Character::isLetter);
@@ -199,7 +218,7 @@ public class PasswordResetService {
     }
 
     private String buildResetUrl(String token) {
-        String baseUrl = passwordResetProperties.frontendResetUrl();
+        String baseUrl = appMailProperties.passwordReset().frontendResetUrl();
         String separator = baseUrl.contains("?") ? "&" : "?";
         return baseUrl + separator + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
     }

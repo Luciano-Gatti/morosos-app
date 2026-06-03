@@ -26,17 +26,17 @@ Implementado actualmente:
 - endpoint autenticado `GET /api/v1/auth/me`;
 - logout stateless en `POST /api/v1/auth/logout`;
 - registro funcional de intentos de login en `login_attempts`;
-- auditoría funcional básica en `audit_log` para login, logout y recuperación/restablecimiento de contraseña.
+- auditoría funcional básica en `audit_log` para login, logout y recuperación/restablecimiento de contraseña;
 - recuperación de contraseña en `POST /api/v1/auth/forgot-password`;
 - restablecimiento de contraseña en `POST /api/v1/auth/reset-password`;
-- tokens de recuperación generados con `SecureRandom`, devueltos solo por enlace local/dev, y persistidos como hash SHA-256 Base64 URL-safe;
+- tokens de recuperación generados con `SecureRandom`, incluidos solo en el enlace de restablecimiento, y persistidos como hash SHA-256 Base64 URL-safe;
 - invalidación de tokens activos previos usando `used_at`;
-- TTL configurable de recuperación de contraseña.
+- TTL configurable de recuperación de contraseña;
+- envío real de correos de restablecimiento vía Spring Mail/SMTP cuando `AUTH_MAIL_ENABLED=true`, sin credenciales hardcodeadas.
 
 No implementado todavía:
 
 - Google login;
-- envío SMTP real de correos;
 - protección de `morosos-service`;
 - refresh token;
 - blacklist de access tokens;
@@ -163,19 +163,48 @@ Respuesta exitosa:
 
 La contraseña nueva se valida con la política mínima vigente: al menos 8 caracteres, al menos una letra y al menos un número. Luego se almacena con el `BCryptPasswordEncoder` existente. El token debe existir por hash, no estar expirado y no tener `used_at`. Al finalizar se marca como usado y se invalidan otros tokens activos del usuario.
 
-### Notificación y logging
+### Notificación SMTP y logging
 
-No se agregó dependencia SMTP. `PasswordResetNotificationService` deja preparada la abstracción de envío. En perfiles `local` o `dev` se loguea la URL completa de reset para pruebas manuales; en otros perfiles solo se loguea un mensaje seguro sin token. No se loguean contraseñas, hashes de contraseña ni tokens en producción.
+La abstracción `PasswordResetEmailService` envía correos con `JavaMailSender` cuando `AUTH_MAIL_ENABLED=true`. El correo incluye asunto claro, texto plano, HTML simple, link de restablecimiento, vencimiento del enlace e indicación para ignorar el mensaje si no fue solicitado. No incluye passwords, hashes ni datos sensibles innecesarios.
+
+Cuando `AUTH_MAIL_ENABLED=false`, no se intenta SMTP. En perfiles `local` o `dev` se loguea la URL completa de reset únicamente para pruebas manuales; en `prod` y otros perfiles no se loguea el token ni la URL completa. Cuando `AUTH_MAIL_ENABLED=true` y falla SMTP, la respuesta HTTP sigue siendo genérica, se registra un error interno sin token y se audita `PASSWORD_RESET_EMAIL_FAILED`.
+
+Variables principales:
+
+```bash
+AUTH_MAIL_ENABLED=false
+FRONTEND_RESET_PASSWORD_URL=http://localhost:5173/reset-password
+```
+
+Ejemplo SMTP sin credenciales reales:
+
+```bash
+AUTH_MAIL_ENABLED=true
+AUTH_MAIL_HOST=smtp.example.com
+AUTH_MAIL_PORT=587
+AUTH_MAIL_USERNAME=usuario-smtp
+AUTH_MAIL_PASSWORD=clave-smtp
+AUTH_MAIL_FROM=no-reply@example.com
+AUTH_MAIL_FROM_NAME=Sistema de Morosidad
+AUTH_MAIL_SMTP_AUTH=true
+AUTH_MAIL_SMTP_STARTTLS=true
+AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+FRONTEND_RESET_PASSWORD_URL=https://app.example.com/reset-password
+```
+
+En perfil `prod`, si `AUTH_MAIL_ENABLED=true`, el arranque exige host, puerto, remitente y, cuando `AUTH_MAIL_SMTP_AUTH=true`, usuario/password SMTP configurados por entorno.
 
 Eventos de auditoría agregados en `audit_log`:
 
 - `PASSWORD_RESET_REQUESTED` cuando el usuario existe y está activo.
+- `PASSWORD_RESET_EMAIL_SENT`.
+- `PASSWORD_RESET_EMAIL_FAILED`.
 - `PASSWORD_RESET_SUCCESS`.
-- `PASSWORD_RESET_FAILED_TOKEN_INVALID`.
-- `PASSWORD_RESET_FAILED_TOKEN_EXPIRED`.
+- `PASSWORD_RESET_FAILED_INVALID_TOKEN`.
+- `PASSWORD_RESET_FAILED_EXPIRED_TOKEN`.
 - `PASSWORD_RESET_FAILED_PASSWORD_POLICY`.
 
-SMTP real, Google login, refresh tokens y endpoints admin siguen fuera del alcance.
+Google login, refresh tokens y endpoints admin siguen fuera del alcance.
 
 ## Health checks
 
@@ -215,6 +244,17 @@ GET http://localhost:8080/actuator/info
 | `AUTH_DB_USERNAME` | `postgres` | Usuario de base de datos. |
 | `AUTH_DB_PASSWORD` | `postgres` | Password de base de datos. |
 | `FRONTEND_URL` | `http://localhost:5173` | Origen principal permitido para CORS. |
+| `AUTH_MAIL_ENABLED` | `false` | Habilita envío SMTP real para recuperación de contraseña. |
+| `AUTH_MAIL_HOST` | vacío | Host SMTP. Obligatorio en producción si `AUTH_MAIL_ENABLED=true`. |
+| `AUTH_MAIL_PORT` | `587` | Puerto SMTP. |
+| `AUTH_MAIL_USERNAME` | vacío | Usuario SMTP; obligatorio en producción si SMTP auth está habilitado. |
+| `AUTH_MAIL_PASSWORD` | vacío | Password SMTP; obligatorio en producción si SMTP auth está habilitado. |
+| `AUTH_MAIL_FROM` | `no-reply@localhost` | Remitente usado en correos de restablecimiento. |
+| `AUTH_MAIL_FROM_NAME` | `Sistema de Morosidad` | Nombre visible del remitente. |
+| `AUTH_MAIL_SMTP_AUTH` | `true` | Configura `mail.smtp.auth`. |
+| `AUTH_MAIL_SMTP_STARTTLS` | `true` | Configura `mail.smtp.starttls.enable`. |
+| `FRONTEND_RESET_PASSWORD_URL` | `http://localhost:5173/reset-password` | URL base del frontend para armar el link `?token=...`. |
+| `AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES` | `30` | TTL del token de recuperación. |
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
 | `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Claim `aud` esperado y emitido. Debe configurarse por entorno fuera de tests. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |

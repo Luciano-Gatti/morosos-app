@@ -9,6 +9,17 @@ spring:
     username: ${AUTH_DB_USERNAME:postgres}
     password: ${AUTH_DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+  mail:
+    host: ${AUTH_MAIL_HOST:}
+    port: ${AUTH_MAIL_PORT:587}
+    username: ${AUTH_MAIL_USERNAME:}
+    password: ${AUTH_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${AUTH_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${AUTH_MAIL_SMTP_STARTTLS:true}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -44,9 +55,13 @@ app:
     audience: ${JWT_AUDIENCE:gestion-aosc}
     access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
     secret: ${JWT_SECRET:}
-  password-reset:
-    token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
-    frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
+  mail:
+    enabled: ${AUTH_MAIL_ENABLED:false}
+    from: ${AUTH_MAIL_FROM:no-reply@localhost}
+    from-name: ${AUTH_MAIL_FROM_NAME:Sistema de Morosidad}
+    password-reset:
+      token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+      frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
   seed:
     admin:
       enabled: ${AUTH_SEED_ADMIN_ENABLED:true}

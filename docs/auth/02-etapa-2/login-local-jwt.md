@@ -226,11 +226,8 @@ Los roles siguen existiendo en base de datos, siguen incluidos en el JWT y sigue
 No se implementa todavía:
 
 - Google login;
-- forgot/reset password funcional;
-- envío de correos;
 - refresh token;
 - blacklist de tokens;
-- conexión con frontend;
 - protección de `morosos-service`;
 - `endpoint_permisos`;
 - asociación endpoint-permiso en base de datos;
@@ -249,12 +246,43 @@ El modelo usado es la tabla existente `password_reset_tokens` con `token_hash`, 
 Configuración:
 
 ```yaml
+spring:
+  mail:
+    host: ${AUTH_MAIL_HOST:}
+    port: ${AUTH_MAIL_PORT:587}
+    username: ${AUTH_MAIL_USERNAME:}
+    password: ${AUTH_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${AUTH_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${AUTH_MAIL_SMTP_STARTTLS:true}
+
 app:
-  password-reset:
-    token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
-    frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
+  mail:
+    enabled: ${AUTH_MAIL_ENABLED:false}
+    from: ${AUTH_MAIL_FROM:no-reply@localhost}
+    from-name: ${AUTH_MAIL_FROM_NAME:Sistema de Morosidad}
+    password-reset:
+      token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+      frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
 ```
 
 La política mínima de contraseña exige 8 caracteres, al menos una letra y al menos un número. Los errores inválido/expirado/usado se devuelven como 400 controlado usando el formato `ErrorResponse` existente.
 
-No se incorporó SMTP real: `PasswordResetNotificationService` permite una implementación futura. En `local`/`dev` se loguea la URL de reset para pruebas manuales; fuera de esos perfiles no se loguea el token. No se implementó Google login, refresh token ni endpoints admin en esta tarea.
+Se incorporó SMTP real mediante Spring Mail y `PasswordResetEmailService`. Con `AUTH_MAIL_ENABLED=false` no se envía correo; en `local`/`dev` se loguea la URL completa de reset solo para pruebas manuales. Con `AUTH_MAIL_ENABLED=true`, `JavaMailSender` envía texto plano y HTML simple usando la configuración `spring.mail.*`; en `prod` se exige configuración SMTP mínima y nunca se loguea token ni URL completa. No se implementó Google login, refresh token ni endpoints admin en esta tarea.
+
+Variables de ejemplo:
+
+```bash
+AUTH_MAIL_ENABLED=false
+FRONTEND_RESET_PASSWORD_URL=http://localhost:5173/reset-password
+
+AUTH_MAIL_ENABLED=true
+AUTH_MAIL_HOST=smtp.example.com
+AUTH_MAIL_PORT=587
+AUTH_MAIL_USERNAME=usuario-smtp
+AUTH_MAIL_PASSWORD=clave-smtp
+AUTH_MAIL_FROM=no-reply@example.com
+```
