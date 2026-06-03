@@ -12,9 +12,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.morosos.auth.dto.AuthUserResponse;
+import pe.morosos.auth.dto.ForgotPasswordRequest;
 import pe.morosos.auth.dto.LoginRequest;
 import pe.morosos.auth.dto.LoginResponse;
 import pe.morosos.auth.dto.LogoutResponse;
+import pe.morosos.auth.dto.PasswordResetResponse;
+import pe.morosos.auth.dto.ResetPasswordRequest;
+import pe.morosos.auth.password.PasswordResetService;
 import pe.morosos.auth.service.AuthService;
 
 @RestController
@@ -23,9 +27,11 @@ import pe.morosos.auth.service.AuthService;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, PasswordResetService passwordResetService) {
         this.authService = authService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -35,6 +41,30 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         return ResponseEntity.ok(authService.login(request, httpRequest));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(
+            summary = "Solicitar recuperación de contraseña",
+            description = "Genera instrucciones de restablecimiento con respuesta genérica para evitar enumeración de usuarios."
+    )
+    public ResponseEntity<PasswordResetResponse> forgotPassword(
+            @RequestBody(required = false) ForgotPasswordRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(passwordResetService.requestPasswordReset(request, httpRequest));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(
+            summary = "Restablecer contraseña",
+            description = "Valida un token de recuperación y actualiza la contraseña local con BCrypt."
+    )
+    public ResponseEntity<PasswordResetResponse> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(passwordResetService.resetPassword(request, httpRequest));
     }
 
     @GetMapping("/me")

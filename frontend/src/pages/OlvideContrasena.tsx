@@ -46,11 +46,11 @@ export default function OlvideContrasena() {
     },
   });
 
-  const onSubmit = async (_data: OlvideFormData) => {
+  const onSubmit = async (data: OlvideFormData) => {
     setIsLoading(true);
 
     try {
-      await authService.forgotPassword();
+      await authService.forgotPassword({ usernameOrEmail: data.email, email: data.email });
       setEnviado(true);
     } catch {
       // Por seguridad, no mostramos error al usuario.

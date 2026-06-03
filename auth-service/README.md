@@ -26,14 +26,17 @@ Implementado actualmente:
 - endpoint autenticado `GET /api/v1/auth/me`;
 - logout stateless en `POST /api/v1/auth/logout`;
 - registro funcional de intentos de login en `login_attempts`;
-- auditoría funcional básica en `audit_log` para login y logout.
+- auditoría funcional básica en `audit_log` para login, logout y recuperación/restablecimiento de contraseña.
+- recuperación de contraseña en `POST /api/v1/auth/forgot-password`;
+- restablecimiento de contraseña en `POST /api/v1/auth/reset-password`;
+- tokens de recuperación generados con `SecureRandom`, devueltos solo por enlace local/dev, y persistidos como hash SHA-256 Base64 URL-safe;
+- invalidación de tokens activos previos usando `used_at`;
+- TTL configurable de recuperación de contraseña.
 
 No implementado todavía:
 
 - Google login;
-- forgot/reset password funcional;
-- envío de correos;
-- integración con frontend;
+- envío SMTP real de correos;
 - protección de `morosos-service`;
 - refresh token;
 - blacklist de access tokens;
@@ -113,6 +116,67 @@ Reglas de seguridad:
 - Futuro recomendado: migrar a RS256/JWKS para que `morosos-service` valide con clave pública y no comparta secreto con `auth-service`.
 - No se loggea `JWT_SECRET` ni tokens.
 
+
+## Recuperación y restablecimiento de contraseña
+
+### Solicitar recuperación
+
+```http
+POST /api/v1/auth/forgot-password
+Content-Type: application/json
+
+{
+  "usernameOrEmail": "admin@local.test"
+}
+```
+
+También se acepta `email` para compatibilidad con el frontend. La respuesta siempre es genérica para evitar enumeración de usuarios o filtrado de estado activo/inactivo:
+
+```json
+{
+  "message": "Si los datos corresponden a una cuenta registrada, recibirás instrucciones para restablecer la contraseña."
+}
+```
+
+Si el usuario existe y está activo, el servicio genera un token aleatorio de 32 bytes con `SecureRandom`, lo codifica en Base64 URL-safe sin padding, guarda únicamente el hash SHA-256 Base64 URL-safe en `password_reset_tokens.token_hash`, define `expires_at` con el TTL configurable y marca tokens activos anteriores del usuario con `used_at`.
+
+### Restablecer contraseña
+
+```http
+POST /api/v1/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "...",
+  "newPassword": "NuevaClave123",
+  "confirmPassword": "NuevaClave123"
+}
+```
+
+Respuesta exitosa:
+
+```json
+{
+  "message": "Contraseña restablecida correctamente."
+}
+```
+
+La contraseña nueva se valida con la política mínima vigente: al menos 8 caracteres, al menos una letra y al menos un número. Luego se almacena con el `BCryptPasswordEncoder` existente. El token debe existir por hash, no estar expirado y no tener `used_at`. Al finalizar se marca como usado y se invalidan otros tokens activos del usuario.
+
+### Notificación y logging
+
+No se agregó dependencia SMTP. `PasswordResetNotificationService` deja preparada la abstracción de envío. En perfiles `local` o `dev` se loguea la URL completa de reset para pruebas manuales; en otros perfiles solo se loguea un mensaje seguro sin token. No se loguean contraseñas, hashes de contraseña ni tokens en producción.
+
+Eventos de auditoría agregados en `audit_log`:
+
+- `PASSWORD_RESET_REQUESTED` cuando el usuario existe y está activo.
+- `PASSWORD_RESET_SUCCESS`.
+- `PASSWORD_RESET_FAILED_TOKEN_INVALID`.
+- `PASSWORD_RESET_FAILED_TOKEN_EXPIRED`.
+- `PASSWORD_RESET_FAILED_PASSWORD_POLICY`.
+
+SMTP real, Google login, refresh tokens y endpoints admin siguen fuera del alcance.
+
 ## Health checks
 
 Endpoint técnico del microservicio:
@@ -154,6 +218,8 @@ GET http://localhost:8080/actuator/info
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
 | `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Claim `aud` esperado y emitido. Debe configurarse por entorno fuera de tests. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
+| `AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES` | `30` | TTL de tokens de recuperación de contraseña. |
+| `FRONTEND_RESET_PASSWORD_URL` | `http://localhost:5173/reset-password` | URL base usada para construir enlaces de restablecimiento. |
 | `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfil `local` se usa una clave temporal de integración local con `morosos-service` solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |

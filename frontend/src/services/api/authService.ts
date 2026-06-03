@@ -1,4 +1,4 @@
-import { AuthError, type ApiErrorResponse, type AuthUser, type LoginRequest, type LoginResponse } from "@/types/auth";
+import { AuthError, type ApiErrorResponse, type AuthUser, type ForgotPasswordRequest, type LoginRequest, type LoginResponse, type PasswordResetResponse, type ResetPasswordRequest } from "@/types/auth";
 
 export { AuthError } from "@/types/auth";
 
@@ -88,12 +88,18 @@ export const authService = {
     });
   },
 
-  async forgotPassword(): Promise<{ message: string }> {
-    return { message: "Si la cuenta existe, enviaremos instrucciones para restablecer la contraseña." };
+  forgotPassword(requestPayload: ForgotPasswordRequest): Promise<PasswordResetResponse> {
+    return request<PasswordResetResponse>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(requestPayload),
+    });
   },
 
-  async resetPassword(): Promise<{ message: string }> {
-    return { message: "Restablecimiento de contraseña pendiente de integración." };
+  resetPassword(requestPayload: ResetPasswordRequest): Promise<PasswordResetResponse> {
+    return request<PasswordResetResponse>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(requestPayload),
+    });
   },
 
   async googleLogin(): Promise<{ message: string }> {

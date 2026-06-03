@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pe.morosos.auth.common.HttpHeadersConstants;
 import pe.morosos.auth.exception.AccountDisabledException;
 import pe.morosos.auth.exception.InvalidCredentialsException;
+import pe.morosos.auth.exception.PasswordResetException;
 import pe.morosos.auth.exception.UnauthorizedException;
 
 @RestControllerAdvice
@@ -96,6 +97,20 @@ public class GlobalExceptionHandler {
                 "La solicitud no cumple las restricciones de validación.",
                 request,
                 details
+        );
+    }
+
+    @ExceptionHandler(PasswordResetException.class)
+    public ResponseEntity<ErrorResponse> handlePasswordReset(
+            PasswordResetException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getCode(),
+                exception.getMessage(),
+                request,
+                List.of()
         );
     }
 
