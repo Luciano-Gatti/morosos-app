@@ -245,3 +245,13 @@ Se creó `auth-service` como proyecto Maven Spring Boot independiente para aloja
 - `auth-service/src/main/resources/application-test.yml`
 - `auth-service/src/main/resources/application-prod.yml`
 - `docs/auth/00-etapa-0/auth-service-base.md`
+
+## 2026-06-03 - Registro controlado, Google y administración de usuarios
+
+- Se agrega registro público local en `POST /api/v1/auth/register`; el alta queda en `PENDIENTE_APROBACION`, sin JWT, roles ni permisos.
+- Se agrega autenticación/registro con Google en `POST /api/v1/auth/google`; el backend verifica el ID token contra el `GOOGLE_CLIENT_ID` configurado, exige email verificado y no asigna acceso funcional automáticamente.
+- Se agrega `estado` de usuario (`PENDIENTE_APROBACION`, `ACTIVO`, `INACTIVO`, `RECHAZADO`) manteniendo `activo` para compatibilidad.
+- Se agrega `usuario_permisos` para permisos directos activos. Los permisos efectivos son la unión sin duplicados de permisos por roles activos y permisos directos activos.
+- Se agregan endpoints administrativos bajo `/api/v1/admin/users`, `/api/v1/admin/roles` y `/api/v1/admin/permissions` protegidos con `@PreAuthorize(hasAuthority(...))`.
+- Se agregan permisos administrativos de usuarios, roles y permisos; `ADMIN` recibe todos y `SUPERVISOR` solo permisos de lectura.
+- Se auditan eventos de registro pendiente, vinculación/login Google y cambios administrativos sin registrar passwords, ID tokens, JWT ni hashes.

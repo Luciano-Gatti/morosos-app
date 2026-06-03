@@ -6,6 +6,7 @@ import static org.springframework.http.HttpMethod.POST;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,6 +16,7 @@ import pe.morosos.auth.security.jwt.JwtAuthenticationEntryPoint;
 import pe.morosos.auth.security.jwt.JwtAuthenticationFilter;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -35,6 +37,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(OPTIONS, "/**").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(POST, "/api/v1/auth/register").permitAll()
+                        .requestMatchers(POST, "/api/v1/auth/google").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(GET, "/api/v1/auth-service/health").permitAll()
@@ -43,6 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/swagger-ui", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(GET, "/api/v1/auth/me").authenticated()
                         .requestMatchers(POST, "/api/v1/auth/logout").authenticated()
+                        .requestMatchers("/api/v1/admin/**").authenticated()
                         .anyRequest().denyAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

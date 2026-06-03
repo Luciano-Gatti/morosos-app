@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pe.morosos.auth.common.HttpHeadersConstants;
 import pe.morosos.auth.exception.AccountDisabledException;
+import pe.morosos.auth.exception.AuthBusinessException;
 import pe.morosos.auth.exception.InvalidCredentialsException;
 import pe.morosos.auth.exception.PasswordResetException;
 import pe.morosos.auth.exception.UnauthorizedException;
@@ -50,12 +51,23 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler({UnauthorizedException.class, AccessDeniedException.class})
+    @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(RuntimeException exception, HttpServletRequest request) {
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
                 "AUTH_UNAUTHORIZED",
                 exception.getMessage(),
+                request,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                "AUTH_FORBIDDEN",
+                "No tenés permisos para realizar esta acción.",
                 request,
                 List.of()
         );
@@ -107,6 +119,20 @@ public class GlobalExceptionHandler {
     ) {
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
+                exception.getCode(),
+                exception.getMessage(),
+                request,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AuthBusinessException.class)
+    public ResponseEntity<ErrorResponse> handleAuthBusiness(
+            AuthBusinessException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                exception.getStatus(),
                 exception.getCode(),
                 exception.getMessage(),
                 request,

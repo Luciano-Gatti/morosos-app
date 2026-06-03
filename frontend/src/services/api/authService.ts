@@ -1,4 +1,4 @@
-import { AuthError, type ApiErrorResponse, type AuthUser, type ForgotPasswordRequest, type LoginRequest, type LoginResponse, type PasswordResetResponse, type ResetPasswordRequest } from "@/types/auth";
+import { AuthError, type AdminUser, type AdminUserRequest, type ApiErrorResponse, type AuthUser, type ForgotPasswordRequest, type LoginRequest, type LoginResponse, type MessageResponse, type PasswordResetResponse, type PermissionOption, type RegisterRequest, type ResetPasswordRequest, type RoleOption } from "@/types/auth";
 
 export { AuthError } from "@/types/auth";
 
@@ -102,8 +102,50 @@ export const authService = {
     });
   },
 
-  async googleLogin(): Promise<{ message: string }> {
-    return { message: "Inicio con Google pendiente de integración." };
+  register(requestPayload: RegisterRequest): Promise<MessageResponse> {
+    return request<MessageResponse>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(requestPayload),
+    });
+  },
+
+  googleLogin(idToken: string): Promise<LoginResponse | MessageResponse> {
+    return request<LoginResponse | MessageResponse>("/api/v1/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ idToken }),
+    });
+  },
+
+  adminUsers(token: string): Promise<AdminUser[]> {
+    return request<AdminUser[]>("/api/v1/admin/users", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  },
+
+  adminCreateUser(token: string, payload: AdminUserRequest): Promise<AdminUser> {
+    return request<AdminUser>("/api/v1/admin/users", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+  },
+
+  adminUpdateUser(token: string, userId: string, payload: AdminUserRequest): Promise<AdminUser> {
+    return request<AdminUser>(`/api/v1/admin/users/${userId}`, { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+  },
+
+  adminApproveUser(token: string, userId: string, payload: { roles: string[]; permissions: string[] }): Promise<AdminUser> {
+    return request<AdminUser>(`/api/v1/admin/users/${userId}/approve`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+  },
+
+  adminRejectUser(token: string, userId: string, motivo: string): Promise<AdminUser> {
+    return request<AdminUser>(`/api/v1/admin/users/${userId}/reject`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ motivo }) });
+  },
+
+  adminChangeStatus(token: string, userId: string, estado: string): Promise<AdminUser> {
+    return request<AdminUser>(`/api/v1/admin/users/${userId}/status`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ estado }) });
+  },
+
+  adminRoles(token: string): Promise<RoleOption[]> {
+    return request<RoleOption[]>("/api/v1/admin/roles", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  },
+
+  adminPermissions(token: string): Promise<PermissionOption[]> {
+    return request<PermissionOption[]>("/api/v1/admin/permissions", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
   },
 };
 

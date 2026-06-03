@@ -18,16 +18,26 @@ import {
   ListChecks,
   CalendarRange,
   History,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+
+interface ChildNavItem {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permissions?: string[];
+}
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  children?: { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  permissions?: string[];
+  children?: ChildNavItem[];
 }
 
 const items: NavItem[] = [
@@ -55,6 +65,7 @@ const items: NavItem[] = [
       { to: "/configuracion/seguimiento", label: "Seguimiento", icon: Activity },
       { to: "/configuracion/etapas", label: "Etapas", icon: Layers },
       { to: "/configuracion/motivos-cierre", label: "Motivos de cierre", icon: CircleCheck },
+      { to: "/configuracion/usuarios", label: "Usuarios", icon: ShieldCheck, permissions: ["USUARIOS_VER_LISTADO"] },
     ],
   },
 ];
@@ -66,9 +77,13 @@ interface Props {
 
 export function AppSidebar({ collapsed, onToggle }: Props) {
   const location = useLocation();
+  const { hasAnyPermission } = useAuth();
+  const visibleItems = items
+    .map((item) => ({ ...item, children: item.children?.filter((child) => !child.permissions || hasAnyPermission(child.permissions)) }))
+    .filter((item) => (!item.permissions || hasAnyPermission(item.permissions)) && (!item.children || item.children.length > 0 || item.to !== "/configuracion"));
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    items.forEach((it) => {
+    visibleItems.forEach((it) => {
       if (it.children) initial[it.to] = location.pathname.startsWith(it.to);
     });
     return initial;
@@ -109,7 +124,7 @@ export function AppSidebar({ collapsed, onToggle }: Props) {
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto", collapsed ? "px-2 pt-4" : "px-3")}>
         <ul className="space-y-0.5">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             if (item.children) {
               const groupActive = location.pathname.startsWith(item.to);
