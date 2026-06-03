@@ -20,6 +20,21 @@ export interface LoginFormValues {
   rememberMe: boolean;
 }
 
+export interface ForgotPasswordRequest {
+  usernameOrEmail?: string;
+  email?: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface PasswordResetResponse {
+  message: string;
+}
+
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;

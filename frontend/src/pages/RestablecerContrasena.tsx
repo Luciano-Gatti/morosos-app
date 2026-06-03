@@ -23,7 +23,9 @@ const restablecerSchema = z
     password: z
       .string()
       .min(1, "La contraseña es requerida")
-      .min(8, "La contraseña debe tener al menos 8 caracteres"),
+      .min(8, "La contraseña debe tener al menos 8 caracteres")
+      .regex(/[A-Za-zÁÉÍÓÚáéíóúÑñ]/, "La contraseña debe incluir al menos una letra")
+      .regex(/\d/, "La contraseña debe incluir al menos un número"),
     confirmPassword: z.string().min(1, "Confirmá la contraseña"),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -58,16 +60,20 @@ export default function RestablecerContrasena() {
     }
   }, [token]);
 
-  const onSubmit = async (_data: RestablecerFormData) => {
+  const onSubmit = async (data: RestablecerFormData) => {
     setIsLoading(true);
     setErrorMsg(null);
 
     try {
-      await authService.resetPassword();
+      await authService.resetPassword({
+        token,
+        newPassword: data.password,
+        confirmPassword: data.confirmPassword,
+      });
       setExito(true);
     } catch {
       setErrorMsg(
-        "No se pudo restablecer la contraseña. El enlace puede haber expirado."
+        "No se pudo restablecer la contraseña. El enlace puede ser inválido, haber expirado o ya haber sido usado."
       );
     } finally {
       setIsLoading(false);
@@ -139,8 +145,7 @@ export default function RestablecerContrasena() {
               ¡Contraseña actualizada!
             </h1>
             <p className="mt-3 text-sm text-[hsl(210,20%,70%)]">
-              El restablecimiento real todavía está pendiente de integración.
-              No se envió ninguna contraseña al backend.
+              Ya podés iniciar sesión con tu nueva contraseña.
             </p>
 
             <Button
@@ -233,7 +238,7 @@ export default function RestablecerContrasena() {
                       </div>
                     </FormControl>
                     <p className="text-xs text-[hsl(210,20%,60%)]">
-                      Mínimo 8 caracteres. Recomendado: letras y números.
+                      Mínimo 8 caracteres, con al menos una letra y un número.
                     </p>
                     <FormMessage />
                   </FormItem>

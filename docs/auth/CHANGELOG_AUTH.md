@@ -1,5 +1,39 @@
 # Auth Changelog
 
+## 2026-06-03 - Recuperación/restablecimiento funcional de contraseña
+
+### Resumen
+
+Se implementó el flujo backend real para solicitar recuperación y restablecer contraseñas en `auth-service`, y se conectaron las vistas existentes del frontend. El flujo usa respuesta genérica anti-enumeración, token aleatorio con `SecureRandom`, persistencia por hash SHA-256 Base64 URL-safe en `password_reset_tokens.token_hash`, TTL configurable y revocación lógica vía `used_at` porque el modelo actual no tiene `revoked_at`.
+
+### Archivos principales creados/modificados
+
+- `auth-service/src/main/java/pe/morosos/auth/api/AuthController.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetService.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetNotificationService.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/LocalPasswordResetNotificationService.java`
+- `auth-service/src/main/java/pe/morosos/auth/password/PasswordResetProperties.java`
+- `auth-service/src/main/java/pe/morosos/auth/dto/ForgotPasswordRequest.java`
+- `auth-service/src/main/java/pe/morosos/auth/dto/ResetPasswordRequest.java`
+- `auth-service/src/main/java/pe/morosos/auth/dto/PasswordResetResponse.java`
+- `auth-service/src/main/java/pe/morosos/auth/exception/PasswordResetException.java`
+- `auth-service/src/main/java/pe/morosos/auth/error/GlobalExceptionHandler.java`
+- `auth-service/src/main/java/pe/morosos/auth/security/SecurityConfig.java`
+- `auth-service/src/main/resources/application.yml`
+- `auth-service/src/test/java/pe/morosos/auth/password/PasswordResetFlowIntegrationTest.java`
+- `frontend/src/services/api/authService.ts`
+- `frontend/src/types/auth.ts`
+- `frontend/src/pages/OlvideContrasena.tsx`
+- `frontend/src/pages/RestablecerContrasena.tsx`
+
+### Auditoría
+
+Se registran `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_SUCCESS`, `PASSWORD_RESET_FAILED_TOKEN_INVALID`, `PASSWORD_RESET_FAILED_TOKEN_EXPIRED` y `PASSWORD_RESET_FAILED_PASSWORD_POLICY` sin persistir tokens, contraseñas, hashes de contraseña ni headers de autorización.
+
+### Restricciones respetadas
+
+No se modificó `morosos-service`. No se cambió la seguridad JWT existente salvo permitir los dos endpoints públicos nuevos. No se implementó Google login, refresh token, endpoints admin ni SMTP real.
+
 ## 2026-06-02 - JWT compartido temporal para integración local
 
 ### Resumen

@@ -44,6 +44,9 @@ app:
     audience: ${JWT_AUDIENCE:gestion-aosc}
     access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
     secret: ${JWT_SECRET:}
+  password-reset:
+    token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+    frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
   seed:
     admin:
       enabled: ${AUTH_SEED_ADMIN_ENABLED:true}

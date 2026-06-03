@@ -35,6 +35,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(OPTIONS, "/**").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(POST, "/api/v1/auth/forgot-password").permitAll()
+                        .requestMatchers(POST, "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(GET, "/api/v1/auth-service/health").permitAll()
                         .requestMatchers(GET, "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(GET, "/v3/api-docs/**").permitAll()

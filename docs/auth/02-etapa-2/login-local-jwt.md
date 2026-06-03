@@ -235,3 +235,26 @@ No se implementa todavía:
 - `endpoint_permisos`;
 - asociación endpoint-permiso en base de datos;
 - endpoints administrativos.
+
+
+## Extensión: recuperación/restablecimiento de contraseña
+
+Se implementaron endpoints públicos adicionales bajo `/api/v1/auth` sin modificar la seguridad JWT existente:
+
+- `POST /api/v1/auth/forgot-password` recibe `usernameOrEmail` o `email` y siempre responde con el mensaje genérico `Si los datos corresponden a una cuenta registrada, recibirás instrucciones para restablecer la contraseña.` para evitar enumeración de usuarios.
+- `POST /api/v1/auth/reset-password` recibe `token`, `newPassword` y `confirmPassword`, valida el token por hash y actualiza la contraseña con BCrypt.
+
+El modelo usado es la tabla existente `password_reset_tokens` con `token_hash`, `expires_at`, `used_at` y `created_at`. No existe columna `revoked_at`, por lo que la revocación/invalidation de tokens activos se representa marcando `used_at`. El token plano se genera con `SecureRandom` y Base64 URL-safe sin padding; solo se persiste su hash SHA-256 Base64 URL-safe.
+
+Configuración:
+
+```yaml
+app:
+  password-reset:
+    token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+    frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
+```
+
+La política mínima de contraseña exige 8 caracteres, al menos una letra y al menos un número. Los errores inválido/expirado/usado se devuelven como 400 controlado usando el formato `ErrorResponse` existente.
+
+No se incorporó SMTP real: `PasswordResetNotificationService` permite una implementación futura. En `local`/`dev` se loguea la URL de reset para pruebas manuales; fuera de esos perfiles no se loguea el token. No se implementó Google login, refresh token ni endpoints admin en esta tarea.
