@@ -4,3 +4,7 @@ app:
       - ${FRONTEND_URL:http://localhost:5173}
   jwt:
     secret: ${JWT_SECRET}
+  seed:
+    admin:
+      enabled: false
+      password:

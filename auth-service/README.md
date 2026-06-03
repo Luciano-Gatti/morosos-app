@@ -256,11 +256,11 @@ GET http://localhost:8080/actuator/info
 | `FRONTEND_RESET_PASSWORD_URL` | `http://localhost:5173/reset-password` | URL base del frontend para armar el link `?token=...`. |
 | `AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES` | `30` | TTL del token de recuperación. |
 | `JWT_ISSUER` | `http://localhost:8080` | Claim `iss` esperado y emitido. |
-| `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Claim `aud` esperado y emitido. Debe configurarse por entorno fuera de tests. |
+| `JWT_AUDIENCE` | `gestion-aosc` en base/local/test | Claim estándar `aud` esperado y emitido; debe coincidir con `morosos-service` y puede sobreescribirse por entorno. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Duración del access token en minutos. |
 | `AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES` | `30` | TTL de tokens de recuperación de contraseña. |
 | `FRONTEND_RESET_PASSWORD_URL` | `http://localhost:5173/reset-password` | URL base usada para construir enlaces de restablecimiento. |
-| `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`, `dev` y `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfil `local` se usa una clave temporal de integración local con `morosos-service` solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
+| `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`/`dev`; valor no real separado en `test` | Secreto HS256. Debe tener al menos 32 bytes. En `application.yml` y `prod` no hay secret usable por default; con perfil `local` se usa una clave temporal de integración local con `morosos-service` solo si no se define la variable. En `prod` o sin perfiles activos debe configurarse explícitamente y no puede ser el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita creación/verificación del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |

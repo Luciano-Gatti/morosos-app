@@ -22,7 +22,7 @@ import pe.morosos.auth.security.AuthPrincipal;
 class JwtServiceTest {
 
     private static final String ISSUER = "http://localhost:8080";
-    private static final String AUDIENCE = "morosos-app";
+    private static final String AUDIENCE = "gestion-aosc";
     private static final String SAFE_SECRET = "test-secret-with-at-least-32-bytes-long";
     private static final String LONG_SECRET = "test-secret-with-at-least-64-bytes-long-for-hs384-negative-case";
     private static final String LOCAL_DEV_SECRET = "3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA";

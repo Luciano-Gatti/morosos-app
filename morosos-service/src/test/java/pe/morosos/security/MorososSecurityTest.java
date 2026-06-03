@@ -33,14 +33,14 @@ import pe.morosos.dashboard.service.DashboardService;
 @Import({SecurityConfig.class, PermissionsJwtAuthenticationConverter.class, SecurityErrorResponseWriter.class})
 @TestPropertySource(properties = {
         "app.security.jwt.issuer=http://localhost:8080",
-        "app.security.jwt.audience=morosos-app",
+        "app.security.jwt.audience=gestion-aosc",
         "app.security.jwt.secret=test_secret_32_bytes_minimum_value",
         "app.cors.allowed-origins=http://localhost:5173"
 })
 class MorososSecurityTest {
     private static final String SECRET = "test_secret_32_bytes_minimum_value";
     private static final String ISSUER = "http://localhost:8080";
-    private static final String AUDIENCE = "morosos-app";
+    private static final String AUDIENCE = "gestion-aosc";
 
     @Autowired
     private MockMvc mockMvc;
