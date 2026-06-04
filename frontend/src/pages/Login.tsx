@@ -36,11 +36,13 @@ interface LocationState {
   };
 }
 
-const GOOGLE_BUTTON_MIN_WIDTH = 200;
+const GOOGLE_BUTTON_DEFAULT_WIDTH = 304;
+const GOOGLE_BUTTON_MAX_WIDTH = 400;
+const ACCOUNT_PENDING_APPROVAL_MESSAGE = "Tu cuenta está pendiente de aprobación por un administrador.";
 const GOOGLE_SIGN_IN_BUTTON_CONFIG = {
   theme: "filled_black",
   size: "large",
-  text: "signin_with",
+  text: "continue_with",
   shape: "rectangular",
   logo_alignment: "left",
 } as const;
@@ -82,7 +84,7 @@ export default function Login() {
       navigate(redirectTo, { replace: true });
     } catch (error) {
       if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
-        setInfoMessage(error.message);
+        setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
       } else if (isAuthError(error) && error.code === "ACCOUNT_REJECTED") {
         setLoginError(error.message);
       } else if (isAuthError(error) && error.code === "ACCOUNT_DISABLED") {
@@ -110,7 +112,9 @@ export default function Login() {
       if (!google?.accounts?.id || !buttonContainer) return;
 
       const availableWidth = Math.round(buttonContainer.getBoundingClientRect().width);
-      const width = Math.max(availableWidth, GOOGLE_BUTTON_MIN_WIDTH);
+      const width = availableWidth > 0
+        ? Math.min(availableWidth, GOOGLE_BUTTON_MAX_WIDTH)
+        : GOOGLE_BUTTON_DEFAULT_WIDTH;
       if (width === lastRenderedWidth) return;
 
       lastRenderedWidth = width;
@@ -136,13 +140,13 @@ export default function Login() {
           try {
             const pendingMessage = await loginWithGoogleToken(credential);
             if (pendingMessage) {
-              setInfoMessage(pendingMessage);
+              setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
               return;
             }
             navigate(redirectTo, { replace: true });
           } catch (error) {
             if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
-              setInfoMessage(error.message);
+              setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
             } else if (isAuthError(error) && error.code === "GOOGLE_LOGIN_DISABLED") {
               setLoginError("El inicio de sesión con Google está deshabilitado.");
             } else {
@@ -327,8 +331,13 @@ export default function Login() {
 
           {/* Google */}
           {isGoogleConfigured ? (
-            <div className="flex w-full justify-center">
-              <div ref={googleButtonRef} className="w-full" aria-label="Iniciar sesión con Google" />
+            <div className="flex w-full justify-center rounded-lg border border-[hsl(215,35%,26%)] bg-[hsl(215,40%,13%)] shadow-inner shadow-black/20">
+              <div
+                ref={googleButtonRef}
+                className="flex w-full justify-center overflow-hidden"
+                aria-label="Continuar con Google"
+                title="Continuar con Google"
+              />
             </div>
           ) : (
             <Button
