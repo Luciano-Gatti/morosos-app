@@ -1,8 +1,6 @@
 spring:
   application:
     name: morosos-service
-  profiles:
-    default: dev
   datasource:
     url: jdbc:postgresql://localhost:5432/morosos_db
     username: postgres
@@ -45,7 +43,7 @@ app:
     jwt:
       issuer: ${JWT_ISSUER:http://localhost:8080}
       audience: ${JWT_AUDIENCE:gestion-aosc}
-      secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
+      secret: ${JWT_SECRET:}
 
 management:
   endpoints:

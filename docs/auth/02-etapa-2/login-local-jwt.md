@@ -47,9 +47,9 @@ No se incluye `passwordHash`, tokens de reset ni datos sensibles.
 | Variable | Default | Descripción |
 | --- | --- | --- |
 | `JWT_ISSUER` | `http://localhost:8080` | Emisor esperado y emitido en los JWT. |
-| `JWT_AUDIENCE` | sin default en base; `morosos-app` en `test` | Audiencia esperada y emitida en los JWT. Debe configurarse por entorno fuera de tests. |
+| `JWT_AUDIENCE` | `gestion-aosc` en base/local/test | Audiencia esperada y emitida en el claim estándar `aud`; debe coincidir con `morosos-service` y puede sobreescribirse por entorno. |
 | `JWT_ACCESS_TOKEN_MINUTES` | `15` | Vida del access token en minutos. |
-| `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`, `dev` y `test` | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. `application-local.yml` define una clave temporal para pruebas locales de integración con `morosos-service` si no se pasa la variable; `application-test.yml` define un valor no real de test. En `prod`, sin perfiles activos o fuera de `local`/`dev`, el secreto debe configurarse explícitamente y no puede coincidir con el fallback conocido. |
+| `JWT_SECRET` | vacío en base/prod; fallback temporal no real en `local`/`dev`; valor no real separado en `test` | Secreto HS256 configurable por entorno. Debe tener al menos 32 bytes. `application-local.yml` define una clave temporal para pruebas locales de integración con `morosos-service` si no se pasa la variable; `application-test.yml` define un valor no real de test. En `prod`, sin perfiles activos o fuera de `local`/`dev`, el secreto debe configurarse explícitamente y no puede coincidir con el fallback conocido. |
 | `AUTH_SEED_ADMIN_ENABLED` | `false` | Habilita el initializer del admin dev. |
 | `AUTH_SEED_ADMIN_USERNAME` | `admin` | Username del admin dev. |
 | `AUTH_SEED_ADMIN_EMAIL` | `admin@local.test` | Email del admin dev. |
@@ -88,7 +88,7 @@ En NetBeans se recomienda usar el goal Maven `spring-boot:run` con `-Dspring-boo
 -Dspring-boot.run.arguments="--app.jwt.secret=mi_clave_local_segura_distinta_de_32_caracteres_123"
 ```
 
-No commitear secrets reales en YAML. En producción `JWT_SECRET` es obligatorio y debe venir de variable de entorno o gestor de secretos; los fallbacks de `local`, `dev` y `test` no deben usarse. Para cambiar la clave local, definir `JWT_SECRET` en ambos servicios. Futuro recomendado: migrar a RS256/JWKS para que `morosos-service` valide con clave pública y no comparta secreto con `auth-service`.
+No commitear secrets reales en YAML. En producción `JWT_SECRET` es obligatorio y debe venir de variable de entorno o gestor de secretos; los fallbacks de `local`/`dev` y el valor no real de `test` no deben usarse. Para cambiar la clave local, definir `JWT_SECRET` en ambos servicios. Futuro recomendado: migrar a RS256/JWKS para que `morosos-service` valide con clave pública y no comparta secreto con `auth-service`.
 
 ### Reglas de fallback de `JWT_SECRET`
 

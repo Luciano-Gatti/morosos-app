@@ -64,10 +64,10 @@ app:
       frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
   seed:
     admin:
-      enabled: ${AUTH_SEED_ADMIN_ENABLED:true}
+      enabled: ${AUTH_SEED_ADMIN_ENABLED:false}
       username: ${AUTH_SEED_ADMIN_USERNAME:admin}
       email: ${AUTH_SEED_ADMIN_EMAIL:admin@local.test}
-      password: ${AUTH_SEED_ADMIN_PASSWORD:L12345678}
+      password: ${AUTH_SEED_ADMIN_PASSWORD:}
       nombre: ${AUTH_SEED_ADMIN_NOMBRE:Administrador}
       apellido: ${AUTH_SEED_ADMIN_APELLIDO:Local}
 

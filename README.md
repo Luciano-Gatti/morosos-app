@@ -216,7 +216,7 @@ Mientras `auth-service` emita JWT HS256, `morosos-service` debe compartir el mis
 - expiración (`exp`);
 - permisos del claim `permissions`, convertidos a authorities sin prefijos `SCOPE_` ni `ROLE_`.
 
-Si `JWT_SECRET` está vacío o tiene menos de 32 bytes, el servicio falla el arranque con un mensaje claro. No se loguean JWT, headers `Authorization` ni secretos.
+Si `JWT_SECRET` está vacío o tiene menos de 32 bytes, el servicio falla el arranque con un mensaje claro. `morosos-service` no declara `spring.profiles.default` y el `application.yml` base no tiene secret usable por default (`secret: ${JWT_SECRET:}`); la clave temporal solo existe en perfiles locales/de prueba y el fallback conocido se rechaza fuera de perfiles activos `local`/`dev` o si `prod` está activo. No se loguean JWT, headers `Authorization` ni secretos.
 
 > Mejora futura recomendada: migrar `auth-service` a RS256/JWKS para que `morosos-service` valide tokens con clave pública sin compartir secretos entre servicios.
 
@@ -240,22 +240,22 @@ Todos los endpoints funcionales `/api/v1/**` requieren JWT válido y permisos es
 
 ### Configuración local
 
-Variables requeridas para levantar `morosos-service` contra `auth-service` local:
+Variables para levantar `morosos-service` contra `auth-service` local con un secret explícito. Si no se define `JWT_SECRET`, activar explícitamente el perfil `local` para usar la clave temporal local no productiva:
 
 ```powershell
 $env:JWT_SECRET="misma_clave_que_auth_service_de_32_caracteres_minimo"
 $env:JWT_ISSUER="http://localhost:8080"
-$env:JWT_AUDIENCE="morosos-app"
+$env:JWT_AUDIENCE="gestion-aosc"
 mvn spring-boot:run
 ```
 
-Valores equivalentes en `application.yml`:
+Valores equivalentes en el `application.yml` base corregido (sin fallback de secret):
 
 ```yaml
 app:
   security:
     jwt:
       issuer: ${JWT_ISSUER:http://localhost:8080}
-      audience: ${JWT_AUDIENCE:morosos-app}
+      audience: ${JWT_AUDIENCE:gestion-aosc}
       secret: ${JWT_SECRET:}
 ```

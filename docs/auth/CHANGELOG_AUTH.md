@@ -1,5 +1,19 @@
 # Auth Changelog
 
+## 2026-06-03 - Correcciones de configuración segura JWT/admin/audience
+
+### Resumen
+
+Se corrigieron los bloqueantes de configuración detectados en la auditoría general sin cambiar reglas funcionales: `morosos-service` ya no tiene fallback usable de `JWT_SECRET` ni perfil default en `application.yml`, el fallback temporal conocido solo queda permitido con perfiles activos `local` o `dev` y se rechaza con `prod` o sin perfiles activos, y `auth-service` deja el admin dev deshabilitado por defecto con password vacía.
+
+### JWT y audience
+
+Se unificó el audience local/test en `gestion-aosc` para que `auth-service` emita el claim estándar `aud` y `morosos-service` valide el mismo valor. HS256 compartido sigue siendo temporal para integración local; producción exige `JWT_SECRET` real por variable/gestor externo y el futuro recomendado sigue siendo RS256/JWKS. No se loggean JWT, tokens ni secrets.
+
+### Restricciones respetadas
+
+No se modificaron permisos funcionales de `morosos-service`, no se desactivó seguridad, no se debilitaron validaciones JWT, no se ejecutó `flyway repair`, no se borraron bases de datos y no se commitearon secretos reales.
+
 ## 2026-06-03 - Envío SMTP real para recuperación/restablecimiento de contraseña
 
 ### Resumen
