@@ -260,6 +260,15 @@ Se creó `auth-service` como proyecto Maven Spring Boot independiente para aloja
 - `auth-service/src/main/resources/application-prod.yml`
 - `docs/auth/00-etapa-0/auth-service-base.md`
 
+
+## 2026-06-04 - Ajuste Google Login local AOSC
+
+- Se configura el Client ID web público de AOSC Morosos para el frontend local mediante `VITE_GOOGLE_CLIENT_ID`.
+- Se habilita configuración local de `GOOGLE_CLIENT_ID` en `auth-service` sin tocar producción ni requerir client secret.
+- Se corrige la pantalla de login para renderizar el botón oficial de Google Identity Services y mantener el Google ID token solo en memoria hasta enviarlo a `POST /api/v1/auth/google`.
+- Se agrega error controlado cuando Google está habilitado pero falta `GOOGLE_CLIENT_ID`.
+- Se agregan tests unitarios del flujo Google: login deshabilitado, token inválido, email no verificado, alta pendiente sin JWT, usuario pendiente/inactivo/rechazado bloqueado, usuario activo con JWT propio y vinculación por email verificado.
+
 ## 2026-06-03 - Registro controlado, Google y administración de usuarios
 
 - Se agrega registro público local en `POST /api/v1/auth/register`; el alta queda en `PENDIENTE_APROBACION`, sin JWT, roles ni permisos.

@@ -458,8 +458,9 @@ app:
     enabled: ${GOOGLE_LOGIN_ENABLED:false}
 ```
 
-- `GOOGLE_LOGIN_ENABLED=false` deshabilita `POST /api/v1/auth/google` con error controlado.
-- `GOOGLE_CLIENT_ID` debe coincidir con el audience del ID token recibido desde Google Identity Services.
+- `GOOGLE_LOGIN_ENABLED=false` deshabilita `POST /api/v1/auth/google` con error controlado `GOOGLE_LOGIN_DISABLED`.
+- `GOOGLE_CLIENT_ID` debe coincidir con el audience del ID token recibido desde Google Identity Services. Para local puede usarse el Client ID web público `492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com`; en producción debe inyectarse por entorno y no se usa client secret en este flujo.
+- Si Google está habilitado pero `GOOGLE_CLIENT_ID` está vacío, el endpoint responde `GOOGLE_CLIENT_ID_NOT_CONFIGURED`.
 
 ### Estados de usuario
 
@@ -473,7 +474,7 @@ Los usuarios tienen `estado`:
 ### Endpoints públicos
 
 - `POST /api/v1/auth/register`: crea cuenta local pendiente con contraseña BCrypt. No devuelve token.
-- `POST /api/v1/auth/google`: verifica el ID token con Google, identifica por `provider=GOOGLE` + `provider_subject=sub`, vincula o crea cuenta pendiente. Google no asigna roles ni permisos.
+- `POST /api/v1/auth/google`: verifica el ID token con Google, identifica por `provider=GOOGLE` + `provider_subject=sub`, vincula usuarios existentes por email verificado o crea cuenta pendiente. Google solo autentica identidad; la aprobación administrativa y la asignación de roles/permisos siguen siendo internas.
 
 ### Endpoints administrativos
 
@@ -495,4 +496,4 @@ Los roles siguen siendo agrupadores administrativos. La autorización efectiva s
 
 ### Seguridad de secretos
 
-No se guardan contraseñas en texto plano, no se devuelve `password_hash`, y los flujos no registran passwords, Google ID tokens ni JWT en auditoría o logs.
+No se guardan contraseñas en texto plano, no se devuelve `password_hash`, y los flujos no registran passwords, Google ID tokens ni JWT en auditoría o logs. El frontend debe conservar únicamente el JWT propio emitido por `auth-service`, nunca el Google ID token.

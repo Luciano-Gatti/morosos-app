@@ -112,6 +112,9 @@ public class AuthService {
         if (!googleProperties.enabled()) {
             throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_LOGIN_DISABLED", "El inicio de sesión con Google está deshabilitado.");
         }
+        if (!StringUtils.hasText(googleProperties.clientId())) {
+            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_CLIENT_ID_NOT_CONFIGURED", "Google login no tiene GOOGLE_CLIENT_ID configurado.");
+        }
         GoogleUserClaims claims;
         try {
             claims = googleTokenVerifier.verify(request.idToken());
@@ -154,7 +157,7 @@ public class AuthService {
         usuarioRepository.save(usuario);
         linkGoogleIdentity(usuario, claims);
         authAuditService.recordAuthEvent("GOOGLE_REGISTERED_PENDING", usuario, httpRequest, "{\"provider\":\"GOOGLE\"}");
-        return new MessageResponse("GOOGLE_REGISTERED_PENDING", "Cuenta creada con Google. Un administrador debe aprobar tu acceso.");
+        return new MessageResponse("ACCOUNT_PENDING_APPROVAL", "Tu cuenta fue registrada con Google y está pendiente de aprobación por un administrador.");
     }
 
     @Transactional(readOnly = true)
