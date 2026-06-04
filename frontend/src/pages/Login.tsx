@@ -36,6 +36,15 @@ interface LocationState {
   };
 }
 
+const GOOGLE_BUTTON_MIN_WIDTH = 200;
+const GOOGLE_SIGN_IN_BUTTON_CONFIG = {
+  theme: "filled_black",
+  size: "large",
+  text: "signin_with",
+  shape: "rectangular",
+  logo_alignment: "left",
+} as const;
+
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +102,25 @@ export default function Login() {
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) return;
 
+    let lastRenderedWidth = 0;
+
+    const renderGoogleButton = () => {
+      const google = window.google;
+      const buttonContainer = googleButtonRef.current;
+      if (!google?.accounts?.id || !buttonContainer) return;
+
+      const availableWidth = Math.round(buttonContainer.getBoundingClientRect().width);
+      const width = Math.max(availableWidth, GOOGLE_BUTTON_MIN_WIDTH);
+      if (width === lastRenderedWidth) return;
+
+      lastRenderedWidth = width;
+      buttonContainer.innerHTML = "";
+      google.accounts.id.renderButton(buttonContainer, {
+        ...GOOGLE_SIGN_IN_BUTTON_CONFIG,
+        width,
+      });
+    };
+
     const initializeGoogle = () => {
       const google = window.google;
       if (!google?.accounts?.id || !googleButtonRef.current) return;
@@ -123,20 +151,25 @@ export default function Login() {
           }
         },
       });
-      google.accounts.id.renderButton(googleButtonRef.current, { theme: "outline", size: "large", width: 340, text: "signin_with" });
+      renderGoogleButton();
     };
+
+    const resizeObserver = new ResizeObserver(() => renderGoogleButton());
+    resizeObserver.observe(googleButtonRef.current);
 
     if (window.google?.accounts?.id) {
       initializeGoogle();
-      return;
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogle;
+      script.onerror = () => setLoginError("No se pudo cargar Google Identity Services. Intentá nuevamente más tarde.");
+      document.head.appendChild(script);
     }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = initializeGoogle;
-    script.onerror = () => setLoginError("No se pudo cargar Google Identity Services. Intentá nuevamente más tarde.");
-    document.head.appendChild(script);
+
+    return () => resizeObserver.disconnect();
   }, [googleClientId, loginWithGoogleToken, navigate, redirectTo]);
 
   return (
@@ -294,8 +327,8 @@ export default function Login() {
 
           {/* Google */}
           {isGoogleConfigured ? (
-            <div className="flex justify-center">
-              <div ref={googleButtonRef} aria-label="Iniciar sesión con Google" />
+            <div className="flex w-full justify-center">
+              <div ref={googleButtonRef} className="w-full" aria-label="Iniciar sesión con Google" />
             </div>
           ) : (
             <Button
