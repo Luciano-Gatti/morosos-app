@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,23 +36,15 @@ interface LocationState {
   };
 }
 
-const GOOGLE_BUTTON_DEFAULT_WIDTH = 304;
-const GOOGLE_BUTTON_MAX_WIDTH = 400;
 const ACCOUNT_PENDING_APPROVAL_MESSAGE = "Tu cuenta está pendiente de aprobación por un administrador.";
-const GOOGLE_SIGN_IN_BUTTON_CONFIG = {
-  theme: "filled_black",
-  size: "large",
-  text: "continue_with",
-  shape: "rectangular",
-  logo_alignment: "left",
-} as const;
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const isGoogleConfigured = Boolean(googleClientId);
   const { login, loginWithGoogleToken } = useAuth();
@@ -101,80 +93,100 @@ export default function Login() {
     }
   };
 
+  const handleGoogleCredential = useCallback(async ({ credential }: { credential?: string }) => {
+    if (!credential) {
+      setLoginError("Google no devolvió credenciales válidas.");
+      return;
+    }
+
+    setIsGoogleLoading(true);
+    setLoginError(null);
+    setInfoMessage(null);
+
+    try {
+      const pendingMessage = await loginWithGoogleToken(credential);
+      if (pendingMessage) {
+        setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
+        return;
+      }
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
+        setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
+      } else if (isAuthError(error) && error.code === "GOOGLE_LOGIN_DISABLED") {
+        setLoginError("El inicio de sesión con Google está deshabilitado.");
+      } else {
+        setLoginError(isAuthError(error) ? error.message : "No se pudo iniciar sesión con Google.");
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }, [loginWithGoogleToken, navigate, redirectTo]);
+
   useEffect(() => {
-    if (!googleClientId || !googleButtonRef.current) return;
-
-    let lastRenderedWidth = 0;
-
-    const renderGoogleButton = () => {
-      const google = window.google;
-      const buttonContainer = googleButtonRef.current;
-      if (!google?.accounts?.id || !buttonContainer) return;
-
-      const availableWidth = Math.round(buttonContainer.getBoundingClientRect().width);
-      const width = availableWidth > 0
-        ? Math.min(availableWidth, GOOGLE_BUTTON_MAX_WIDTH)
-        : GOOGLE_BUTTON_DEFAULT_WIDTH;
-      if (width === lastRenderedWidth) return;
-
-      lastRenderedWidth = width;
-      buttonContainer.innerHTML = "";
-      google.accounts.id.renderButton(buttonContainer, {
-        ...GOOGLE_SIGN_IN_BUTTON_CONFIG,
-        width,
-      });
-    };
+    if (!googleClientId) {
+      setIsGoogleReady(false);
+      return;
+    }
 
     const initializeGoogle = () => {
       const google = window.google;
-      if (!google?.accounts?.id || !googleButtonRef.current) return;
+      if (!google?.accounts?.id) {
+        setIsGoogleReady(false);
+        return;
+      }
+
       google.accounts.id.initialize({
         client_id: googleClientId,
-        callback: async ({ credential }: { credential?: string }) => {
-          if (!credential) {
-            setLoginError("Google no devolvió credenciales válidas.");
-            return;
-          }
-          setLoginError(null);
-          setInfoMessage(null);
-          try {
-            const pendingMessage = await loginWithGoogleToken(credential);
-            if (pendingMessage) {
-              setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
-              return;
-            }
-            navigate(redirectTo, { replace: true });
-          } catch (error) {
-            if (isAuthError(error) && error.code === "ACCOUNT_PENDING_APPROVAL") {
-              setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
-            } else if (isAuthError(error) && error.code === "GOOGLE_LOGIN_DISABLED") {
-              setLoginError("El inicio de sesión con Google está deshabilitado.");
-            } else {
-              setLoginError(isAuthError(error) ? error.message : "No se pudo iniciar sesión con Google.");
-            }
-          }
-        },
+        callback: handleGoogleCredential,
       });
-      renderGoogleButton();
+      setIsGoogleReady(true);
     };
-
-    const resizeObserver = new ResizeObserver(() => renderGoogleButton());
-    resizeObserver.observe(googleButtonRef.current);
 
     if (window.google?.accounts?.id) {
       initializeGoogle();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.onload = initializeGoogle;
-      script.onerror = () => setLoginError("No se pudo cargar Google Identity Services. Intentá nuevamente más tarde.");
-      document.head.appendChild(script);
+      return;
     }
 
-    return () => resizeObserver.disconnect();
-  }, [googleClientId, loginWithGoogleToken, navigate, redirectTo]);
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    const script = existingScript ?? document.createElement("script");
+
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = initializeGoogle;
+    script.onerror = () => {
+      setIsGoogleReady(false);
+      setLoginError("No se pudo cargar Google Identity Services. Intentá nuevamente más tarde.");
+    };
+
+    if (!existingScript) {
+      document.head.appendChild(script);
+    }
+  }, [googleClientId, handleGoogleCredential]);
+
+  const handleGoogleLogin = () => {
+    const google = window.google;
+    if (!googleClientId) {
+      setLoginError("Iniciar sesión con Google no está configurado.");
+      return;
+    }
+
+    if (!google?.accounts?.id || !isGoogleReady) {
+      setLoginError("Google Identity Services todavía se está cargando. Intentá nuevamente en unos segundos.");
+      return;
+    }
+
+    setIsGoogleLoading(true);
+    setLoginError(null);
+    setInfoMessage(null);
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
+        setIsGoogleLoading(false);
+        setLoginError("No se pudo abrir el flujo de Google. Intentá nuevamente o usá tus credenciales locales.");
+      }
+    });
+  };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-[hsl(215,55%,12%)] px-4 py-12 sm:px-6 lg:px-8">
@@ -331,22 +343,35 @@ export default function Login() {
 
           {/* Google */}
           {isGoogleConfigured ? (
-            <div className="flex w-full justify-center rounded-lg border border-[hsl(215,35%,26%)] bg-[hsl(215,40%,13%)] shadow-inner shadow-black/20">
-              <div
-                ref={googleButtonRef}
-                className="flex w-full justify-center overflow-hidden"
-                aria-label="Continuar con Google"
-                title="Continuar con Google"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isSubmitting || isGoogleLoading || !isGoogleReady}
+              aria-label="Continuar con Google"
+              className="relative flex h-11 w-full items-center justify-center rounded-md border border-[#334155] bg-[#1e293b] px-4 text-sm font-medium text-[hsl(210,20%,92%)] transition-colors hover:bg-[#263449] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(210,60%,65%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(215,45%,10%)] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <svg
+                className="absolute left-4 h-5 w-5"
+                aria-hidden="true"
+                viewBox="0 0 18 18"
+                focusable="false"
+              >
+                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.72H.94v2.33A9 9 0 0 0 9 18z" />
+                <path fill="#FBBC05" d="M3.96 10.7A5.41 5.41 0 0 1 3.68 9c0-.59.1-1.16.28-1.7V4.97H.94A9 9 0 0 0 0 9c0 1.45.35 2.82.94 4.03l3.02-2.33z" />
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.64 8.64 0 0 0 9 0 9 9 0 0 0 .94 4.97L3.96 7.3C4.67 5.16 6.66 3.58 9 3.58z" />
+              </svg>
+              <span>{isGoogleLoading ? "Conectando con Google…" : "Continuar con Google"}</span>
+            </button>
           ) : (
             <Button
               type="button"
               variant="outline"
               disabled
-              className="h-11 w-full border-[hsl(215,35%,28%)] bg-transparent text-[hsl(210,20%,85%)] opacity-80"
+              aria-label="Continuar con Google"
+              className="h-11 w-full border-[#334155] bg-[#1e293b] text-[hsl(210,20%,85%)] opacity-80"
             >
-              Iniciar sesión con Google no configurado
+              Google no configurado
             </Button>
           )}
 
