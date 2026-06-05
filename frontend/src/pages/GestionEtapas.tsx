@@ -1189,7 +1189,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento | null }) {
 function EstadoPill({ estado }: { estado: EstadoProceso }) {
   const cls: Record<EstadoProceso, string> = {
     "No iniciado": "border-border bg-muted text-muted-foreground",
-    Activo:
+    Iniciado:
       "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
     Pausado:
       "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
@@ -1197,7 +1197,7 @@ function EstadoPill({ estado }: { estado: EstadoProceso }) {
   };
   const dot: Record<EstadoProceso, string> = {
     "No iniciado": "bg-muted-foreground/60",
-    Activo: "bg-emerald-500",
+    Iniciado: "bg-emerald-500",
     Pausado: "bg-amber-500",
     Cerrado: "bg-status-closed",
   };
