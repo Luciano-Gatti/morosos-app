@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,6 +39,7 @@ interface LocationState {
 const ACCOUNT_PENDING_APPROVAL_MESSAGE = "Tu cuenta está pendiente de aprobación por un administrador.";
 
 export default function Login() {
+  const googleCodeClientRef = useRef<GoogleCodeClient | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function Login() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const isGoogleConfigured = Boolean(googleClientId);
-  const { login, loginWithGoogleToken } = useAuth();
+  const { login, loginWithGoogleCode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -93,9 +94,16 @@ export default function Login() {
     }
   };
 
-  const handleGoogleCredential = useCallback(async ({ credential }: { credential?: string }) => {
-    if (!credential) {
-      setLoginError("Google no devolvió credenciales válidas.");
+  const handleGoogleCode = useCallback(async ({ code, error, error_description }: GoogleCodeResponse) => {
+    if (error) {
+      setLoginError(error_description || "Google no autorizó el inicio de sesión.");
+      setIsGoogleLoading(false);
+      return;
+    }
+
+    if (!code) {
+      setLoginError("Google no devolvió un código válido.");
+      setIsGoogleLoading(false);
       return;
     }
 
@@ -104,7 +112,7 @@ export default function Login() {
     setInfoMessage(null);
 
     try {
-      const pendingMessage = await loginWithGoogleToken(credential);
+      const pendingMessage = await loginWithGoogleCode(code, window.location.origin);
       if (pendingMessage) {
         setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
         return;
@@ -115,13 +123,15 @@ export default function Login() {
         setInfoMessage(ACCOUNT_PENDING_APPROVAL_MESSAGE);
       } else if (isAuthError(error) && error.code === "GOOGLE_LOGIN_DISABLED") {
         setLoginError("El inicio de sesión con Google está deshabilitado.");
+      } else if (isAuthError(error) && error.code === "GOOGLE_CLIENT_SECRET_NOT_CONFIGURED") {
+        setLoginError("Google login no tiene GOOGLE_CLIENT_SECRET configurado en el auth-service.");
       } else {
         setLoginError(isAuthError(error) ? error.message : "No se pudo iniciar sesión con Google.");
       }
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [loginWithGoogleToken, navigate, redirectTo]);
+  }, [loginWithGoogleCode, navigate, redirectTo]);
 
   useEffect(() => {
     if (!googleClientId) {
@@ -129,23 +139,37 @@ export default function Login() {
       return;
     }
 
+    let isMounted = true;
+
     const initializeGoogle = () => {
       const google = window.google;
-      if (!google?.accounts?.id) {
+      if (!google?.accounts?.oauth2) {
         setIsGoogleReady(false);
         return;
       }
 
-      google.accounts.id.initialize({
+      googleCodeClientRef.current = google.accounts.oauth2.initCodeClient({
         client_id: googleClientId,
-        callback: handleGoogleCredential,
+        scope: "openid email profile",
+        ux_mode: "popup",
+        callback: handleGoogleCode,
+        error_callback: (error) => {
+          setIsGoogleLoading(false);
+          if (error.type === "popup_closed") {
+            return;
+          }
+          setLoginError("No se pudo abrir el flujo de Google. Intentá nuevamente o usá tus credenciales locales.");
+        },
       });
-      setIsGoogleReady(true);
+      if (isMounted) setIsGoogleReady(true);
     };
 
-    if (window.google?.accounts?.id) {
+    if (window.google?.accounts?.oauth2) {
       initializeGoogle();
-      return;
+      return () => {
+        isMounted = false;
+        googleCodeClientRef.current = null;
+      };
     }
 
     const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
@@ -163,16 +187,21 @@ export default function Login() {
     if (!existingScript) {
       document.head.appendChild(script);
     }
-  }, [googleClientId, handleGoogleCredential]);
+
+    return () => {
+      isMounted = false;
+      googleCodeClientRef.current = null;
+    };
+  }, [googleClientId, handleGoogleCode]);
 
   const handleGoogleLogin = () => {
-    const google = window.google;
     if (!googleClientId) {
       setLoginError("Iniciar sesión con Google no está configurado.");
       return;
     }
 
-    if (!google?.accounts?.id || !isGoogleReady) {
+    const googleCodeClient = googleCodeClientRef.current;
+    if (!googleCodeClient || !isGoogleReady) {
       setLoginError("Google Identity Services todavía se está cargando. Intentá nuevamente en unos segundos.");
       return;
     }
@@ -180,12 +209,7 @@ export default function Login() {
     setIsGoogleLoading(true);
     setLoginError(null);
     setInfoMessage(null);
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
-        setIsGoogleLoading(false);
-        setLoginError("No se pudo abrir el flujo de Google. Intentá nuevamente o usá tus credenciales locales.");
-      }
-    });
+    googleCodeClient.requestCode();
   };
 
   return (

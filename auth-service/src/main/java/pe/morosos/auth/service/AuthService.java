@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import pe.morosos.auth.audit.model.LoginAttemptResult;
 import pe.morosos.auth.dto.AuthUserResponse;
 import pe.morosos.auth.dto.GoogleAuthRequest;
+import pe.morosos.auth.dto.GoogleCodeAuthRequest;
 import pe.morosos.auth.dto.LoginRequest;
 import pe.morosos.auth.dto.LoginResponse;
 import pe.morosos.auth.dto.MessageResponse;
@@ -21,6 +22,7 @@ import pe.morosos.auth.exception.AccountDisabledException;
 import pe.morosos.auth.exception.AuthBusinessException;
 import pe.morosos.auth.exception.InvalidCredentialsException;
 import pe.morosos.auth.exception.UnauthorizedException;
+import pe.morosos.auth.google.GoogleAuthorizationCodeExchanger;
 import pe.morosos.auth.google.GoogleProperties;
 import pe.morosos.auth.google.GoogleTokenVerificationException;
 import pe.morosos.auth.google.GoogleTokenVerifier;
@@ -46,6 +48,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthAuditService authAuditService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
     private final GoogleProperties googleProperties;
 
     public AuthService(
@@ -56,6 +59,7 @@ public class AuthService {
             JwtService jwtService,
             AuthAuditService authAuditService,
             GoogleTokenVerifier googleTokenVerifier,
+            GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger,
             GoogleProperties googleProperties
     ) {
         this.usuarioRepository = usuarioRepository;
@@ -65,6 +69,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.authAuditService = authAuditService;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.googleAuthorizationCodeExchanger = googleAuthorizationCodeExchanger;
         this.googleProperties = googleProperties;
     }
 
@@ -109,12 +114,7 @@ public class AuthService {
 
     @Transactional
     public Object google(GoogleAuthRequest request, HttpServletRequest httpRequest) {
-        if (!googleProperties.enabled()) {
-            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_LOGIN_DISABLED", "El inicio de sesión con Google está deshabilitado.");
-        }
-        if (!StringUtils.hasText(googleProperties.clientId())) {
-            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_CLIENT_ID_NOT_CONFIGURED", "Google login no tiene GOOGLE_CLIENT_ID configurado.");
-        }
+        ensureGoogleLoginConfigured(false);
         GoogleUserClaims claims;
         try {
             claims = googleTokenVerifier.verify(request.idToken());
@@ -158,6 +158,19 @@ public class AuthService {
         linkGoogleIdentity(usuario, claims);
         authAuditService.recordAuthEvent("GOOGLE_REGISTERED_PENDING", usuario, httpRequest, "{\"provider\":\"GOOGLE\"}");
         return new MessageResponse("ACCOUNT_PENDING_APPROVAL", "Tu cuenta fue registrada con Google y está pendiente de aprobación por un administrador.");
+    }
+
+    @Transactional
+    public Object googleCode(GoogleCodeAuthRequest request, HttpServletRequest httpRequest) {
+        ensureGoogleLoginConfigured(true);
+        validateGoogleCodeRequest(request, httpRequest);
+        String idToken;
+        try {
+            idToken = googleAuthorizationCodeExchanger.exchangeForIdToken(request.code(), request.redirectUri());
+        } catch (GoogleTokenVerificationException exception) {
+            throw new AuthBusinessException(HttpStatus.UNAUTHORIZED, "GOOGLE_CODE_EXCHANGE_FAILED", exception.getMessage());
+        }
+        return google(new GoogleAuthRequest(idToken), httpRequest);
     }
 
     @Transactional(readOnly = true)
@@ -223,6 +236,32 @@ public class AuthService {
         identidad.setProviderSubject(claims.subject());
         identidad.setEmail(normalizeEmail(claims.email()));
         identidadExternaRepository.save(identidad);
+    }
+
+    private void ensureGoogleLoginConfigured(boolean requireClientSecret) {
+        if (!googleProperties.enabled()) {
+            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_LOGIN_DISABLED", "El inicio de sesión con Google está deshabilitado.");
+        }
+        if (!StringUtils.hasText(googleProperties.clientId())) {
+            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_CLIENT_ID_NOT_CONFIGURED", "Google login no tiene GOOGLE_CLIENT_ID configurado.");
+        }
+        if (requireClientSecret && !StringUtils.hasText(googleProperties.clientSecret())) {
+            throw new AuthBusinessException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_CLIENT_SECRET_NOT_CONFIGURED", "Google login no tiene GOOGLE_CLIENT_SECRET configurado.");
+        }
+    }
+
+    private void validateGoogleCodeRequest(GoogleCodeAuthRequest request, HttpServletRequest httpRequest) {
+        if (httpRequest == null) {
+            return;
+        }
+        String requestedWith = httpRequest.getHeader("X-Requested-With");
+        if (!"XmlHttpRequest".equals(requestedWith)) {
+            throw new AuthBusinessException(HttpStatus.BAD_REQUEST, "GOOGLE_CODE_REQUEST_INVALID", "La solicitud de Google no es válida.");
+        }
+        String origin = httpRequest.getHeader("Origin");
+        if (StringUtils.hasText(origin) && !origin.equals(request.redirectUri())) {
+            throw new AuthBusinessException(HttpStatus.BAD_REQUEST, "GOOGLE_REDIRECT_URI_INVALID", "El redirectUri de Google no coincide con el origin del frontend.");
+        }
     }
 
     private void validatePasswordPolicy(String password, String confirmPassword) {

@@ -12,4 +12,4 @@ app:
       password: ${AUTH_SEED_ADMIN_PASSWORD:}
   google:
     client-id: ${GOOGLE_CLIENT_ID:492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com}
-    enabled: ${GOOGLE_LOGIN_ENABLED:false}
+    enabled: ${GOOGLE_LOGIN_ENABLED:true}

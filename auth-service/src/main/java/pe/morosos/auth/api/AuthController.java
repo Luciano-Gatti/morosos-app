@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pe.morosos.auth.dto.AuthUserResponse;
 import pe.morosos.auth.dto.ForgotPasswordRequest;
 import pe.morosos.auth.dto.GoogleAuthRequest;
+import pe.morosos.auth.dto.GoogleCodeAuthRequest;
 import pe.morosos.auth.dto.LoginRequest;
 import pe.morosos.auth.dto.MessageResponse;
 import pe.morosos.auth.dto.RegisterRequest;
@@ -62,6 +63,15 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         return ResponseEntity.ok(authService.google(request, httpRequest));
+    }
+
+    @PostMapping("/google/code")
+    @Operation(summary = "Login o registro con código OAuth de Google", description = "Intercambia un authorization code por un Google ID token y aplica aprobación interna antes de emitir JWT.")
+    public ResponseEntity<?> googleCode(
+            @Valid @RequestBody GoogleCodeAuthRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(authService.googleCode(request, httpRequest));
     }
 
     @PostMapping("/forgot-password")

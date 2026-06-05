@@ -20,9 +20,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import pe.morosos.auth.dto.AuthUserResponse;
 import pe.morosos.auth.dto.GoogleAuthRequest;
+import pe.morosos.auth.dto.GoogleCodeAuthRequest;
 import pe.morosos.auth.dto.LoginResponse;
 import pe.morosos.auth.dto.MessageResponse;
 import pe.morosos.auth.exception.AuthBusinessException;
+import pe.morosos.auth.google.GoogleAuthorizationCodeExchanger;
 import pe.morosos.auth.google.GoogleProperties;
 import pe.morosos.auth.google.GoogleTokenVerificationException;
 import pe.morosos.auth.google.GoogleTokenVerifier;
@@ -39,6 +41,7 @@ import pe.morosos.auth.user.repository.UsuarioRepository;
 class AuthServiceGoogleTest {
 
     private static final String CLIENT_ID = "492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com";
+    private static final String CLIENT_SECRET = "google-client-secret-no-log";
     private static final String ID_TOKEN = "google-id-token-no-log";
 
     @Mock
@@ -55,17 +58,19 @@ class AuthServiceGoogleTest {
     private AuthAuditService authAuditService;
     @Mock
     private GoogleTokenVerifier googleTokenVerifier;
+    @Mock
+    private GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = service(new GoogleProperties(CLIENT_ID, true));
+        authService = service(new GoogleProperties(CLIENT_ID, CLIENT_SECRET, true));
     }
 
     @Test
     void googleLoginDisabledReturnsControlledErrorWithoutVerifyingToken() {
-        AuthService disabledService = service(new GoogleProperties(CLIENT_ID, false));
+        AuthService disabledService = service(new GoogleProperties(CLIENT_ID, CLIENT_SECRET, false));
 
         assertThatThrownBy(() -> disabledService.google(new GoogleAuthRequest(ID_TOKEN), null))
                 .isInstanceOf(AuthBusinessException.class)
@@ -78,7 +83,7 @@ class AuthServiceGoogleTest {
 
     @Test
     void googleLoginEnabledWithoutClientIdReturnsControlledError() {
-        AuthService misconfiguredService = service(new GoogleProperties("", true));
+        AuthService misconfiguredService = service(new GoogleProperties("", CLIENT_SECRET, true));
 
         assertThatThrownBy(() -> misconfiguredService.google(new GoogleAuthRequest(ID_TOKEN), null))
                 .isInstanceOf(AuthBusinessException.class)
@@ -86,6 +91,38 @@ class AuthServiceGoogleTest {
                 .containsExactly("GOOGLE_CLIENT_ID_NOT_CONFIGURED", HttpStatus.SERVICE_UNAVAILABLE);
 
         verify(googleTokenVerifier, never()).verify(any());
+    }
+
+    @Test
+    void googleCodeEnabledWithoutClientSecretReturnsControlledError() {
+        AuthService misconfiguredService = service(new GoogleProperties(CLIENT_ID, "", true));
+
+        assertThatThrownBy(() -> misconfiguredService.googleCode(new GoogleCodeAuthRequest("auth-code", "http://localhost:5173"), null))
+                .isInstanceOf(AuthBusinessException.class)
+                .extracting("code", "status")
+                .containsExactly("GOOGLE_CLIENT_SECRET_NOT_CONFIGURED", HttpStatus.SERVICE_UNAVAILABLE);
+
+        verify(googleAuthorizationCodeExchanger, never()).exchangeForIdToken(any(), any());
+        verify(googleTokenVerifier, never()).verify(any());
+    }
+
+    @Test
+    void googleCodeExchangesAuthorizationCodeAndUsesReturnedIdToken() {
+        Usuario usuario = user(EstadoUsuario.ACTIVO);
+        AuthUserResponse userResponse = response(usuario, List.of("OPERADOR"), List.of("DASHBOARD_VER"));
+        when(googleAuthorizationCodeExchanger.exchangeForIdToken("auth-code", "http://localhost:5173")).thenReturn(ID_TOKEN);
+        when(googleTokenVerifier.verify(ID_TOKEN)).thenReturn(claims(true));
+        when(identidadExternaRepository.findByProviderAndProviderSubject(ExternalProvider.GOOGLE, "google-sub-123"))
+                .thenReturn(Optional.of(identity(usuario)));
+        when(userAuthorityService.toResponse(usuario)).thenReturn(userResponse);
+        when(jwtService.generateAccessToken(userResponse)).thenReturn("own-auth-service-jwt");
+        when(jwtService.accessTokenSeconds()).thenReturn(900L);
+
+        Object response = authService.googleCode(new GoogleCodeAuthRequest("auth-code", "http://localhost:5173"), null);
+
+        assertThat(response).isInstanceOf(LoginResponse.class);
+        assertThat(((LoginResponse) response).accessToken()).isEqualTo("own-auth-service-jwt");
+        verify(googleAuthorizationCodeExchanger).exchangeForIdToken("auth-code", "http://localhost:5173");
     }
 
     @Test
@@ -223,6 +260,7 @@ class AuthServiceGoogleTest {
                 jwtService,
                 authAuditService,
                 googleTokenVerifier,
+                googleAuthorizationCodeExchanger,
                 properties
         );
     }

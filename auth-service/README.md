@@ -455,12 +455,15 @@ Los JSON guardados son seguros y no incluyen passwords, hashes ni tokens.
 app:
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
-    enabled: ${GOOGLE_LOGIN_ENABLED:false}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+    enabled: ${GOOGLE_LOGIN_ENABLED:true}
 ```
 
 - `GOOGLE_LOGIN_ENABLED=false` deshabilita `POST /api/v1/auth/google` con error controlado `GOOGLE_LOGIN_DISABLED`.
-- `GOOGLE_CLIENT_ID` debe coincidir con el audience del ID token recibido desde Google Identity Services. Para local puede usarse el Client ID web público `492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com`; en producción debe inyectarse por entorno y no se usa client secret en este flujo.
+- `GOOGLE_CLIENT_ID` debe coincidir con el OAuth Client ID de Google Identity Services. Para local puede usarse el Client ID web público `492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com`; en producción debe inyectarse por entorno.
+- `GOOGLE_CLIENT_SECRET` es obligatorio para el flujo de botón personalizado: `POST /api/v1/auth/google/code` intercambia el authorization code por tokens de Google en el backend.
 - Si Google está habilitado pero `GOOGLE_CLIENT_ID` está vacío, el endpoint responde `GOOGLE_CLIENT_ID_NOT_CONFIGURED`.
+- Si el flujo por code está habilitado pero `GOOGLE_CLIENT_SECRET` está vacío, el endpoint responde `GOOGLE_CLIENT_SECRET_NOT_CONFIGURED`.
 
 ### Estados de usuario
 
@@ -475,6 +478,7 @@ Los usuarios tienen `estado`:
 
 - `POST /api/v1/auth/register`: crea cuenta local pendiente con contraseña BCrypt. No devuelve token.
 - `POST /api/v1/auth/google`: verifica el ID token con Google, identifica por `provider=GOOGLE` + `provider_subject=sub`, vincula usuarios existentes por email verificado o crea cuenta pendiente. Google solo autentica identidad; la aprobación administrativa y la asignación de roles/permisos siguen siendo internas.
+- `POST /api/v1/auth/google/code`: recibe el authorization code del frontend, lo intercambia con Google usando `GOOGLE_CLIENT_SECRET` y reutiliza la misma lógica de login/registro Google. En popup mode, el `redirectUri` del request debe ser el origin del frontend, por ejemplo `http://localhost:5173`.
 
 ### Endpoints administrativos
 

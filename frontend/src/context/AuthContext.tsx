@@ -104,6 +104,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.message;
   }, []);
 
+  const loginWithGoogleCode = useCallback(async (code: string, redirectUri: string) => {
+    const response = await authService.googleLoginWithCode(code, redirectUri);
+    if ("accessToken" in response) {
+      persistSession(response.accessToken, response.user, false);
+      setState({
+        user: response.user,
+        accessToken: response.accessToken,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return null;
+    }
+    return response.message;
+  }, []);
+
   const logout = useCallback(async () => {
     const accessToken = getStoredAccessToken();
     if (accessToken) {
@@ -137,12 +152,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ...state,
     login,
     loginWithGoogleToken,
+    loginWithGoogleCode,
     logout,
     refreshSessionFromMe,
     hasPermission,
     hasAnyPermission,
     hasRole,
-  }), [state, login, loginWithGoogleToken, logout, refreshSessionFromMe, hasPermission, hasAnyPermission, hasRole]);
+  }), [state, login, loginWithGoogleToken, loginWithGoogleCode, logout, refreshSessionFromMe, hasPermission, hasAnyPermission, hasRole]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

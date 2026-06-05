@@ -116,6 +116,16 @@ export const authService = {
     });
   },
 
+  googleLoginWithCode(code: string, redirectUri: string): Promise<LoginResponse | MessageResponse> {
+    return request<LoginResponse | MessageResponse>("/api/v1/auth/google/code", {
+      method: "POST",
+      headers: {
+        "X-Requested-With": "XmlHttpRequest",
+      },
+      body: JSON.stringify({ code, redirectUri }),
+    });
+  },
+
   adminUsers(token: string): Promise<AdminUser[]> {
     return request<AdminUser[]>("/api/v1/admin/users", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
   },

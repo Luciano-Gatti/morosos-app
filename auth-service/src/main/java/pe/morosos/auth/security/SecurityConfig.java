@@ -39,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/register").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/google").permitAll()
+                        .requestMatchers(POST, "/api/v1/auth/google/code").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers(POST, "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(GET, "/api/v1/auth-service/health").permitAll()

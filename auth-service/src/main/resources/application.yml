@@ -73,4 +73,5 @@ app:
 
   google:
     client-id: ${GOOGLE_CLIENT_ID:492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com}
+    client-secret: ${GOOGLE_CLIENT_SECRET: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}
     enabled: ${GOOGLE_LOGIN_ENABLED:true}
