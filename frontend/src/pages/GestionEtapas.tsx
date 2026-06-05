@@ -612,7 +612,7 @@ export default function GestionEtapas() {
               <SelectContent>
                 <SelectItem value="all" className="text-[13px]">Todos los estados</SelectItem>
                 {([
-                  { label: "Activo", value: "ABIERTO" },
+                  { label: "Iniciado", value: "ABIERTO" },
                   { label: "Pausado", value: "PAUSADO" },
                   { label: "Cerrado", value: "CERRADO" },
                 ] as const).map((e) => (
@@ -693,9 +693,9 @@ export default function GestionEtapas() {
                 </span>
               </div>
               <div>
-                Activos:{" "}
+                Iniciados:{" "}
                 <span className="tabular font-semibold text-foreground">
-                  {numberFmt.format(filtered.filter((m) => m.estado === "Activo").length)}
+                  {numberFmt.format(filtered.filter((m) => m.estado === "Iniciado").length)}
                 </span>
               </div>
               <div>
@@ -1092,7 +1092,7 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento | null }) {
 function EstadoPill({ estado }: { estado: EstadoProceso }) {
   const cls: Record<EstadoProceso, string> = {
     "No iniciado": "border-border bg-muted text-muted-foreground",
-    Activo:
+    Iniciado:
       "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
     Pausado:
       "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
@@ -1100,7 +1100,7 @@ function EstadoPill({ estado }: { estado: EstadoProceso }) {
   };
   const dot: Record<EstadoProceso, string> = {
     "No iniciado": "bg-muted-foreground/60",
-    Activo: "bg-emerald-500",
+    Iniciado: "bg-emerald-500",
     Pausado: "bg-amber-500",
     Cerrado: "bg-status-closed",
   };
