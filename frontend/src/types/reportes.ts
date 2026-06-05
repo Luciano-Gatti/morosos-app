@@ -16,19 +16,13 @@ export interface MorososPorDistritoRow {
   porcentaje: number;
 }
 
-export type AccionTipo =
-  | "Aviso de deuda"
-  | "Intimación"
-  | "Aviso de corte"
-  | "Corte"
-  | "Regularización"
-  | "Plan de pago"
-  | "Compromiso de pago";
+export type AccionTipo = string;
 
 export interface AccionRegistro {
   id: string;
   fecha: Date;
   tipo: AccionTipo;
+  codigo?: string;
   cuenta: string;
   titular: string;
   grupo: string;
@@ -46,6 +40,8 @@ export interface AccionRegistro {
   valorCuota?: number | null;
   cuotasPagadas?: number | null;
   saldoPendiente?: number | null;
+  cuotasPendientes?: number | null;
+  montoPendiente?: number | null;
   proximoVencimiento?: Date | null;
   vencimientoFinal?: Date | null;
 }

@@ -18,7 +18,7 @@ Base de backend para V1 del microservicio de control de morosos.
 - Módulos funcionales implementados:
   - **Grupos** y **Configuración General**
   - **Catálogos de corte**: TipoCorte y MotivoCorte
-- Sin seguridad/login/roles/permisos.
+- Seguridad JWT en `morosos-service` con permisos por endpoint; login y emisión de tokens quedan en `auth-service`.
 - Sin auditoría.
 
 ## Convención de nombres
@@ -201,3 +201,61 @@ npm run dev
 - Detalle de caso: datos del inmueble, estado/etapa, fechas, historial de etapas (vista operativa), compromisos, registros de corte en etapa `CORTE` y acciones de avanzar/repetir, pausar por compromiso, cerrar caso y registrar corte.
 - Compromisos en detalle de caso: alta (`fechaDesde` obligatoria, `fechaHasta`/`observacion` opcionales), listado y acción para marcar incumplido/reactivar caso; al registrar compromiso se visualiza estado `PAUSADO`.
 - Registros de corte en detalle de caso: formulario (fecha, tipo, motivo y observación opcional), visibilidad solo en etapa `CORTE` y historial de múltiples cortes del caso en orden operativo.
+
+## Seguridad de `morosos-service` con JWT
+
+`morosos-service` valida localmente los JWT emitidos por `auth-service` y protege los endpoints funcionales `/api/v1/**` con permisos específicos usando `@PreAuthorize`. La autorización real se basa en el claim `permissions`; los roles pueden venir en el JWT como información administrativa, pero no se usan para proteger endpoints.
+
+### Validaciones del token
+
+Mientras `auth-service` emita JWT HS256, `morosos-service` debe compartir el mismo `JWT_SECRET` para validar la firma. El servicio valida:
+
+- firma HS256;
+- `iss` contra `JWT_ISSUER`;
+- `aud` contra `JWT_AUDIENCE`;
+- expiración (`exp`);
+- permisos del claim `permissions`, convertidos a authorities sin prefijos `SCOPE_` ni `ROLE_`.
+
+Si `JWT_SECRET` está vacío o tiene menos de 32 bytes, el servicio falla el arranque con un mensaje claro. `morosos-service` no declara `spring.profiles.default` y el `application.yml` base no tiene secret usable por default (`secret: ${JWT_SECRET:}`); la clave temporal solo existe en perfiles locales/de prueba y el fallback conocido se rechaza fuera de perfiles activos `local`/`dev` o si `prod` está activo. No se loguean JWT, headers `Authorization` ni secretos.
+
+> Mejora futura recomendada: migrar `auth-service` a RS256/JWKS para que `morosos-service` valide tokens con clave pública sin compartir secretos entre servicios.
+
+### Códigos de error de seguridad
+
+- `401 AUTH_UNAUTHORIZED`: token ausente, inválido, expirado, con firma inválida, issuer inválido o audience inválida.
+- `403 AUTH_FORBIDDEN`: token válido, pero sin el permiso requerido para el endpoint.
+
+### Endpoints públicos
+
+Quedan públicos sin token:
+
+- `OPTIONS /**`
+- `/actuator/health`
+- `/actuator/info`
+- `/swagger-ui/**`
+- `/swagger-ui.html`
+- `/v3/api-docs/**`
+
+Todos los endpoints funcionales `/api/v1/**` requieren JWT válido y permisos específicos por endpoint.
+
+### Configuración local
+
+Variables para levantar `morosos-service` contra `auth-service` local con un secret explícito. Si no se define `JWT_SECRET`, activar explícitamente el perfil `local` para usar la clave temporal local no productiva:
+
+```powershell
+$env:JWT_SECRET="misma_clave_que_auth_service_de_32_caracteres_minimo"
+$env:JWT_ISSUER="http://localhost:8080"
+$env:JWT_AUDIENCE="gestion-aosc"
+mvn spring-boot:run
+```
+
+Valores equivalentes en el `application.yml` base corregido (sin fallback de secret):
+
+```yaml
+app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:http://localhost:8080}
+      audience: ${JWT_AUDIENCE:gestion-aosc}
+      secret: ${JWT_SECRET:}
+```

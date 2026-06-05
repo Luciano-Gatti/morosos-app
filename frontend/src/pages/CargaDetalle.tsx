@@ -57,7 +57,7 @@ const PAGE_SIZE = 12;
 const ERRORES_PAGE_SIZE = 12;
 
 const toEstado = (v: string): CargaEstado => v === "COMPLETADA" ? "completada" : v === "COMPLETADA_CON_ERRORES" ? "con_errores" : v === "FALLIDA" ? "fallida" : "procesando";
-const mapCarga = (row: any): CargaDeuda => ({ id: String(row.id ?? ""), fecha: row.fecha ?? row.createdAt ?? new Date().toISOString(), nombre: row.nombre ?? row.archivo ?? `Carga #${row.id ?? "-"}`, usuario: row.usuario ?? row.operador ?? "-", estado: toEstado(row.estado ?? "PROCESANDO"), morosos: Number(row.morosos ?? 0), montoTotal: Number(row.montoTotal ?? 0), procesados: Number(row.procesados ?? 0), creados: Number(row.creados ?? 0), errores: Number(row.errores ?? 0), noEncontradas: Number(row.noEncontradas ?? 0) });
+const mapCarga = (row: any): CargaDeuda => ({ id: String(row.id ?? ""), fecha: row.fecha ?? row.createdAt ?? new Date().toISOString(), nombre: row.nombre ?? row.archivo ?? `Carga #${row.id ?? "-"}`, usuario: row.usuario ?? row.operador ?? "-", estado: toEstado(row.estado ?? "PROCESANDO"), morosos: Number(row.morosos ?? 0), montoTotal: Number(row.montoTotal ?? 0), procesados: Number(row.procesados ?? 0), creados: Number(row.creados ?? 0), actualizados: Number(row.actualizados ?? 0), errores: Number(row.errores ?? 0), noEncontradas: Number(row.noEncontradas ?? 0) });
 
 const moneyFmt = new Intl.NumberFormat("es-AR", {
   style: "currency",

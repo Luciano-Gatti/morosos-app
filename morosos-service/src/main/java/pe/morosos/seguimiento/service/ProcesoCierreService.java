@@ -36,12 +36,22 @@ public class ProcesoCierreService {
 
         String codigo = motivo.getCodigo().toUpperCase();
         if ("PLAN_DE_PAGO".equals(codigo)) {
+            if (planPago.montoTotalPlan() == null || planPago.montoTotalPlan().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ValidationException("El monto total del plan debe ser mayor a 0", java.util.List.of());
+            }
+            if (planPago.cantidadTotalCuotas() == null || planPago.cantidadTotalCuotas() <= 0) {
+                throw new ValidationException("La cantidad total de cuotas debe ser mayor a 0", java.util.List.of());
+            }
+            if (planPago.cantidadCuotasQuePagaAhora() == null || planPago.cantidadCuotasQuePagaAhora() < 0) {
+                throw new ValidationException("La cantidad de cuotas pagadas ahora no puede ser negativa", java.util.List.of());
+            }
             if (planPago.cantidadCuotasQuePagaAhora() > planPago.cantidadTotalCuotas()) {
                 throw new ValidationException("La cantidad de cuotas pagadas ahora no puede superar el total", java.util.List.of());
             }
             BigDecimal valorCuota = planPago.montoTotalPlan().divide(BigDecimal.valueOf(planPago.cantidadTotalCuotas()), 2, RoundingMode.HALF_UP);
             BigDecimal montoPagadoInicial = valorCuota.multiply(BigDecimal.valueOf(planPago.cantidadCuotasQuePagaAhora())).setScale(2, RoundingMode.HALF_UP);
             BigDecimal saldoPendiente = planPago.montoTotalPlan().subtract(montoPagadoInicial).setScale(2, RoundingMode.HALF_UP);
+            Integer cuotasPendientes = Math.max(planPago.cantidadTotalCuotas() - planPago.cantidadCuotasQuePagaAhora(), 0);
 
             ProcesoCierrePlanPago p = new ProcesoCierrePlanPago();
             p.setProcesoCierre(cierre);
@@ -51,6 +61,8 @@ public class ProcesoCierreService {
             p.setCuotasPagadasIniciales(planPago.cantidadCuotasQuePagaAhora());
             p.setMontoPagadoInicial(montoPagadoInicial);
             p.setSaldoPendiente(saldoPendiente);
+            p.setCuotasPendientes(cuotasPendientes);
+            p.setMontoPendiente(saldoPendiente);
             p.setFechaVencimientoPrimeraCuota(planPago.fechaVencimientoPrimeraCuota());
             p = planPagoRepository.save(p);
 

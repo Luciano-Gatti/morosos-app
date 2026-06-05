@@ -46,6 +46,7 @@ public class ImportacionDeudaService {
   private final CargaDeudaMapper mapper;
   private final ObjectMapper objectMapper;
   private final AuditService auditService;
+  private final DeudaEfectivaService deudaEfectivaService;
 
   @Transactional
   public CargaDeudaResponse importar(LocalDate periodo, MultipartFile file) {
@@ -104,6 +105,7 @@ public class ImportacionDeudaService {
         detalle.setCuotasVencidas(cuotas);
         detalle.setMontoVencido(monto);
         detRepo.save(detalle);
+        deudaEfectivaService.actualizarDesdeCarga(inmueble, cuotas, monto);
 
         carga.setProcesados(carga.getProcesados() + 1);
         total = total.add(monto);

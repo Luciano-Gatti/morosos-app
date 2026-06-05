@@ -17,6 +17,10 @@ import {
   RotateCcw,
   PauseCircle,
   CheckCircle2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  FileText,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -63,7 +67,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { USE_API, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import type { EtapaSeguimiento, EstadoProceso } from "@/types/seguimiento";
+import type { EtapaSeguimiento, EstadoProceso, InmuebleMoroso } from "@/types/seguimiento";
 import { seguimientoApi } from "@/services/api/seguimientoApi";
 import { configuracionApi } from "@/services/api/configuracionApi";
 import { mapSeguimientoBandejaRow, type SeguimientoRow } from "@/adapters/seguimiento";
@@ -103,6 +107,8 @@ const PAGE_SIZE = 15;
 type EtapaFiltro = "all" | "sin-etapa" | string;
 type EstadoBackend = "ABIERTO" | "PAUSADO" | "CERRADO";
 type EstadoFiltro = "all" | EstadoBackend;
+type SortDir = "asc" | "desc";
+type SortKey = "cuenta" | "titular" | "direccion" | "grupo" | "distrito" | "cuotas" | "montoAdeudado" | "etapaActual" | "fechaProgramada" | "estado";
 
 type AccionMasiva =
   | { kind: "enviar-etapa"; etapa: EtapaSeguimiento }
@@ -110,9 +116,10 @@ type AccionMasiva =
   | { kind: "repetir-etapa" }
   | { kind: "iniciar" }
   | { kind: "pausar" }
-  | { kind: "reabrir" }
+  | { kind: "reanudar" }
   | { kind: "cerrar" }
-  | { kind: "compromiso" };
+  | { kind: "compromiso" }
+  | { kind: "observacion-etapa" };
 
 type AccionesDisponiblesRow = {
   puedeIniciar?: boolean;
@@ -164,11 +171,15 @@ type CatalogOption = {
   nombre: string;
 };
 
+type CompromisoVigente = { id: string; fechaDesde: string; fechaHasta: string; montoComprometido?: number; observacion?: string; estado?: string };
+
 type AccionDialogConfirmPayload =
-  | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; fechaProgramada?: string; repetirMismaEtapa?: boolean } }
-  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "pausar" | "reabrir"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "enviar-etapa"; payload: Omit<BulkSeguimientoPayload, "ids"> & { etapaDestinoId: string; repetirMismaEtapa?: boolean } }
+  | { kind: "enviar-siguiente" | "repetir-etapa" | "iniciar" | "reanudar"; payload: Omit<BulkSeguimientoPayload, "ids"> }
+  | { kind: "observacion-etapa"; payload: { observacion: string } }
+  | { kind: "pausar"; payload: Omit<BulkSeguimientoPayload, "ids"> & { motivoPausa: string } }
   | { kind: "cerrar"; payload: Omit<CerrarProcesoPayload, "casoSeguimientoId"> }
-  | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> };
+  | { kind: "compromiso"; payload: Omit<CompromisoPagoPayload, "casoSeguimientoId"> & { compromisoId?: string } };
 
 
 export default function GestionEtapas() {
@@ -188,15 +199,19 @@ export default function GestionEtapas() {
   const [cuotasMin, setCuotasMin] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<SortKey>("cuenta");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [accion, setAccion] = useState<AccionMasiva | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [compromisoDialogLoading, setCompromisoDialogLoading] = useState(false);
+  const [compromisoVigente, setCompromisoVigente] = useState<CompromisoVigente | null>(null);
   const [rows, setRows] = useState<SeguimientoRow[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [gruposApi, setGruposApi] = useState<CatalogOption[]>([]);
-  const [distritosApi, setDistritosApi] = useState<CatalogOption[]>([]);
+  const [gruposApi, setGruposApi] = useState<any[]>([]);
+  const [distritosApi, setDistritosApi] = useState<any[]>([]);
   const [etapasApi, setEtapasApi] = useState<CatalogOption[]>([]);
   const [motivosCierreApi, setMotivosCierreApi] = useState<MotivoCierreOption[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -204,6 +219,10 @@ export default function GestionEtapas() {
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([]);
   const universoMorosos = useMemo(() => rows, [rows]);
   const etapasOperativas = etapasApi.map((e) => e.nombre as EtapaSeguimiento);
+  const etapaIdByNombre = useMemo(
+    () => new Map(etapasApi.map((e) => [e.nombre, e.id])),
+    [etapasApi],
+  );
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -293,6 +312,19 @@ export default function GestionEtapas() {
           }),
         );
 
+      const sortFieldMap: Record<SortKey, string> = {
+        cuenta: "cuenta",
+        titular: "titular",
+        direccion: "direccion",
+        grupo: "grupoNombre",
+        distrito: "distritoNombre",
+        cuotas: "cuotasAdeudadas",
+        montoAdeudado: "montoAdeudado",
+        etapaActual: "etapaActualNombre",
+        fechaProgramada: "fechaProgramada",
+        estado: "estado",
+      };
+
       const res = await seguimientoApi.getBandeja(normalizeFilterParams({
         query: query.trim() || undefined,
         grupoId: grupo === "all" ? undefined : grupo,
@@ -302,6 +334,7 @@ export default function GestionEtapas() {
         cuotasMin: cuotasMin ? Number(cuotasMin) : undefined,
         page: page - 1,
         size: PAGE_SIZE,
+        sort: `${sortFieldMap[sortKey]},${sortDir}`,
       }));
       const pageData = "number" in res ? normalizeSpringPage(res) : normalizePageResponse(res);
       setRows((pageData.content || []).map(mapSeguimientoBandejaRow));
@@ -316,7 +349,17 @@ export default function GestionEtapas() {
 
   useEffect(() => {
     fetchBandeja();
-  }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page]);
+  }, [query, grupo, distrito, etapaFiltro, estadoFiltro, cuotasMin, page, sortKey, sortDir]);
+
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
 
   const filtered = rows as any[];
 
@@ -376,7 +419,8 @@ export default function GestionEtapas() {
     const canPausar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedePausar") : false) : selectedRows.some((m) => m.etapa !== null);
     const canCerrar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeCerrar") : false) : selectedRows.every((m) => m.etapa !== null);
     const canCompromiso = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeRegistrarCompromiso") : false) : true;
-    const canReabrir = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
+    const canReanudar = USE_API ? (hasBackendActions && !missingBackendActions ? canAll("puedeReabrir") : false) : selectedRows.every((m) => m.estado === "Pausado");
+    const canObservacionEtapa = hasAny && selectedRows.every((m) => ["Iniciado", "Pausado"].includes(m.estado) && Boolean(m.casoId) && Boolean(m.etapa));
 
     return {
       hasAny,
@@ -386,7 +430,8 @@ export default function GestionEtapas() {
       canPausar,
       canCerrar,
       canCompromiso,
-      canReabrir,
+      canReanudar,
+      canObservacionEtapa,
       hasBackendActions,
       missingBackendActions,
       reasons: {
@@ -416,11 +461,12 @@ export default function GestionEtapas() {
           : USE_API && motivosCierreApi.length === 0
             ? "No hay motivos de cierre activos configurados."
             : (USE_API ? reasonByApi(canCerrar) : (canCerrar ? null : "No hay casos válidos para esta acción.")),
-        reabrir: USE_API ? reasonByApi(canReabrir) : (!hasAny ? blockedNoSelection : canReabrir ? null : "No hay casos válidos para esta acción."),
+        reanudar: USE_API ? reasonByApi(canReanudar) : (!hasAny ? blockedNoSelection : canReanudar ? null : "No hay casos válidos para esta acción."),
         compromiso: USE_API ? reasonByApi(canCompromiso) : (!hasAny ? blockedNoSelection : null),
+        observacionEtapa: !hasAny ? blockedNoSelection : canObservacionEtapa ? null : "Disponible solo para procesos iniciados o pausados con etapa actual.",
       },
     };
-  }, [rows, selected, etapasApi, motivosCierreApi]);
+  }, [rows, selected, etapasApi, motivosCierreApi, etapaIdByNombre]);
 
   const hasFilters =
     query !== "" ||
@@ -438,6 +484,26 @@ export default function GestionEtapas() {
     setDistrito("all");
     setCuotasMin("");
     setPage(1);
+  };
+
+  const abrirDialogoCompromiso = async () => {
+    const selectedRows = rows.filter((r) => selected.has(r.id));
+    const casoId = selectedRows.length === 1 ? selectedRows[0].casoId : null;
+    setCompromisoVigente(null);
+    if (!USE_API || !casoId) {
+      setAccion({ kind: "compromiso" });
+      return;
+    }
+    try {
+      setCompromisoDialogLoading(true);
+      const vigente = await seguimientoApi.getCompromisoVigente(casoId);
+      setCompromisoVigente(vigente);
+    } catch (e) {
+      setCompromisoVigente(null);
+    } finally {
+      setCompromisoDialogLoading(false);
+      setAccion({ kind: "compromiso" });
+    }
   };
 
   const confirmarAccion = async (data: AccionDialogConfirmPayload) => {
@@ -460,11 +526,11 @@ export default function GestionEtapas() {
         result = await seguimientoApi.avanzar({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "enviar-etapa") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+        const etapaDestinoId = etapaIdByNombre.get(data.payload.etapaDestinoId) ?? data.payload.etapaDestinoId;
         result = await seguimientoApi.enviarEtapa({
           casoIds,
-          etapaDestinoId: data.payload.etapaDestinoId,
+          etapaDestinoId,
           observacion: data.payload.observacion,
-          fechaProgramada: data.payload.fechaProgramada,
           repetirMismaEtapa: Boolean(data.payload.repetirMismaEtapa),
         });
       } else if (data.kind === "repetir-etapa") {
@@ -472,10 +538,10 @@ export default function GestionEtapas() {
         result = await seguimientoApi.repetir({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "pausar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion });
-      } else if (data.kind === "reabrir") {
+        result = await seguimientoApi.pausar({ casoIds, observacion: data.payload.observacion, motivoPausa: data.payload.motivoPausa });
+      } else if (data.kind === "reanudar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.reabrir({ casoIds, observacion: data.payload.observacion });
+        result = await seguimientoApi.reanudar({ casoIds, observacion: data.payload.observacion });
       } else if (data.kind === "cerrar") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
         result = await seguimientoApi.cerrarBulk({
@@ -483,11 +549,22 @@ export default function GestionEtapas() {
           ...data.payload,
         });
       } else if (data.kind === "compromiso") {
+        if (data.payload.compromisoId && selectedRows.length === 1) {
+          result = await seguimientoApi.actualizarCompromiso(data.payload.compromisoId, data.payload);
+        } else {
+          const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
+          result = await seguimientoApi.registrarCompromisosBulk({
+            casoSeguimientoIds: casoIds,
+            ...data.payload,
+          });
+        }
+      } else if (data.kind === "observacion-etapa") {
         const casoIds = selectedRows.map((r) => r.casoId).filter(Boolean);
-        result = await seguimientoApi.registrarCompromisosBulk({
-          casoSeguimientoIds: casoIds,
-          ...data.payload,
-        });
+        await Promise.all(casoIds.map((casoSeguimientoId) => seguimientoApi.agregarObservacionEtapa({
+          casoSeguimientoId,
+          observacion: data.payload.observacion,
+        })));
+        result = { aplicados: casoIds.length, omitidos: 0, errores: 0 };
       }
       const aplicados = Number(result?.aplicados ?? result?.applied ?? selectedRows.length);
       const omitidos = Number(result?.omitidos ?? result?.skipped ?? 0);
@@ -718,7 +795,7 @@ export default function GestionEtapas() {
               etapasOperativas={etapasOperativas}
               selectedActions={selectedActions}
               onClear={clearSelection}
-              onAction={setAccion}
+              onAction={(a) => { if (a.kind === "compromiso") { void abrirDialogoCompromiso(); return; } setAccion(a); }}
             />
           )}
 
@@ -734,36 +811,16 @@ export default function GestionEtapas() {
                       aria-label="Seleccionar página"
                     />
                   </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    N° cuenta
-                  </TableHead>
-                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Titular
-                  </TableHead>
-                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Dirección
-                  </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Grupo
-                  </TableHead>
-                  <TableHead className="h-9 w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Distrito
-                  </TableHead>
-                  <TableHead className="h-9 w-[80px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Cuotas
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Monto adeudado
-                  </TableHead>
-                  <TableHead className="h-9 w-[150px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Etapa actual
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Fecha programada
-                  </TableHead>
-                  <TableHead className="h-9 w-[130px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Estado
-                  </TableHead>
+                  <SortableHead label="N° cuenta" k="cuenta" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Titular" k="titular" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                  <SortableHead label="Dirección" k="direccion" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                  <SortableHead label="Grupo" k="grupo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Distrito" k="distrito" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[120px]" />
+                  <SortableHead label="Cuotas" k="cuotas" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[80px] text-right" />
+                  <SortableHead label="Monto adeudado" k="montoAdeudado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px] text-right" />
+                  <SortableHead label="Etapa actual" k="etapaActual" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[150px]" />
+                  <SortableHead label="Fecha programada" k="fechaProgramada" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px]" />
+                  <SortableHead label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} className="w-[130px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -829,15 +886,42 @@ export default function GestionEtapas() {
         etapasOperativas={etapasOperativas}
         motivosCierre={motivosCierreApi}
         selectedActions={selectedActions}
-        onCancel={() => setAccion(null)}
+        onCancel={() => { setAccion(null); setCompromisoVigente(null); }}
         onConfirm={confirmarAccion}
         mutating={mutating}
+        compromisoVigente={compromisoVigente}
+        compromisoLoading={compromisoDialogLoading}
       />
     </>
   );
 }
 
 /* -------- Fila de inmueble -------- */
+
+interface SortableHeadProps {
+  label: string;
+  k: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onClick: (k: SortKey) => void;
+  className?: string;
+}
+
+function SortableHead({ label, k, sortKey, sortDir, onClick, className }: SortableHeadProps) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+  return <TableHead className={cn("h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground", className)}><button type="button" onClick={() => onClick(k)} className={cn("flex items-center gap-1.5 transition-colors hover:text-foreground", active && "text-foreground")}>{label}<Icon className={cn("h-3 w-3 opacity-60", active && "opacity-100")} /></button></TableHead>;
+}
+
+function parseBackendDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function InmuebleRow({
   m,
@@ -848,7 +932,7 @@ function InmuebleRow({
   checked: boolean;
   onToggle: () => void;
 }) {
-  const fecha = m.fechaProgramada ? new Date(m.fechaProgramada) : null;
+  const fecha = parseBackendDate(m.fechaProgramada);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const vencida = fecha ? fecha.getTime() < today.getTime() : false;
@@ -927,7 +1011,8 @@ function SelectionBar({
     canPausar: boolean;
     canCerrar: boolean;
     canCompromiso: boolean;
-    canReabrir: boolean;
+    canReanudar: boolean;
+    canObservacionEtapa: boolean;
     hasBackendActions: boolean;
     missingBackendActions: boolean;
     reasons: Record<string, string | null>;
@@ -1035,12 +1120,12 @@ function SelectionBar({
           size="sm"
           variant="outline"
           className="h-8 gap-1.5 text-[12.5px]"
-          onClick={() => onAction({ kind: "reabrir" })}
-          disabled={!selectedActions.canReabrir}
-          title={actionReason("reabrir")}
+          onClick={() => onAction({ kind: "reanudar" })}
+          disabled={!selectedActions.canReanudar}
+          title={actionReason("reanudar")}
         >
           <PlayCircle className="h-3.5 w-3.5" />
-          Reabrir proceso
+          Reanudar proceso
         </Button>
       )}
 
@@ -1055,7 +1140,19 @@ function SelectionBar({
         title={actionReason("compromiso")}
       >
         <HandCoins className="h-3.5 w-3.5" />
-        Compromiso de pago
+        {hasPausado ? "Editar compromiso" : "Compromiso de pago"}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-[12.5px]"
+        onClick={() => onAction({ kind: "observacion-etapa" })}
+        disabled={!selectedActions.canObservacionEtapa}
+        title={actionReason("observacionEtapa")}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Agregar observación
       </Button>
     </div>
   );
@@ -1128,6 +1225,8 @@ function AccionDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: AccionMasiva | null;
   seleccionados: InmuebleMoroso[];
@@ -1140,18 +1239,19 @@ function AccionDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const open = accion !== null;
 
   // Modal dedicado e institucional para mover a una etapa.
   if (accion && accion.kind === "enviar-etapa") {
     return (
-        <MoverEtapaDialog
-          accion={accion}
-          etapasOperativas={etapasOperativas}
-          seleccionados={seleccionados}
-          selectedActions={selectedActions}
-        motivosCierre={motivosCierre}
+      <MoverEtapaDialog
+        accion={accion}
+        etapasOperativas={etapasOperativas}
+        seleccionados={seleccionados}
+        selectedActions={selectedActions}
         onCancel={onCancel}
         onConfirm={onConfirm}
         mutating={mutating}
@@ -1171,11 +1271,26 @@ function AccionDialog({
       />
     );
   }
+  if (accion && accion.kind === "pausar") {
+    return <PausarProcesoDialog onCancel={onCancel} onConfirm={onConfirm} mutating={mutating} />;
+  }
 
   // Modal dedicado e institucional para compromiso de pago.
   if (accion && accion.kind === "compromiso") {
     return (
       <CompromisoPagoDialog
+        seleccionados={seleccionados}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        mutating={mutating}
+        compromisoVigente={compromisoVigente}
+        compromisoLoading={compromisoLoading}
+      />
+    );
+  }
+  if (accion && accion.kind === "observacion-etapa") {
+    return (
+      <ObservacionEtapaDialog
         seleccionados={seleccionados}
         onCancel={onCancel}
         onConfirm={onConfirm}
@@ -1254,6 +1369,47 @@ function AccionDialog({
   );
 }
 
+function ObservacionEtapaDialog({
+  seleccionados,
+  onCancel,
+  onConfirm,
+  mutating = false,
+}: {
+  seleccionados: InmuebleMoroso[];
+  onCancel: () => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
+}) {
+  const [observacion, setObservacion] = useState("");
+  const selected = seleccionados[0];
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Agregar observación a etapa</DialogTitle>
+          <DialogDescription>La observación se registrará como evento interno de la etapa actual.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {seleccionados.length === 1 && (
+            <div className="rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[12.5px]">
+              <div><span className="font-medium">Cuenta:</span> {selected.cuenta}</div>
+              <div><span className="font-medium">Titular:</span> {selected.titular}</div>
+              <div><span className="font-medium">Etapa actual:</span> {selected.etapa ?? "Sin etapa asignada"}</div>
+            </div>
+          )}
+          <ObservacionField value={observacion} onChange={setObservacion} required />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button disabled={mutating || observacion.trim().length === 0} onClick={() => onConfirm({ kind: "observacion-etapa", payload: { observacion: observacion.trim() } })}>
+            Guardar observación
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ConfirmarEtapaDialog({
   accion,
   etapasOperativas,
@@ -1261,6 +1417,8 @@ function ConfirmarEtapaDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-siguiente" | "repetir-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
@@ -1268,6 +1426,8 @@ function ConfirmarEtapaDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
   const isSiguiente = accion.kind === "enviar-siguiente";
@@ -1335,6 +1495,7 @@ function ConfirmarEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft text-primary">
@@ -1447,6 +1608,52 @@ function ConfirmarEtapaDialog({
   );
 }
 
+function PausarProcesoDialog({
+  onCancel,
+  onConfirm,
+  mutating = false,
+}: {
+  onCancel: () => void;
+  onConfirm: (data: AccionDialogConfirmPayload) => void;
+  mutating?: boolean;
+}) {
+  const [motivoPausa, setMotivoPausa] = useState("");
+  const [observacion, setObservacion] = useState("");
+  const canConfirm = motivoPausa.trim().length > 0 && !mutating;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl">Pausar proceso</DialogTitle>
+          <DialogDescription className="text-[12.5px]">
+            El proceso quedará pausado en la etapa actual. No se podrán avanzar etapas hasta que se reanude.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Motivo de pausa <span className="text-destructive">*</span></Label>
+            <Input value={motivoPausa} onChange={(e) => setMotivoPausa(e.target.value)} maxLength={200} placeholder="Motivo de pausa" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Observación</Label>
+            <Textarea value={observacion} onChange={(e) => setObservacion(e.target.value)} rows={3} maxLength={500} placeholder="Observación opcional" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button
+            disabled={!canConfirm}
+            onClick={() => onConfirm({ kind: "pausar", payload: { motivoPausa: motivoPausa.trim(), observacion: observacion.trim() || undefined } })}
+          >
+            Confirmar pausa
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* -------- Modal institucional: Cerrar proceso (motivo dinámico) -------- */
 
 type MotivoCierre = "REGULARIZACION" | "PLAN_DE_PAGO" | "CAMBIO_PARAMETRO" | "JUDICIALIZACION" | "OTRO";
@@ -1457,12 +1664,16 @@ function CerrarProcesoDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   seleccionados: InmuebleMoroso[];
   motivosCierre: MotivoCierreOption[] | null;
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1479,7 +1690,8 @@ function CerrarProcesoDialog({
   const [valorAnterior, setValorAnterior] = useState("");
   const [valorNuevo, setValorNuevo] = useState("");
   const [observacion, setObservacion] = useState("");
-  const [montoAbonado, setMontoAbonado] = useState("");
+  const montoSugeridoRegularizacion = seleccionados.length === 1 ? seleccionados[0].montoAdeudado.toString() : "";
+  const [montoAbonado, setMontoAbonado] = useState(montoSugeridoRegularizacion);
 
   // Regularización
   const [fechaReg, setFechaReg] = useState<Date | undefined>(today);
@@ -1501,7 +1713,7 @@ function CerrarProcesoDialog({
   const pagaAhoraValido = Number.isFinite(cuotasPagaAhoraNum) && cuotasPagaAhoraNum >= 0 && cuotasPagaAhoraNum <= cuotasNum;
   const montoValido = Number.isFinite(montoTotalNum) && montoTotalNum > 0;
   const montoAbonadoNum = Number(montoAbonado);
-  const montoAbonadoValido = montoAbonado.trim() === "" || (Number.isFinite(montoAbonadoNum) && montoAbonadoNum > 0);
+  const montoAbonadoValido = Number.isFinite(montoAbonadoNum) && montoAbonadoNum > 0;
   const planCalculoValido = cuotasValidas && pagaAhoraValido && montoValido;
   const valorCuotaCalculado = planCalculoValido ? montoTotalNum / cuotasNum : null;
   const montoPagaAhoraCalculado = planCalculoValido ? valorCuotaCalculado * cuotasPagaAhoraNum : null;
@@ -1525,7 +1737,7 @@ function CerrarProcesoDialog({
       motivoCodigo: motivo,
       observacion: observacion.trim() || undefined,
     };
-    if (motivo === "REGULARIZACION" && montoAbonado.trim() !== "") {
+    if (motivo === "REGULARIZACION") {
       payload.montoAbonado = montoAbonadoNum;
     }
     if (motivo === "PLAN_DE_PAGO" && fechaPrimera) {
@@ -1561,6 +1773,7 @@ function CerrarProcesoDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -1648,8 +1861,8 @@ function CerrarProcesoDialog({
                 </Popover>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[12px] font-medium">Monto abonado</Label>
-                <Input type="number" min={0.01} value={montoAbonado} onChange={(e) => setMontoAbonado(e.target.value)} className="h-9 text-[13px]" />
+                <Label className="text-[12px] font-medium">Monto abonado <span className="text-destructive">*</span></Label>
+                <Input type="number" min={0.01} step="0.01" value={montoAbonado} onChange={(e) => setMontoAbonado(e.target.value)} className="h-9 text-[13px]" placeholder="Ej. 150000" />
               </div>
               <ObservacionField
                 value={observacion}
@@ -1878,11 +2091,15 @@ function CompromisoPagoDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   seleccionados: InmuebleMoroso[];
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
 
@@ -1895,6 +2112,14 @@ function CompromisoPagoDialog({
   const [hasta, setHasta] = useState<Date | undefined>(en30);
   const [observacion, setObservacion] = useState("");
   const [montoComprometido, setMontoComprometido] = useState("");
+
+  useEffect(() => {
+    if (!compromisoVigente) return;
+    setDesde(new Date(`${compromisoVigente.fechaDesde}T00:00:00`));
+    setHasta(new Date(`${compromisoVigente.fechaHasta}T00:00:00`));
+    setMontoComprometido(compromisoVigente.montoComprometido != null ? String(compromisoVigente.montoComprometido) : "");
+    setObservacion(compromisoVigente.observacion ?? "");
+  }, [compromisoVigente]);
   const [openDesde, setOpenDesde] = useState(false);
   const [openHasta, setOpenHasta] = useState(false);
 
@@ -1903,7 +2128,7 @@ function CompromisoPagoDialog({
 
   const handleConfirm = () => {
     if (!puedeConfirmar || !desde || !hasta) return;
-onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd"), fechaHasta: format(hasta, "yyyy-MM-dd"), montoComprometido: montoComprometido.trim() ? Number(montoComprometido) : undefined, observacion: observacion.trim() || undefined } });
+onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, fechaDesde: format(desde, "yyyy-MM-dd"), fechaHasta: format(hasta, "yyyy-MM-dd"), montoComprometido: montoComprometido.trim() ? Number(montoComprometido) : undefined, observacion: observacion.trim() || undefined } });
   };
 
   return (
@@ -1916,7 +2141,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
             Seguimiento de morosidad
           </div>
           <DialogTitle className="font-serif text-xl leading-tight">
-            Registrar compromiso de pago
+            {compromisoVigente ? "Editar compromiso de pago" : "Registrar compromiso de pago"}
           </DialogTitle>
           <DialogDescription className="text-[12.5px]">
             Definí el período comprometido por el contribuyente. El proceso quedará pausado mientras esté vigente.
@@ -1924,6 +2149,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -1935,16 +2161,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
                   Inmuebles alcanzados
                 </div>
                 <div className="text-[13px] text-foreground">
-                  Se registrará un compromiso por cada inmueble seleccionado.
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
+                  Si existe compromiso vigente se editará; si no existe, se registrará uno nuevo.
                 </div>
               </div>
             </div>
@@ -2091,7 +2308,7 @@ onConfirm({ kind: "compromiso", payload: { fechaDesde: format(desde, "yyyy-MM-dd
               Cancelar
             </Button>
             <Button onClick={handleConfirm} disabled={!puedeConfirmar || mutating} className="h-9">
-              Confirmar y pausar
+              {compromisoVigente ? "Guardar cambios" : "Guardar compromiso"}
             </Button>
           </div>
         </DialogFooter>
@@ -2125,13 +2342,28 @@ function accionInfo(accion: AccionMasiva | null): { titulo: string; descripcion:
       };
     case "compromiso":
       return {
-        titulo: "Registrar compromiso de pago",
-        descripcion: "Se registrará un compromiso operativo. No modifica el estado de etapa.",
+        titulo: "Compromiso de pago",
+        descripcion: "Si hay compromiso vigente se actualiza; si no, se registra uno nuevo manteniendo el proceso pausado.",
       };
-    case "reabrir":
+    case "pausar":
       return {
-        titulo: "Reabrir proceso",
-        descripcion: "Se reabrirá el caso seleccionado y volverá al flujo activo de seguimiento.",
+        titulo: "Pausar proceso",
+        descripcion: "El proceso y su etapa actual quedarán pausados hasta que se reanude el caso.",
+      };
+    case "repetir-etapa":
+      return {
+        titulo: "Repetir etapa actual",
+        descripcion: "Se registrará una repetición operativa de la etapa actual del proceso.",
+      };
+    case "reanudar":
+      return {
+        titulo: "Reanudar proceso",
+        descripcion: "Se reanudará el caso pausado y volverá al flujo activo en la misma etapa.",
+      };
+    default:
+      return {
+        titulo: "Acción no disponible",
+        descripcion: "La acción solicitada no tiene configuración en esta pantalla.",
       };
   }
 }
@@ -2146,6 +2378,8 @@ function MoverEtapaDialog({
   onCancel,
   onConfirm,
   mutating = false,
+  compromisoVigente = null,
+  compromisoLoading = false,
 }: {
   accion: Extract<AccionMasiva, { kind: "enviar-etapa" }>;
   etapasOperativas: EtapaSeguimiento[];
@@ -2157,6 +2391,8 @@ function MoverEtapaDialog({
   onCancel: () => void;
   onConfirm: (data: AccionDialogConfirmPayload) => void;
   mutating?: boolean;
+  compromisoVigente?: CompromisoVigente | null;
+  compromisoLoading?: boolean;
 }) {
   const total = seleccionados.length;
   const { toast } = useToast();
@@ -2172,12 +2408,12 @@ function MoverEtapaDialog({
 
   const etapaDestinoId = etapaDestino ? String(etapaDestino).trim() : "";
   const etapaDestinoValida = etapaDestinoId.length > 0;
-  const idxDestino = etapaIndex(etapaDestino);
+  const idxDestino = etapaIndexEnLista(etapaDestino, etapasOperativas);
   const idxPrimeraEtapa = etapasOperativas.length > 0 ? 0 : -1;
   const destinoEsPrimeraEtapa = idxDestino === idxPrimeraEtapa;
-  const enEtapaPosterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) > idxDestino).length;
-  const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) === idxDestino).length;
-  const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndex(m.etapa) < idxDestino).length;
+  const enEtapaPosterior = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) > idxDestino).length;
+  const enMismaEtapa = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) === idxDestino).length;
+  const enEtapaAnterior = seleccionados.filter((m) => m.casoId && etapaIndexEnLista(m.etapa, etapasOperativas) < idxDestino).length;
   const sinSeguimiento = seleccionados.filter((m) => !m.casoId).length;
   const casosConSeguimiento = seleccionados.filter((m) => !!m.casoId).length;
   const sinSeguimientoIniciables = destinoEsPrimeraEtapa ? sinSeguimiento : 0;
@@ -2205,7 +2441,6 @@ function MoverEtapaDialog({
       payload: {
         observacion: observacion.trim() || undefined,
         etapaDestinoId: etapaDestinoId,
-        fechaProgramada: fecha ? format(fecha, "yyyy-MM-dd") : undefined,
         repetirMismaEtapa: accionMismaEtapa === "repetir",
       },
     });
@@ -2229,6 +2464,7 @@ function MoverEtapaDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
+          {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -2243,14 +2479,6 @@ function MoverEtapaDialog({
                   Se aplicará la operación al conjunto seleccionado.
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Monto total del plan <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0.01} value={montoTotalPlan} onChange={(e) => setMontoTotalPlan(e.target.value)} className="h-9 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-medium">Cuotas que paga ahora <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} max={cuotasNum || 0} value={cuotasPagaAhora} onChange={(e) => setCuotasPagaAhora(e.target.value)} className="h-9 text-[13px]" />
-                </div>
               </div>
             </div>
             <div className="text-right">

@@ -13,6 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pe.morosos.audit.service.AuditService;
+import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
+import pe.morosos.deuda.repository.CargaDeudaRepository;
+import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
+import pe.morosos.deuda.service.ClasificacionDeudaService;
 import pe.morosos.common.exception.BusinessRuleException;
 import pe.morosos.common.exception.ResourceNotFoundException;
 import pe.morosos.distrito.entity.Distrito;
@@ -25,6 +29,9 @@ import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.mapper.InmuebleMapper;
 import pe.morosos.inmueble.repository.GrupoDistritoConfigLookupRepository;
 import pe.morosos.inmueble.repository.InmuebleRepository;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
+import pe.morosos.seguimiento.repository.CasoEventoRepository;
+import pe.morosos.seguimiento.repository.CasoSeguimientoRepository;
 
 @ExtendWith(MockitoExtension.class)
 class InmuebleServiceTest {
@@ -34,13 +41,21 @@ class InmuebleServiceTest {
     @Mock GrupoDistritoConfigLookupRepository grupoDistritoConfigRepository;
     @Mock InmuebleMapper inmuebleMapper;
     @Mock AuditService auditService;
+    @Mock CasoSeguimientoRepository casoSeguimientoRepository;
+    @Mock CasoEventoRepository casoEventoRepository;
+    @Mock DeudaEfectivaActualRepository deudaEfectivaActualRepository;
+    @Mock CargaDeudaRepository cargaDeudaRepository;
+    @Mock CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
+    @Mock ParametroSeguimientoRulesService parametroSeguimientoRulesService;
 
     InmuebleService service;
 
     @BeforeEach
     void setup() {
         service = new InmuebleService(inmuebleRepository, grupoRepository, distritoRepository,
-                grupoDistritoConfigRepository, inmuebleMapper, auditService, new ObjectMapper());
+                grupoDistritoConfigRepository, inmuebleMapper, auditService, new ObjectMapper(),
+                casoSeguimientoRepository, casoEventoRepository, deudaEfectivaActualRepository, cargaDeudaRepository,
+                cargaDeudaDetalleRepository, parametroSeguimientoRulesService, new ClasificacionDeudaService());
     }
 
     @Test

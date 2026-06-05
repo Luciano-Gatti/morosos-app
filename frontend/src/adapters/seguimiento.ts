@@ -34,7 +34,7 @@ export function mapEstadoCasoLabel(value: string): SeguimientoRow["estado"] {
 export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
   return {
     id: String(row.id ?? row.casoId ?? row.inmuebleId ?? ""),
-    casoId: String(row.casoId ?? row.id ?? ""),
+    casoId: row.casoId ? String(row.casoId) : "",
     inmuebleId: String(row.inmuebleId ?? row.idInmueble ?? ""),
     cuenta: String(row.cuenta ?? "-"),
     titular: row.titular ?? "-",
@@ -45,7 +45,7 @@ export function mapSeguimientoBandejaRow(row: any): SeguimientoRow {
     montoAdeudado: Number(row.montoAdeudado ?? row.montoVencido ?? 0),
     etapa: String(row.etapaActual ?? row.etapa ?? "").trim() || null,
     estado: mapEstadoCasoLabel(row.estadoCaso ?? row.estado),
-    fechaProgramada: row.fechaProgramada ?? row.fechaUltimoMovimiento ?? null,
+    fechaProgramada: row.fechaProgramada ?? null,
     accionesDisponibles:
       row && typeof row.accionesDisponibles === "object" && !Array.isArray(row.accionesDisponibles)
         ? row.accionesDisponibles

@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import pe.morosos.dashboard.dto.DashboardAccionesMesResponse;
+import pe.morosos.dashboard.dto.DashboardActividadMesResponse;
 import pe.morosos.dashboard.dto.DashboardDistritoResponse;
 import pe.morosos.dashboard.dto.DashboardKpisResponse;
 import pe.morosos.dashboard.dto.DashboardMovimientoResponse;
@@ -20,27 +21,25 @@ import pe.morosos.dashboard.dto.DashboardResumenResponse;
 import pe.morosos.deuda.entity.CargaDeuda;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
-import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.seguimiento.entity.CasoEventoTipo;
 
 @Service
 @RequiredArgsConstructor
 public class DashboardService {
-    private static final int CUOTAS_MIN_DEFAULT = 2;
-    private static final String PARAM_CUOTAS_MIN = "CUOTAS_MINIMAS_MOROSIDAD";
-
     private final CargaDeudaRepository cargaDeudaRepository;
-    private final ParametroSeguimientoRepository parametroSeguimientoRepository;
+    private final ParametroSeguimientoRulesService parametroSeguimientoRulesService;
     private final EntityManager entityManager;
 
     public DashboardResumenResponse resumen(LocalDate fechaDesde, LocalDate fechaHasta, UUID grupoId, UUID distritoId) {
-        int cuotasMin = cuotasMinimas();
+        int cuotasMin = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
         Optional<CargaDeuda> cargaOpt = cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(
                 List.of(CargaDeudaEstado.COMPLETADA, CargaDeudaEstado.COMPLETADA_CON_ERRORES));
 
         if (cargaOpt.isEmpty()) {
             return new DashboardResumenResponse(
                     new DashboardKpisResponse(0, 0, 0, 0, 0, BigDecimal.ZERO),
+                    new DashboardActividadMesResponse(0, 0, BigDecimal.ZERO, BigDecimal.ZERO),
                     new DashboardAccionesMesResponse(0, 0, 0, 0, 0, 0, 0),
                     List.of(),
                     List.of());
@@ -52,20 +51,63 @@ public class DashboardService {
 
         DashboardKpisResponse kpis = queryKpis(cargaId, cuotasMin, grupoId, distritoId);
         DashboardAccionesMesResponse acciones = queryAccionesMes(inicio, fin, grupoId, distritoId);
+        DashboardActividadMesResponse actividadMes = queryActividadMes(inicio, fin, grupoId, distritoId, kpis.montoTotalDeuda(), acciones);
         List<DashboardDistritoResponse> distritos = queryDistritos(cargaId, cuotasMin, grupoId, distritoId, inicio, fin);
         List<DashboardMovimientoResponse> movimientos = queryMovimientos(inicio, fin, grupoId, distritoId);
 
-        return new DashboardResumenResponse(kpis, acciones, distritos, movimientos);
+        return new DashboardResumenResponse(kpis, actividadMes, acciones, distritos, movimientos);
+    }
+
+    private DashboardActividadMesResponse queryActividadMes(Instant inicio, Instant fin, UUID grupoId, UUID distritoId,
+                                                            BigDecimal deudaVigente, DashboardAccionesMesResponse accionesMes) {
+        BigDecimal regularizacionesMonto = decimalOrZero(entityManager.createQuery("""
+                select coalesce(sum(coalesce(p.montoAbonado, 0)), 0)
+                from ProcesoCierre p
+                join p.casoSeguimiento c
+                join c.inmueble i
+                join p.motivoCierre m
+                where p.fechaCierre >= :inicio and p.fechaCierre < :fin
+                  and upper(m.codigo) = 'REGULARIZACION'
+                  and (:grupoId is null or i.grupo.id = :grupoId)
+                  and (:distritoId is null or i.distrito.id = :distritoId)
+                """, BigDecimal.class)
+                .setParameter("inicio", inicio)
+                .setParameter("fin", fin)
+                .setParameter("grupoId", grupoId)
+                .setParameter("distritoId", distritoId)
+                .getSingleResult());
+
+        BigDecimal planesPagoMonto = decimalOrZero(entityManager.createQuery("""
+                select coalesce(sum(coalesce(pp.montoPagadoInicial, 0)), 0)
+                from ProcesoCierrePlanPago pp
+                join pp.procesoCierre p
+                join p.casoSeguimiento c
+                join c.inmueble i
+                where p.fechaCierre >= :inicio and p.fechaCierre < :fin
+                  and (:grupoId is null or i.grupo.id = :grupoId)
+                  and (:distritoId is null or i.distrito.id = :distritoId)
+                """, BigDecimal.class)
+                .setParameter("inicio", inicio)
+                .setParameter("fin", fin)
+                .setParameter("grupoId", grupoId)
+                .setParameter("distritoId", distritoId)
+                .getSingleResult());
+
+        BigDecimal montoRecaudado = regularizacionesMonto.add(planesPagoMonto);
+        long regularizacionesYPlanes = accionesMes.regularizaciones() + accionesMes.planesPago();
+        return new DashboardActividadMesResponse(regularizacionesYPlanes, accionesMes.compromisosPago(), montoRecaudado, deudaVigente);
     }
 
     private DashboardKpisResponse queryKpis(UUID cargaId, int minCuotas, UUID grupoId, UUID distritoId) {
         Object[] row = entityManager.createQuery("""
                 select count(i.id),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
-                       coalesce(sum(d.montoVencido), 0)
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) > 0
+                                          and coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) < :min then 1 else 0 end), 0),
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) >= :min then 1 else 0 end), 0),
+                       coalesce(sum(coalesce(de.montoAdeudado, d.montoVencido, 0)), 0)
                 from Inmueble i
                 left join CargaDeudaDetalle d on d.inmueble.id = i.id and d.cargaDeuda.id = :cargaId
+                left join DeudaEfectivaActual de on de.inmueble.id = i.id
                 where (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                   and i.activo = true
@@ -90,12 +132,14 @@ public class DashboardService {
         List<Object[]> rows = entityManager.createQuery("""
                 select dist.id, dist.nombre,
                        count(i.id),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas > 0 and d.cuotasVencidas < :min then 1 else 0 end), 0),
-                       coalesce(sum(case when d.id is not null and d.cuotasVencidas >= :min then 1 else 0 end), 0),
-                       coalesce(sum(d.montoVencido), 0)
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) > 0
+                                          and coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) < :min then 1 else 0 end), 0),
+                       coalesce(sum(case when coalesce(de.cuotasAdeudadas, d.cuotasVencidas, 0) >= :min then 1 else 0 end), 0),
+                       coalesce(sum(coalesce(de.montoAdeudado, d.montoVencido, 0)), 0)
                 from Inmueble i
                 join i.distrito dist
                 left join CargaDeudaDetalle d on d.inmueble.id = i.id and d.cargaDeuda.id = :cargaId
+                left join DeudaEfectivaActual de on de.inmueble.id = i.id
                 where (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                   and i.activo = true
@@ -139,23 +183,28 @@ public class DashboardService {
     private DashboardAccionesMesResponse queryAccionesMes(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         Object[] eventos = entityManager.createQuery("""
                 select
-                    coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
-                    coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoDeuda then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoCorte then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosIntimacion then 1 else 0 end), 0),
+                    coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosCorte then 1 else 0 end), 0),
                     coalesce(sum(case when e.tipoEvento = :compromisoRegistrado then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
+                left join e.etapaDestino ed
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
+                  and e.tipoEvento in (:inicioProceso, :avanceEtapa, :repeticionEtapa, :compromisoRegistrado)
                   and (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                 """, Object[].class)
                 .setParameter("inicioProceso", CasoEventoTipo.INICIO_PROCESO)
                 .setParameter("avanceEtapa", CasoEventoTipo.AVANCE_ETAPA)
                 .setParameter("repeticionEtapa", CasoEventoTipo.REPETICION_ETAPA)
-                .setParameter("cierreProceso", CasoEventoTipo.CIERRE_PROCESO)
                 .setParameter("compromisoRegistrado", CasoEventoTipo.COMPROMISO_REGISTRADO)
+                .setParameter("codigosAvisoDeuda", List.of("RECORDATORIO_DE_DEUDA", "AVISO_DE_DEUDA"))
+                .setParameter("codigosAvisoCorte", List.of("AVISO_DE_CORTE"))
+                .setParameter("codigosIntimacion", List.of("INTIMACION"))
+                .setParameter("codigosCorte", List.of("CORTE"))
                 .setParameter("inicio", inicio)
                 .setParameter("fin", fin)
                 .setParameter("grupoId", grupoId)
@@ -182,14 +231,16 @@ public class DashboardService {
     private Map<UUID, DistritosAccionAgg> queryAccionesPorDistrito(Instant inicio, Instant fin, UUID grupoId, UUID distritoId) {
         List<Object[]> rows = entityManager.createQuery("""
                 select i.distrito.id,
-                       coalesce(sum(case when e.tipoEvento = :inicioProceso then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :avanceEtapa then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :repeticionEtapa then 1 else 0 end), 0),
-                       coalesce(sum(case when e.tipoEvento = :cierreProceso then 1 else 0 end), 0)
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoDeuda then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosAvisoCorte then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosIntimacion then 1 else 0 end), 0),
+                       coalesce(sum(case when upper(coalesce(ed.codigo, '')) in :codigosCorte then 1 else 0 end), 0)
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
+                left join e.etapaDestino ed
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
+                  and e.tipoEvento in (:inicioProceso, :avanceEtapa, :repeticionEtapa)
                   and (:grupoId is null or i.grupo.id = :grupoId)
                   and (:distritoId is null or i.distrito.id = :distritoId)
                 group by i.distrito.id
@@ -197,7 +248,10 @@ public class DashboardService {
                 .setParameter("inicioProceso", CasoEventoTipo.INICIO_PROCESO)
                 .setParameter("avanceEtapa", CasoEventoTipo.AVANCE_ETAPA)
                 .setParameter("repeticionEtapa", CasoEventoTipo.REPETICION_ETAPA)
-                .setParameter("cierreProceso", CasoEventoTipo.CIERRE_PROCESO)
+                .setParameter("codigosAvisoDeuda", List.of("RECORDATORIO_DE_DEUDA", "AVISO_DE_DEUDA"))
+                .setParameter("codigosAvisoCorte", List.of("AVISO_DE_CORTE"))
+                .setParameter("codigosIntimacion", List.of("INTIMACION"))
+                .setParameter("codigosCorte", List.of("CORTE"))
                 .setParameter("inicio", inicio)
                 .setParameter("fin", fin)
                 .setParameter("grupoId", grupoId)
@@ -276,11 +330,6 @@ public class DashboardService {
                 .getSingleResult();
     }
 
-    private int cuotasMinimas() {
-        return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
-                .map(p -> Integer.parseInt(p.getValor()))
-                .orElse(CUOTAS_MIN_DEFAULT);
-    }
 
     private Instant inicioRango(LocalDate desde) {
         LocalDate base = desde == null ? LocalDate.now(ZoneOffset.UTC).with(TemporalAdjusters.firstDayOfMonth()) : desde;

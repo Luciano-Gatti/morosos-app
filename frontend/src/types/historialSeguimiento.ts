@@ -10,23 +10,32 @@ export interface RegistroHistorial {
   etapa: EtapaSeguimiento;
   estado: EstadoProceso;
   tipoAccion?: string;
+  tipoEvento?: string;
   observaciones: string;
   compromisoPago?: {
     fechaDesde: string;
     fechaHasta: string;
     observacion: string;
+    montoComprometido?: number;
+    estadoLabel?: string;
+    estado?: string;
+    responsable?: string;
   } | null;
   cierre?: CierreProceso;
   responsable: string;
+  esEventoProceso?: boolean;
+  esCierreEvento?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProcesoSeguimiento {
   id: string;
   fechaInicio: string;
   fechaFin: string | null;
-  estado: "abierto" | "cerrado";
+  estado: "abierto" | "cerrado" | "pausado";
   motivoCierre: CierreProceso;
   registros: RegistroHistorial[];
+  cierre?: any;
 }
 
 export interface ObservacionLibre {

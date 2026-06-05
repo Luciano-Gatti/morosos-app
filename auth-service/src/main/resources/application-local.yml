@@ -1,0 +1,15 @@
+app:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_URL:http://localhost:5173}
+      - http://127.0.0.1:5173
+  jwt:
+    audience: ${JWT_AUDIENCE:gestion-aosc}
+    secret: ${JWT_SECRET:3HugO1JOjAKmVZYTMKO6NqWGqvTJ5xO41wiBWyqnuAnDgwo2RrUVqpOJ4I4kWjzyMfBLTWUjw3UV0VeXkjWOpA}
+  seed:
+    admin:
+      enabled: ${AUTH_SEED_ADMIN_ENABLED:false}
+      password: ${AUTH_SEED_ADMIN_PASSWORD:}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com}
+    enabled: ${GOOGLE_LOGIN_ENABLED:false}

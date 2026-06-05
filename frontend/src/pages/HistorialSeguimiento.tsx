@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { USE_API } from "@/lib/apiClient";
@@ -36,6 +38,10 @@ export default function HistorialSeguimiento() {
   const [historialVm, setHistorialVm] = useState<HistorialSeguimientoViewModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openObsModal, setOpenObsModal] = useState(false);
+  const [obsTexto, setObsTexto] = useState("");
+  const [guardandoObs, setGuardandoObs] = useState(false);
+  const [obsError, setObsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -158,6 +164,25 @@ export default function HistorialSeguimiento() {
 
   // ordenamos procesos: actual (abierto) primero, luego cerrados desc
   const procesosOrdenados = [...procesos].reverse();
+  const casoAbierto = (historialVm?.casos ?? []).find((c) => ["ABIERTO", "PAUSADO"].includes(String(c.estado ?? "").toUpperCase()));
+
+  const guardarObservacionEtapa = async () => {
+    if (!casoAbierto?.casoId || !obsTexto.trim()) return;
+    setObsError(null);
+    setGuardandoObs(true);
+    try {
+      await seguimientoApi.agregarObservacionEtapa({ casoSeguimientoId: casoAbierto.casoId, observacion: obsTexto.trim() });
+      const [historialRes, inmuebleRes] = await Promise.all([seguimientoApi.historialInmueble(id!), inmueblesApi.getById(id!)]);
+      const merged = { ...historialRes, inmueble: (historialRes as any)?.inmueble ?? inmuebleRes };
+      setHistorialVm(mapHistorialSeguimiento(merged, id!));
+      setOpenObsModal(false);
+      setObsTexto("");
+    } catch (e: any) {
+      setObsError(e?.message ?? "No se pudo guardar la observación de etapa.");
+    } finally {
+      setGuardandoObs(false);
+    }
+  };
 
   return (
     <>
@@ -288,7 +313,11 @@ export default function HistorialSeguimiento() {
               </section>
             ) : (
               procesosOrdenados.map((proceso) => (
-                <ProcesoTimeline key={proceso.id} proceso={proceso} />
+                <ProcesoTimeline
+                  key={proceso.id}
+                  proceso={proceso}
+                  onAgregarObservacion={casoAbierto?.casoId && ["abierto", "pausado"].includes(proceso.estado) ? () => setOpenObsModal(true) : undefined}
+                />
               ))
             )}
           </div>
@@ -347,6 +376,35 @@ export default function HistorialSeguimiento() {
           </div>
         </section>
       </main>
+
+      <Dialog open={openObsModal} onOpenChange={(open) => {
+        setOpenObsModal(open);
+        if (!open) {
+          setObsTexto("");
+          setObsError(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar observación a etapa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              value={obsTexto}
+              onChange={(e) => setObsTexto(e.target.value)}
+              rows={4}
+              placeholder="Escribí la observación de la etapa actual"
+            />
+            {obsError && <p className="text-sm text-destructive">{obsError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenObsModal(false)} disabled={guardandoObs}>Cancelar</Button>
+            <Button onClick={guardarObservacionEtapa} disabled={guardandoObs || obsTexto.trim().length === 0}>
+              {guardandoObs ? "Guardando..." : "Guardar observación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -407,6 +465,19 @@ const formatFecha = (value?: string | null) => {
   }).format(date);
 };
 
+const currencyFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  maximumFractionDigits: 0,
+});
+
+const formatCurrencyOrDash = (value?: number | string | null) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return "—";
+  return currencyFormatter.format(numericValue);
+};
+
 const formatHora = (value?: string | null) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -453,7 +524,9 @@ function ResumenCard({
 }
 
 function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
-  const abierto = proceso.estado === "abierto";
+  const abierto = proceso.estado !== "cerrado";
+  const pausado = proceso.estado === "pausado";
+  const tituloEstado = !abierto ? "Proceso cerrado" : pausado ? "Proceso pausado" : "Proceso abierto";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/40 px-5 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -466,7 +539,7 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
           )}
         >
           {abierto ? <PlayCircle className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-          {abierto ? "Proceso abierto" : "Proceso cerrado"}
+          {tituloEstado}
         </span>
         <span className="font-serif text-[16px] font-semibold tracking-tight text-foreground">
           {proceso.id}
@@ -489,7 +562,46 @@ function ProcesoHeader({ proceso }: { proceso: ProcesoSeguimiento }) {
   );
 }
 
-function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
+function ProcesoTimeline({ proceso, onAgregarObservacion }: { proceso: ProcesoSeguimiento; onAgregarObservacion?: () => void }) {
+  const etapas = buildEtapaTimeline(proceso);
+  const cierreRegistro = [...proceso.registros].reverse().find((registro) => isRegistroCierre(registro)) ?? null;
+
+  const registrosOrdenados = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const observacionesPorEtapa = new Map<string, RegistroHistorial[]>();
+
+  registrosOrdenados.forEach((registro) => {
+    if (!isObservacionEtapa(registro)) return;
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return;
+    const lista = observacionesPorEtapa.get(etapaKey) ?? [];
+    lista.push(registro);
+    observacionesPorEtapa.set(etapaKey, lista);
+  });
+
+  const filasVisibles = registrosOrdenados.filter((fila) => !!fila.etapa && !isObservacionEtapa(fila));
+
+  const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return null;
+    const observaciones = [...(observacionesPorEtapa.get(etapaKey) ?? [])].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    if (observaciones.length === 0) return null;
+
+    const ultimaObservacion = observaciones[observaciones.length - 1];
+    const ultimaObservacionTexto = getObservacionVisible(ultimaObservacion.observaciones);
+    if (!ultimaObservacionTexto) return null;
+
+    return (
+      <div className="mt-2 rounded-md border border-border/70 bg-surface-muted/20 p-2">
+        <div className="font-medium">Última observación de etapa: {ultimaObservacionTexto}</div>
+        {observaciones.length > 1 && (
+          <div className="mt-1 text-[11.5px] text-muted-foreground">
+            Hay {observaciones.length} observaciones registradas. Ver historial completo en Observaciones del expediente.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -498,16 +610,117 @@ function ProcesoTimeline({ proceso }: { proceso: ProcesoSeguimiento }) {
           aria-hidden
           className="absolute bottom-6 left-[34px] top-6 w-px bg-border"
         />
-        {proceso.registros.map((r, idx) => (
-          <TimelineItem
-            key={r.id}
-            registro={r}
-            esUltimo={idx === proceso.registros.length - 1}
-          />
-        ))}
+        {etapas.map((etapa, idx) => <TimelineEtapaItem key={etapa.id} etapa={etapa} esUltimo={idx === etapas.length - 1} onAgregarObservacion={idx === etapas.length - 1 ? onAgregarObservacion : undefined} />)}
       </ol>
+      {proceso.estado === "cerrado" && <CierreProcesoBloque proceso={proceso} cierreRegistro={cierreRegistro} />}
     </section>
   );
+}
+
+function buildEtapaTimeline(proceso: ProcesoSeguimiento) {
+  const registros = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const etapas: Array<any> = [];
+  let actual: any = null;
+
+  registros.forEach((registro: any) => {
+    const tipo = String(registro?.tipoAccion ?? "").toUpperCase();
+    const esEtapa = !registro.esEventoProceso;
+    const esInterno = registro.esEventoProceso && !isRegistroCierre(registro);
+    if (esEtapa) {
+      if (actual) {
+        actual.estado = "Cerrado";
+        actual.fechaCierre = registro.fecha;
+      }
+      actual = {
+        id: registro.id,
+        etapa: registro.etapa,
+        estado: "Iniciado",
+        fechaApertura: registro.fecha,
+        fechaCierre: null,
+        responsable: registro.responsable,
+        observaciones: registro.observaciones,
+        eventosInternos: [],
+      };
+      etapas.push(actual);
+      return;
+    }
+
+    if (esInterno && actual) {
+      actual.eventosInternos.push(registro);
+    }
+
+    if (tipo.includes("REANUDAR") && actual) {
+      actual.estado = "Iniciado";
+    }
+  });
+
+  if (actual && proceso.estado === "pausado") actual.estado = "Pausado";
+  if (proceso.estado === "cerrado" && etapas.length > 0) {
+    const ultima = etapas[etapas.length - 1];
+    ultima.estado = "Cerrado";
+    if (!ultima.fechaCierre) ultima.fechaCierre = proceso.fechaFin;
+  }
+  return etapas;
+}
+
+function TimelineEtapaItem({ etapa, esUltimo, onAgregarObservacion }: { etapa: any; esUltimo: boolean; onAgregarObservacion?: () => void }) {
+  const observacionEtapa = getResumenObservacionesEtapa(etapa);
+  const eventosInternosVisibles = (etapa.eventosInternos ?? []).filter((evento: RegistroHistorial) => !isObservacionEtapa(evento));
+  return <li className="relative flex gap-4 pb-6 last:pb-0">
+    <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
+      <EtapaIcon etapa={etapa.etapa} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <EtapaPill etapa={etapa.etapa} />
+        <EstadoPill estado={etapa.estado} />
+        {onAgregarObservacion && etapa.estado !== "Cerrado" && (
+          <Button variant="outline" size="sm" className="ml-auto h-7 text-[11.5px]" onClick={onAgregarObservacion}>
+            Agregar observación
+          </Button>
+        )}
+      </div>
+      <div className="mt-2 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Apertura</span>
+        <span className="text-foreground tabular">{formatFechaHora(etapa.fechaApertura)}</span>
+        {etapa.fechaCierre && <>
+          <span className="font-medium uppercase tracking-wider text-muted-foreground">Cierre</span>
+          <span className="text-foreground tabular">{formatFechaHora(etapa.fechaCierre)}</span>
+        </>}
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
+        <span className="text-foreground">{etapa.responsable}</span>
+      </div>
+      <p className="mt-2 max-w-[72ch] rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+        {observacionEtapa.ultimaObservacionTexto ? <><span className="font-medium">Última observación de etapa:</span> {observacionEtapa.ultimaObservacionTexto}</> : "No se dejaron asentadas observaciones para esta etapa."}
+      </p>
+      {observacionEtapa.totalObservaciones > 1 && (
+        <p className="mt-2 text-[12px] text-muted-foreground">
+          Hay {observacionEtapa.totalObservaciones} observaciones registradas. Ver historial completo en Observaciones del expediente.
+        </p>
+      )}
+      {eventosInternosVisibles.map((evento: any) => <EventoInternoItem key={evento.id} registro={evento} />)}
+    </div>
+  </li>;
+}
+
+function EventoInternoItem({ registro }: { registro: RegistroHistorial }) {
+  const tipo = String(registro.tipoAccion ?? "Evento");
+  const mostrarCompromisoCompleto = String(registro.tipoAccion ?? "").toUpperCase().includes("COMPROMISO");
+  const observacionCompromiso = getObservacionVisible(registro.compromisoPago?.observacion);
+  return <div className="mt-3 rounded-md border border-border/80 bg-surface px-3 py-2 text-[12.5px]">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1 font-medium text-foreground"><HandCoins className="h-3.5 w-3.5" />{tipo}</span>
+      <span className="ml-auto text-muted-foreground tabular">{formatFechaHora(registro.fecha)}</span>
+    </div>
+    <div className="mt-1 text-foreground">Responsable: {registro.responsable ?? "Sistema"}</div>
+    {mostrarCompromisoCompleto && registro.compromisoPago && <div className="mt-2 grid gap-1 text-foreground">
+      <div>Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)}</div>
+      <div>Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)}</div>
+      <div>Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado}</div>
+      <div className="font-medium">Observación:</div>
+      <div>{observacionCompromiso ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
+    </div>}
+  </div>;
 }
 
 function TimelineItem({
@@ -547,19 +760,19 @@ function TimelineItem({
         </p>
 
         {registro.compromisoPago && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12.5px] dark:bg-amber-500/10">
+          <div className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12.5px] dark:bg-amber-500/10">
             <span className="inline-flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
               <HandCoins className="h-3.5 w-3.5" />
               Compromiso de pago
             </span>
-            <span className="text-foreground">
-              Desde:{" "}
-              <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaDesde)}</span>
-            </span>
-            <span className="text-foreground">
-              Hasta: <span className="tabular font-medium">{formatFecha(registro.compromisoPago.fechaHasta)}</span>
-            </span>
-            <span className="ml-auto text-muted-foreground">{registro.compromisoPago.observacion}</span>
+            <div className="mt-1 grid gap-1 text-foreground">
+              <div>Responsable: {registro.compromisoPago.responsable ?? registro.responsable}</div>
+              <div>Monto: {formatCurrencyOrDash(registro.compromisoPago.montoComprometido)}</div>
+              <div>Vigencia: {formatFecha(registro.compromisoPago.fechaDesde)} - {formatFecha(registro.compromisoPago.fechaHasta)}</div>
+              <div>Estado: {registro.compromisoPago.estadoLabel ?? registro.compromisoPago.estado}</div>
+              <div className="font-medium">Observación:</div>
+              <div>{getObservacionVisible(registro.compromisoPago.observacion) ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
+            </div>
           </div>
         )}
       </div>
@@ -567,6 +780,78 @@ function TimelineItem({
   );
 }
 
+
+
+function normalizarTipoEvento(valor: unknown) {
+  return String(valor ?? "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, "_");
+}
+
+function isObservacionEtapa(registro: RegistroHistorial | Record<string, unknown>) {
+  const raw = registro as any;
+  const candidatos = [raw.tipoEvento, raw.tipoAccion, raw.tipo, raw.accion, raw.nombre];
+  return candidatos.some((candidato) => {
+    const tipo = normalizarTipoEvento(candidato);
+    return tipo === "OBSERVACION_ETAPA" || tipo === "OBSERVACION_DE_ETAPA";
+  });
+}
+
+function getResumenObservacionesEtapa(etapa: any) {
+  const observacionesEvento = (etapa.eventosInternos ?? []).filter((evento: RegistroHistorial) => isObservacionEtapa(evento));
+  const observacionApertura = getObservacionVisible(etapa.observaciones);
+  const observaciones = [...observacionesEvento].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const ultimaObservacionEvento = observaciones[observaciones.length - 1];
+  const totalObservaciones = observacionesEvento.length + (observacionApertura ? 1 : 0);
+  const ultimaObservacionTexto =
+    getObservacionVisible(ultimaObservacionEvento?.observaciones) ??
+    observacionApertura ??
+    (totalObservaciones > 0 ? "Sin detalle informado." : null);
+
+  return {
+    ultimaObservacionTexto,
+    totalObservaciones,
+  };
+}
+
+function isRegistroCierre(registro: RegistroHistorial) {
+  const tipoEvento = String(registro.tipoAccion ?? "").toUpperCase();
+  return tipoEvento.includes("CIERRE");
+}
+function CierreProcesoBloque({
+  proceso,
+  cierreRegistro,
+}: {
+  proceso: ProcesoSeguimiento;
+  cierreRegistro: RegistroHistorial | null;
+}) {
+  const motivoCierre = proceso.motivoCierre ?? cierreRegistro?.cierre ?? "No informado";
+  const fechaCierre = proceso.fechaFin ?? cierreRegistro?.fecha ?? null;
+  const cierreDetalle = proceso.cierre as any;
+  const responsable = cierreDetalle?.responsableCierre ?? cierreRegistro?.responsable ?? "Sistema";
+  const observacion = getObservacionVisible(cierreDetalle?.observacionCierre ?? cierreRegistro?.observaciones) ?? "No informado";
+
+  return (
+    <div className="border-t border-border bg-surface-muted/20 px-5 py-4">
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Cierre del proceso
+      </div>
+      <div className="grid gap-2 text-[12.5px] sm:grid-cols-[auto_1fr]">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Motivo de cierre</span>
+        <span className="text-foreground">{motivoCierre}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Fecha de cierre</span>
+        <span className="tabular text-foreground">{formatFechaHora(fechaCierre)}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Responsable</span>
+        <span className="text-foreground">{responsable}</span>
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">Observación</span>
+        <span className="text-foreground">{observacion}</span>
+      </div>
+    </div>
+  );
+}
 
 function getObservacionVisible(observaciones?: string | null) {
   if (!observaciones) return null;
@@ -577,6 +862,69 @@ function getObservacionVisible(observaciones?: string | null) {
 }
 
 function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
+  const renderCompromisoResumen = (r: any) => {
+    const tipo = String(r.tipoAccion ?? "").toUpperCase();
+    if (!r.compromisoPago) return "—";
+    if (!["COMPROMISO_REGISTRADO", "ACTUALIZAR_COMPROMISO", "RENOVAR_COMPROMISO"].some((token) => tipo.includes(token))) return "—";
+    const observacion = getObservacionVisible(r.compromisoPago.observacion);
+    return (
+      <div className="grid gap-1 whitespace-pre-line">
+        <div>Monto: {formatCurrencyOrDash(r.compromisoPago.montoComprometido)}</div>
+        <div>Vigencia: {formatFecha(r.compromisoPago.fechaDesde)} - {formatFecha(r.compromisoPago.fechaHasta)}</div>
+        <div>Estado: {r.compromisoPago.estadoLabel ?? r.compromisoPago.estado}</div>
+        <div className="font-medium">Observación:</div>
+        <div>{observacion ?? "No se dejaron asentadas observaciones para este compromiso."}</div>
+      </div>
+    );
+  };
+
+  const renderCierreResumen = (r: any) => {
+    if (!r.cierre) return "—";
+    const motivo = r.cierre?.motivoCierreCodigo || r.cierre?.motivoCierreNombre;
+    const parts: string[] = [];
+    if (motivo) parts.push(`Motivo: ${motivo}`);
+    if (r.cierre?.fechaCierre) parts.push(`Fecha: ${formatFechaHora(r.cierre.fechaCierre)}`);
+    if (r.cierre?.observacionCierre && r.cierre.observacionCierre !== "No informado") parts.push(`Obs.: ${r.cierre.observacionCierre}`);
+    if (r.cierre?.responsableCierre && r.cierre.responsableCierre !== "-") parts.push(`Resp.: ${r.cierre.responsableCierre}`);
+    return parts.length > 0 ? parts.join(" · ") : "—";
+  };
+
+  const registrosOrdenados = [...proceso.registros].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const observacionesPorEtapa = new Map<string, RegistroHistorial[]>();
+
+  registrosOrdenados.forEach((registro) => {
+    if (!isObservacionEtapa(registro)) return;
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return;
+    const lista = observacionesPorEtapa.get(etapaKey) ?? [];
+    lista.push(registro);
+    observacionesPorEtapa.set(etapaKey, lista);
+  });
+
+  const filasVisibles = registrosOrdenados.filter((fila) => !!fila.etapa && !isObservacionEtapa(fila));
+
+  const renderResumenObservacionesEtapa = (registro: RegistroHistorial) => {
+    const etapaKey = String(registro.etapa ?? "").trim();
+    if (!etapaKey) return null;
+    const observaciones = [...(observacionesPorEtapa.get(etapaKey) ?? [])].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    if (observaciones.length === 0) return null;
+
+    const ultimaObservacion = observaciones[observaciones.length - 1];
+    const ultimaObservacionTexto = getObservacionVisible(ultimaObservacion.observaciones);
+    if (!ultimaObservacionTexto) return null;
+
+    return (
+      <div className="mt-2 rounded-md border border-border/70 bg-surface-muted/20 p-2">
+        <div className="font-medium">Última observación de etapa: {ultimaObservacionTexto}</div>
+        {observaciones.length > 1 && (
+          <div className="mt-1 text-[11.5px] text-muted-foreground">
+            Hay {observaciones.length} observaciones registradas. Ver historial completo en Observaciones del expediente.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <ProcesoHeader proceso={proceso} />
@@ -586,7 +934,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             <tr className="border-b border-border bg-surface-muted/30">
               <Th className="w-[110px]">Fecha</Th>
               <Th className="w-[130px]">Proceso</Th>
-              <Th className="w-[140px]">Etapa</Th>
+              <Th className="w-[160px]">Etapa relacionada</Th>
               <Th className="w-[120px]">Estado</Th>
               <Th className="w-[180px]">Acción</Th>
               <Th>Observaciones</Th>
@@ -595,7 +943,7 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
             </tr>
           </thead>
           <tbody>
-            {proceso.registros.map((r) => (
+            {filasVisibles.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 align-top hover:bg-surface-muted/30">
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">
                   <div className="font-medium">{formatFecha(r.fecha)}</div>
@@ -603,44 +951,42 @@ function ProcesoTabla({ proceso }: { proceso: ProcesoSeguimiento }) {
                 </td>
                 <td className="px-4 py-3 tabular text-[12.5px] text-foreground">{r.numeroProceso}</td>
                 <td className="px-4 py-3">
-                  <EtapaPill etapa={r.etapa} />
+                  {r.esEventoProceso ? (
+                    <span className="text-[12.5px] text-foreground">Durante {r.etapa ?? "—"}</span>
+                  ) : (
+                    <EtapaPill etapa={r.etapa} />
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <EstadoPill estado={r.estado} />
                 </td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">{r.tipoAccion ?? "Evento"}</td>
                 <td className="px-4 py-3 text-[12.5px] text-foreground">
-                  <p className="max-w-[48ch] leading-relaxed">{r.observaciones}</p>
+                  <p className="max-w-[48ch] leading-relaxed">{getObservacionVisible(r.observaciones) ?? "—"}</p>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
                     Resp.: {r.responsable}
                   </p>
+                  {renderResumenObservacionesEtapa(r)}
                 </td>
                 <td className="px-4 py-3 text-[12.5px]">
-                  {r.compromisoPago ? (
-                    <div className="space-y-0.5">
-                      <div className="tabular font-medium text-foreground">
-                        {formatFecha(r.compromisoPago.fechaDesde)} – {formatFecha(r.compromisoPago.fechaHasta)}
-                      </div>
-                      <div className="text-[11.5px] text-muted-foreground tabular">
-                        {r.compromisoPago.observacion}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-[12px] italic text-muted-foreground">—</span>
-                  )}
+                  <span className={cn("text-[12.5px]", r.compromisoPago ? "text-foreground" : "italic text-muted-foreground")}>{renderCompromisoResumen(r)}</span>
                 </td>
                 <td className="px-4 py-3">
-                  {r.cierre ? (
-                    <CierrePill cierre={r.cierre} />
-                  ) : (
-                    <span className="text-[12px] italic text-muted-foreground">—</span>
-                  )}
+                  <span className={cn("text-[12.5px]", r.cierre ? "text-foreground" : "italic text-muted-foreground")}>{renderCierreResumen(r)}</span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {proceso.estado === "cerrado" && (
+        <div className="border-t border-border bg-surface-muted/20 px-4 py-3">
+          <div className="text-[12px] font-medium text-foreground">
+            Motivo de cierre: <span className="font-semibold">{proceso.motivoCierre ?? "Motivo de cierre no registrado"}</span>
+            <span className="ml-3 text-muted-foreground">Fecha: {formatFechaHora(proceso.fechaFin)}</span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -673,18 +1019,60 @@ function EtapaPill({ etapa }: { etapa: EtapaSeguimiento }) {
   );
 }
 
-function EstadoPill({ estado }: { estado: EstadoProceso }) {
-  const map: Record<EstadoProceso, { cls: string; Icon: typeof PlayCircle }> = {
-    "No iniciado": { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed },
-    "Iniciado": { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle },
-    "Pausado": { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle },
-    "Cerrado": { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck },
+const formatEstadoLabel = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Sin estado";
+
+  return raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || "Sin estado";
+};
+
+const normalizeEstadoKey = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "SIN_ESTADO";
+
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+};
+
+type EstadoPillConfig = { cls: string; Icon: typeof PlayCircle; label: string };
+
+function EstadoPill({ estado }: { estado?: EstadoProceso | string | null }) {
+  const map: Record<string, EstadoPillConfig> = {
+    SIN_ESTADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "Sin estado" },
+    NO_INICIADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "No iniciado" },
+    INICIADO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Iniciado" },
+    ACTIVO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Activo" },
+    ABIERTO: { cls: "border-status-active/20 bg-status-active-soft text-status-active", Icon: PlayCircle, label: "Abierto" },
+    PAUSADO: { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: PauseCircle, label: "Pausado" },
+    PENDIENTE: { cls: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400", Icon: CircleDashed, label: "Pendiente" },
+    CERRADO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Cerrado" },
+    FINALIZADO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Finalizado" },
+    CUMPLIDO: { cls: "border-status-closed/20 bg-status-closed-soft text-status-closed", Icon: CircleCheck, label: "Cumplido" },
+    INCUMPLIDO: { cls: "border-destructive/20 bg-destructive/10 text-destructive", Icon: AlertCircle, label: "Incumplido" },
+    CANCELADO: { cls: "border-border bg-muted text-muted-foreground", Icon: CircleDashed, label: "Cancelado" },
   };
-  const { cls, Icon } = map[estado];
+  const estadoKey = normalizeEstadoKey(estado);
+  const fallback: EstadoPillConfig = {
+    cls: "border-border bg-muted text-muted-foreground",
+    Icon: CircleDashed,
+    label: formatEstadoLabel(estado),
+  };
+  const { cls, Icon, label } = map[estadoKey] ?? fallback;
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium", cls)}>
       <Icon className="h-3 w-3" />
-      {estado}
+      {label}
     </span>
   );
 }
@@ -726,5 +1114,5 @@ function EtapaIcon({ etapa }: { etapa?: string | null }) {
   const { Icon, color, label } = config;
   const title = etapa?.trim() ? etapa : label;
 
-  return <Icon className={cn("h-4 w-4", color)} title={title} aria-label={title} />;
+  return <span title={title} aria-label={title}><Icon className={cn("h-4 w-4", color)} /></span>;
 }

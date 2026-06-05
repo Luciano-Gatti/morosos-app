@@ -21,6 +21,37 @@ export interface InmuebleDto {
   distritoCodigo?: string;
   distritoNombre?: string;
 }
+
+export interface HistorialDeudaItem {
+  fechaCarga: string;
+  periodo: string;
+  cuotasAdeudadas: number;
+  montoAdeudado: number;
+  estado?: string;
+  origen?: string;
+}
+export interface HistorialDeudaResponse {
+  inmueble: { id: string; cuenta: string; titular: string };
+  resumen: { deudaActual: number; cuotasActuales: number; mayorDeuda: number; ultimaActualizacion?: string | null };
+  items: HistorialDeudaItem[];
+}
+
+export interface ObservacionExpedienteItem { id: string; fecha: string; responsable: string; texto: string; }
+export interface EtapaObservaciones { etapaId: string; etapaNombre: string; observaciones: ObservacionExpedienteItem[]; }
+export interface ProcesoObservaciones {
+  procesoId: string;
+  estado: string;
+  fechaInicio?: string | null;
+  fechaCierre?: string | null;
+  etapaActualId?: string | null;
+  etapas: EtapaObservaciones[];
+}
+export interface ObservacionesExpedienteResponse {
+  inmueble: { id: string; cuenta: string; titular: string };
+  totalObservaciones: number;
+  procesos: ProcesoObservaciones[];
+}
+
 export interface ImportacionInmuebleDto {
   id: string;
   totalRegistros?: number;
@@ -46,6 +77,8 @@ export const inmueblesApi = {
     return apiClient.post<ImportacionInmuebleDto>(`/api/v1/inmuebles/importaciones`, formData);
   },
   getImportacionInmueble: (id: string) => apiClient.get<ImportacionInmuebleDto>(`/api/v1/inmuebles/importaciones/${id}`),
+  getHistorialDeuda: (id: string, params: Record<string, any>) => apiClient.get<HistorialDeudaResponse>(`/api/v1/inmuebles/${id}/historial-deuda${buildQueryParams(params)}`),
+  getObservacionesExpediente: (id: string, params: Record<string, any>) => apiClient.get<ObservacionesExpedienteResponse>(`/api/v1/inmuebles/${id}/observaciones-expediente${buildQueryParams(params)}`),
   async getErroresImportacionInmueble(id: string, params: Record<string, string | number | boolean | null | undefined>): Promise<FrontendPage<any>> {
     const data = await apiClient.get<PageResponse<any> | SpringPage<any>>(`/api/v1/inmuebles/importaciones/${id}/errores${buildQueryParams(params)}`);
     return "number" in data ? normalizeSpringPage(data) : normalizePageResponse(data);

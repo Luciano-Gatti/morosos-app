@@ -31,10 +31,12 @@ export interface HistorialSeguimientoViewModel {
   cierres: Array<{
     cierreId: string;
     casoId: string;
-    motivoCodigo: string;
-    motivoNombre: string;
+    motivoCierreId: string;
+    motivoCierreCodigo: string;
+    motivoCierreNombre: string;
     fechaCierre: string;
-    observacion: string;
+    observacionCierre: string;
+    responsableCierre: string;
     planPago: Record<string, unknown> | null;
     cambioParametro: Record<string, unknown> | null;
   }>;
@@ -47,10 +49,12 @@ export interface HistorialSeguimientoViewModel {
     estado: string;
     estadoLabel: string;
     observacion: string;
+    responsable: string;
   }>;
   procesos: Array<{
     id: string;
-    estado: "abierto" | "cerrado";
+    estado: "abierto" | "pausado" | "cerrado";
+    estadoActualProceso: "NO_INICIADO" | "INICIADO" | "PAUSADO" | "CERRADO";
     registros: Array<any>;
     cierre: any;
     compromisos: any[];
@@ -61,17 +65,54 @@ export interface HistorialSeguimientoViewModel {
 const s = (v: unknown, d = "-") => (typeof v === "string" && v.trim() ? v : d);
 const n = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const b = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
+const toTitleCase = (value: string) =>
+  value
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+const EVENTO_LABELS: Record<string, string> = {
+  INICIO_PROCESO: "Inicio de proceso",
+  COMPROMISO_REGISTRADO: "Compromiso de pago registrado",
+  REANUDAR_PROCESO: "Proceso reanudado",
+  REPETICION_ETAPA: "Repetición de etapa",
+  AVANCE_ETAPA: "Avance de etapa",
+  ENVIAR_ETAPA: "Envío a etapa",
+  CIERRE_PROCESO: "Cierre de proceso",
+  PAUSA_PROCESO: "Proceso pausado",
+  OBSERVACION_ETAPA: "Observación de etapa",
+};
+
+const COMPROMISO_ESTADO_LABELS: Record<string, string> = {
+  PENDIENTE: "Pendiente",
+  INCUMPLIDO: "Incumplido",
+  CUMPLIDO: "Cumplido",
+};
+
+const humanizeEventType = (value: string) => {
+  const normalized = value.toUpperCase();
+  if (EVENTO_LABELS[normalized]) return EVENTO_LABELS[normalized];
+  return toTitleCase(normalized.replace(/_/g, " "));
+};
+
+const humanizeCompromisoEstado = (value: string) => {
+  const normalized = value.toUpperCase();
+  if (COMPROMISO_ESTADO_LABELS[normalized]) return COMPROMISO_ESTADO_LABELS[normalized];
+  return toTitleCase(normalized.replace(/_/g, " "));
+};
 
 export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string): HistorialSeguimientoViewModel {
   const inmuebleRaw = input?.inmueble ?? input?.inmuebleResumen ?? {};
   const casosRaw = Array.isArray(input?.casos) ? input.casos : [];
-  const eventosRaw = Array.isArray(input?.eventos) ? input.eventos : [];
+  const eventosRaw = Array.isArray(input?.eventosPrincipales) ? input.eventosPrincipales : (Array.isArray(input?.eventos) ? input.eventos : []);
   const cierresRaw = Array.isArray(input?.cierres) ? input.cierres : [];
   const compromisosRaw = Array.isArray(input?.compromisos) ? input.compromisos : [];
 
   const toEstadoEtapa = (tipoEvento: string, estadoCaso: string, isUltimo: boolean) => {
     if (tipoEvento === "CIERRE_PROCESO") return "Cerrado";
-    if (!isUltimo) return "Cerrado";
+    if (!isUltimo) return "Iniciado";
     const e = estadoCaso.toUpperCase();
     if (e === "PAUSADO") return "Pausado";
     if (e === "CERRADO") return "Cerrado";
@@ -92,7 +133,7 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     eventoId: s(e?.id ?? e?.eventoId, `evt-${i}`),
     casoId: s(e?.casoId),
     tipoEvento: s(e?.tipoEvento ?? e?.tipoAccion ?? e?.tipo, "evento"),
-    tipoEventoLabel: s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento"),
+    tipoEventoLabel: humanizeEventType(s(e?.tipoEventoLabel ?? e?.tipoAccionLabel ?? e?.tipoEvento, "Evento")),
     etapaOrigen: s(e?.etapaOrigen, "Sin etapa asignada"),
     etapaDestino: s(e?.etapaDestino ?? e?.etapaNombre ?? e?.etapa, "Sin etapa asignada"),
     fechaEvento: s(e?.fechaEvento ?? e?.fecha),
@@ -100,12 +141,14 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     metadata: (e?.metadata ?? null) as Record<string, unknown> | null,
   }));
   const cierres: HistorialSeguimientoViewModel["cierres"] = cierresRaw.map((c: any, i: number) => ({
-    cierreId: s(c?.id ?? c?.cierreId, `cierre-${i}`),
+    cierreId: s(c?.procesoCierreId ?? c?.id ?? c?.cierreId, `cierre-${i}`),
     casoId: s(c?.casoId),
-    motivoCodigo: s(c?.motivoCodigo, ""),
-    motivoNombre: s(c?.motivoNombre ?? c?.motivoDescripcion, "No informado"),
+    motivoCierreId: s(c?.motivoCierreId ?? c?.motivoId, ""),
+    motivoCierreCodigo: s(c?.motivoCierreCodigo ?? c?.motivoCodigo, ""),
+    motivoCierreNombre: s(c?.motivoCierreNombre ?? c?.motivoNombre ?? c?.motivoDescripcion, ""),
     fechaCierre: s(c?.fechaCierre),
-    observacion: s(c?.observacion, "No informado"),
+    observacionCierre: s(c?.observacionCierre ?? c?.observacion, ""),
+    responsableCierre: s(c?.responsableCierre ?? c?.createdBy, ""),
     planPago: (c?.planPago ?? null) as Record<string, unknown> | null,
     cambioParametro: (c?.cambioParametro ?? null) as Record<string, unknown> | null,
   }));
@@ -116,28 +159,72 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
     fechaHasta: s(cp?.fechaHasta),
     montoComprometido: n(cp?.montoComprometido),
     estado: s(cp?.estado),
-    estadoLabel: s(cp?.estadoLabel ?? cp?.estado),
+    estadoLabel: humanizeCompromisoEstado(s(cp?.estadoLabel ?? cp?.estado)),
     observacion: s(cp?.observacion, "No informado"),
+    responsable: s(cp?.responsable ?? cp?.responsableCompromiso ?? cp?.createdBy, "No informado"),
   }));
+
+
+  const diffDays = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTime());
+  const findCompromisoParaEvento = (tipoEvento: string, fechaEvento: string, items: HistorialSeguimientoViewModel["compromisos"]) => {
+    const tipo = tipoEvento.toUpperCase();
+    if (!["COMPROMISO_REGISTRADO", "PAUSA_PROCESO", "REANUDAR_PROCESO"].includes(tipo)) return null;
+    if (items.length === 0) return null;
+    const fecha = new Date(fechaEvento);
+    const validos = items.filter((cp) => {
+      const desde = new Date(`${cp.fechaDesde}T00:00:00`);
+      const hasta = new Date(`${cp.fechaHasta}T23:59:59`);
+      return !Number.isNaN(fecha.getTime()) && !Number.isNaN(desde.getTime()) && !Number.isNaN(hasta.getTime()) && fecha >= desde && fecha <= hasta;
+    });
+    const source = validos.length > 0 ? validos : items;
+    return [...source].sort((a, b) => {
+      const da = diffDays(new Date(`${a.fechaDesde}T00:00:00`), fecha);
+      const db = diffDays(new Date(`${b.fechaDesde}T00:00:00`), fecha);
+      return da - db;
+    })[0] ?? null;
+  };
 
   const procesos = casosRaw.map((c: any, ci: number) => {
     const casoId = s(c?.id ?? c?.casoId, `caso-${ci}`);
     const eventosCasoRaw = eventos.filter((e) => e.casoId === casoId);
+    const cierre = cierres.find((x) => x.casoId === casoId) ?? null;
+    const compromisoByCaso = compromisos.filter((x) => x.casoId === casoId);
     const eventosCaso = eventosCasoRaw.map((mapped, idx) => {
       const tipoEvento = s(mapped.tipoEvento, "").toUpperCase();
+      const isCierreEvento = tipoEvento === "CIERRE_PROCESO";
+      const isEventoEtapa =
+        tipoEvento === "INICIO_PROCESO" ||
+        tipoEvento === "AVANCE_ETAPA" ||
+        tipoEvento === "REPETICION_ETAPA";
+      const isPausaEvento = tipoEvento === "PAUSA_PROCESO" || tipoEvento === "COMPROMISO_REGISTRADO";
+      const isReanudarEvento = tipoEvento === "REANUDAR_PROCESO";
       const isUltimo = idx === eventosCasoRaw.length - 1;
+      const compromisoEvento = findCompromisoParaEvento(tipoEvento, mapped.fechaEvento, compromisoByCaso);
       return {
         id: mapped.eventoId,
         fecha: mapped.fechaEvento,
-        etapa: mapped.etapaDestino,
-        estado: toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
+        etapa: isEventoEtapa ? mapped.etapaDestino : (mapped.etapaOrigen === "-" ? mapped.etapaDestino : mapped.etapaOrigen),
+        estado: isCierreEvento ? "Cerrado" : isPausaEvento ? "Pausado" : isReanudarEvento ? "Iniciado" : toEstadoEtapa(tipoEvento, s(c?.estado, "ABIERTO"), isUltimo),
         responsable: "Sistema",
         tipoAccion: mapped.tipoEventoLabel,
+        tipoEvento: mapped.tipoEvento,
         observaciones: mapped.observacion,
         numeroProceso: casoId,
         hora: mapped.fechaEvento.includes("T") ? mapped.fechaEvento.split("T")[1]?.slice(0, 5) : "00:00",
         metadata: mapped.metadata,
-        cierre: tipoEvento === "CIERRE_PROCESO" ? (cierres.find((x) => x.casoId === casoId)?.motivoNombre ?? null) : null,
+        esEventoProceso: !isEventoEtapa,
+        cierre: isCierreEvento ? cierre : null,
+        compromisoPago: compromisoEvento ? {
+          id: compromisoEvento.compromisoId,
+          montoComprometido: compromisoEvento.montoComprometido,
+          fechaDesde: compromisoEvento.fechaDesde,
+          fechaHasta: compromisoEvento.fechaHasta,
+          estado: compromisoEvento.estado,
+          estadoLabel: compromisoEvento.estadoLabel,
+          observacion: compromisoEvento.observacion,
+          responsable: compromisoEvento.responsable,
+        } : null,
+        esCierreEvento: isCierreEvento,
       };
     });
     if (eventosCaso.length === 0) {
@@ -152,19 +239,34 @@ export function mapHistorialSeguimiento(input: any, fallbackInmuebleId: string):
         observaciones: s(c?.observacion, "No informado"),
         numeroProceso: casoId,
         metadata: null,
-      });
+        tipoEvento: "",
+        esEventoProceso: false,
+        cierre: null,
+        compromisoPago: null,
+        esCierreEvento: false,
+      } as any);
     }
-    const cierre = cierres.find((x) => x.casoId === casoId) ?? null;
+    const motivoCierre = cierre
+      ? s(cierre.motivoCierreNombre || cierre.motivoCierreCodigo, "Motivo de cierre no registrado")
+      : null;
 
+    const estadoActualProceso = s(c?.estado, "NO_INICIADO").toUpperCase();
+    const estadoProceso =
+      estadoActualProceso === "CERRADO"
+        ? "cerrado"
+        : estadoActualProceso === "PAUSADO"
+          ? "pausado"
+          : "abierto";
     return {
       id: casoId,
-      estado: s(c?.estado, "NO_INICIADO").toUpperCase() === "CERRADO" ? "cerrado" : "abierto",
+      estado: estadoProceso,
+      estadoActualProceso: (["NO_INICIADO", "INICIADO", "PAUSADO", "CERRADO"].includes(estadoActualProceso) ? estadoActualProceso : "NO_INICIADO") as "NO_INICIADO" | "INICIADO" | "PAUSADO" | "CERRADO",
       fechaInicio: s(c?.fechaInicio, "No informado"),
       fechaFin: cierre?.fechaCierre ?? null,
-      motivoCierre: cierre?.motivoNombre ?? null,
+      motivoCierre,
       registros: eventosCaso,
       cierre,
-      compromisos: compromisos.filter((x) => x.casoId === casoId),
+      compromisos: compromisoByCaso,
     } as const;
   });
 

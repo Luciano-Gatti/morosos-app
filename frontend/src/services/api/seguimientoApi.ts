@@ -7,9 +7,12 @@ export const seguimientoApi = {
   enviarEtapa: (body: unknown) => apiClient.post("/api/v1/seguimiento/enviar-etapa", body),
   repetir: (body: unknown) => apiClient.post("/api/v1/seguimiento/repetir", body),
   pausar: (body: unknown) => apiClient.post("/api/v1/seguimiento/pausar", body),
-  reabrir: (body: unknown) => apiClient.post("/api/v1/seguimiento/reabrir", body),
+  reanudar: (body: unknown) => apiClient.post("/api/v1/seguimiento/reanudar", body),
   cerrar: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar", body),
   cerrarBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/cerrar/bulk", body),
   registrarCompromiso: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos", body),
   registrarCompromisosBulk: (body: unknown) => apiClient.post("/api/v1/seguimiento/compromisos/bulk", body),
+  getCompromisoVigente: (casoId: string) => apiClient.get(`/api/v1/seguimiento/casos/${casoId}/compromiso-vigente`),
+  actualizarCompromiso: (compromisoId: string, body: unknown) => apiClient.put(`/api/v1/seguimiento/compromisos/${compromisoId}`, body),
+  agregarObservacionEtapa: (body: unknown) => apiClient.post("/api/v1/seguimiento/observaciones-etapa", body),
 };

@@ -1,0 +1,76 @@
+server:
+  port: ${AUTH_SERVICE_PORT:8080}
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/auth_db}
+    username: ${AUTH_DB_USERNAME:postgres}
+    password: ${AUTH_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  mail:
+    host: ${AUTH_MAIL_HOST:}
+    port: ${AUTH_MAIL_PORT:587}
+    username: ${AUTH_MAIL_USERNAME:}
+    password: ${AUTH_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${AUTH_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${AUTH_MAIL_SMTP_STARTTLS:true}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui
+  api-docs:
+    path: /v3/api-docs
+
+app:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_URL:http://localhost:5173}
+      - http://127.0.0.1:5173
+  jwt:
+    issuer: ${JWT_ISSUER:http://localhost:8080}
+    audience: ${JWT_AUDIENCE:gestion-aosc}
+    access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
+    secret: ${JWT_SECRET:}
+  mail:
+    enabled: ${AUTH_MAIL_ENABLED:false}
+    from: ${AUTH_MAIL_FROM:no-reply@localhost}
+    from-name: ${AUTH_MAIL_FROM_NAME:Sistema de Morosidad}
+    password-reset:
+      token-ttl-minutes: ${AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+      frontend-reset-url: ${FRONTEND_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
+  seed:
+    admin:
+      enabled: ${AUTH_SEED_ADMIN_ENABLED:false}
+      username: ${AUTH_SEED_ADMIN_USERNAME:admin}
+      email: ${AUTH_SEED_ADMIN_EMAIL:admin@local.test}
+      password: ${AUTH_SEED_ADMIN_PASSWORD:}
+      nombre: ${AUTH_SEED_ADMIN_NOMBRE:Administrador}
+      apellido: ${AUTH_SEED_ADMIN_APELLIDO:Local}
+
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:492537971639-h16aabnpmu0hcrn5vcbk6bvn2evkjbgf.apps.googleusercontent.com}
+    enabled: ${GOOGLE_LOGIN_ENABLED:true}

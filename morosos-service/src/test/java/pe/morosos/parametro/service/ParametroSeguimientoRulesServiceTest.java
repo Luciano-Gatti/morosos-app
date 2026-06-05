@@ -1,6 +1,7 @@
 package pe.morosos.parametro.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -46,5 +47,36 @@ class ParametroSeguimientoRulesServiceTest {
         int valor = service.cuotasMinimasMorosidad();
 
         assertEquals(4, valor);
+    }
+
+    @Test
+    void diasEntreEtapasPermiteCero() {
+        ParametroSeguimiento param = new ParametroSeguimiento();
+        param.setValor("0");
+        when(repository.findByCodigoIgnoreCase("DIAS_ENTRE_ETAPAS")).thenReturn(Optional.of(param));
+
+        int valor = service.diasMinimosEntreEtapas();
+
+        assertEquals(0, valor);
+    }
+
+    @Test
+    void diasEntreEtapasNegativoUsaDefaultTecnico() {
+        ParametroSeguimiento param = new ParametroSeguimiento();
+        param.setValor("-1");
+        when(repository.findByCodigoIgnoreCase("DIAS_ENTRE_ETAPAS")).thenReturn(Optional.of(param));
+
+        int valor = service.diasMinimosEntreEtapas();
+
+        assertEquals(15, valor);
+    }
+
+    @Test
+    void diasEntreEtapasNoNumericoLanzaErrorControlado() {
+        ParametroSeguimiento param = new ParametroSeguimiento();
+        param.setValor("abc");
+        when(repository.findByCodigoIgnoreCase("DIAS_ENTRE_ETAPAS")).thenReturn(Optional.of(param));
+
+        assertThrows(pe.morosos.common.exception.BusinessRuleException.class, () -> service.diasMinimosEntreEtapas());
     }
 }

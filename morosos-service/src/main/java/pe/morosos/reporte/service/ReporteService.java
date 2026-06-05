@@ -21,26 +21,29 @@ import pe.morosos.common.exception.ResourceNotFoundException;
 import pe.morosos.deuda.entity.CargaDeuda;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
 import pe.morosos.deuda.repository.CargaDeudaDetalleRepository;
+import pe.morosos.deuda.repository.DeudaEfectivaActualRepository;
 import pe.morosos.deuda.repository.CargaDeudaRepository;
 import pe.morosos.inmueble.entity.Inmueble;
 import pe.morosos.inmueble.repository.InmuebleRepository;
-import pe.morosos.parametro.repository.ParametroSeguimientoRepository;
+import pe.morosos.deuda.service.ClasificacionDeudaService;
+import pe.morosos.deuda.service.EstadoDeuda;
+import pe.morosos.parametro.service.ParametroSeguimientoRulesService;
 import pe.morosos.reporte.dto.*;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ReporteService {
-    private static final int CUOTAS_MIN_DEFAULT = 2;
-    private static final String PARAM_CUOTAS_MIN = "CUOTAS_PARA_MOROSO";
-    private static final String PARAM_CUOTAS_MIN_LEGACY = "CUOTAS_MINIMAS_MOROSIDAD";
     private static final String SIN_GRUPO = "Sin grupo";
     private static final String SIN_DISTRITO = "Sin distrito";
+    private static final Set<String> EVENTOS_OPERATIVOS_ETAPA = Set.of("INICIO_PROCESO", "AVANCE_ETAPA", "REPETICION_ETAPA");
 
     private final InmuebleRepository inmuebleRepository;
     private final CargaDeudaRepository cargaDeudaRepository;
     private final CargaDeudaDetalleRepository cargaDeudaDetalleRepository;
-    private final ParametroSeguimientoRepository parametroSeguimientoRepository;
+    private final DeudaEfectivaActualRepository deudaEfectivaActualRepository;
+    private final ParametroSeguimientoRulesService parametroSeguimientoRulesService;
+    private final ClasificacionDeudaService clasificacionDeudaService;
     private final AuditLogRepository auditLogRepository;
     private final EntityManager entityManager;
 
@@ -49,8 +52,8 @@ public class ReporteService {
     public Object obtenerReporte(String reporteId, LocalDate fechaDesde, LocalDate fechaHasta, String action,
                                  String entityType, String tipoAccion, java.util.UUID grupoId, java.util.UUID distritoId, java.util.UUID actorId, Pageable pageable) {
         return switch (reporteId) {
-            case "morosos-grupo-distrito" -> reporteMorososGrupoDistrito();
-            case "estado-inmuebles" -> reporteEstadoInmuebles();
+            case "morosos-grupo-distrito" -> reporteMorososGrupoDistrito(distritoId);
+            case "estado-inmuebles" -> reporteEstadoInmuebles(distritoId);
             case "historial-movimientos" -> reporteHistorialMovimientos(fechaDesde, fechaHasta, action, entityType, pageable);
             case "porcentajes-morosidad" -> reportePorcentajesMorosidad();
             case "acciones-fechas" -> reporteAccionesFechas(fechaDesde, fechaHasta, tipoAccion, grupoId, distritoId, actorId, pageable);
@@ -59,14 +62,15 @@ public class ReporteService {
         };
     }
     // implementations abbreviated but complete
-    private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(){
+    private MorososGrupoDistritoResponse reporteMorososGrupoDistrito(UUID distritoIdFiltro){
         try {
             log.info("[morosos-grupo-distrito] Inicio armado de reporte");
-            int min = cuotasMinimas();
+            int min = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
             log.info("[morosos-grupo-distrito] Umbral cuotas mínimas: {}", min);
             List<Inmueble> activos = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
                 .filter(i -> i.getId() != null)
+                .filter(i -> distritoIdFiltro == null || (i.getDistrito() != null && distritoIdFiltro.equals(i.getDistrito().getId())))
                 .toList();
             log.info("[morosos-grupo-distrito] Inmuebles activos encontrados: {}", activos.size());
 
@@ -205,11 +209,12 @@ public class ReporteService {
         return resultado;
     }
 
-    private EstadoInmueblesResponse reporteEstadoInmuebles() {
-        int cuotasMoroso = cuotasMinimas();
+    private EstadoInmueblesResponse reporteEstadoInmuebles(UUID distritoIdFiltro) {
+        int cuotasMoroso = parametroSeguimientoRulesService.cuotasMinimasMorosidad();
         List<Inmueble> inmuebles = inmuebleRepository.findActivosWithGrupoAndDistrito().stream()
                 .filter(Objects::nonNull)
                 .filter(i -> i.getId() != null)
+                .filter(i -> distritoIdFiltro == null || (i.getDistrito() != null && distritoIdFiltro.equals(i.getDistrito().getId())))
                 .collect(Collectors.toMap(Inmueble::getId, i -> i, (a, b) -> a, LinkedHashMap::new))
                 .values()
                 .stream()
@@ -228,16 +233,12 @@ public class ReporteService {
             int cuotasAdeudadas = deudaInmueble == null ? 0 : asIntegerOrZero(deudaInmueble[1]);
             BigDecimal deudaInmuebleTotal = deudaInmueble == null ? BigDecimal.ZERO : asBigDecimalOrZero(deudaInmueble[2]);
 
-            String estado;
-            if (cuotasAdeudadas >= cuotasMoroso) {
-                estado = "Moroso";
-                morosos++;
-            } else if (cuotasAdeudadas > 0) {
-                estado = "Deudor";
-                deudores++;
-            } else {
-                estado = "Al día";
-                alDia++;
+            EstadoDeuda estadoDeuda = clasificacionDeudaService.clasificar(cuotasAdeudadas, cuotasMoroso);
+            String estado = clasificacionDeudaService.etiqueta(estadoDeuda);
+            switch (estadoDeuda) {
+                case AL_DIA -> alDia++;
+                case DEUDOR -> deudores++;
+                case MOROSO -> morosos++;
             }
 
             deudaTotal = deudaTotal.add(deudaInmuebleTotal);
@@ -268,26 +269,9 @@ public class ReporteService {
     }
     private PageResponse<MovimientoReporteResponse> reporteHistorialMovimientos(LocalDate desde, LocalDate hasta,String action,String entityType,Pageable pageable){Specification<AuditLog> s=Specification.where(null); if(desde!=null){Instant i=desde.atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.greaterThanOrEqualTo(r.get("createdAt"),i));} if(hasta!=null){Instant i=hasta.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC); s=s.and((r,q,c)->c.lessThan(r.get("createdAt"),i));} if(action!=null&&!action.isBlank()) s=s.and((r,q,c)->c.equal(r.get("action"),action)); if(entityType!=null&&!entityType.isBlank()) s=s.and((r,q,c)->c.equal(r.get("entityType"),entityType));
         Page<MovimientoReporteResponse> m=auditLogRepository.findAll(s,pageable).map(a->new MovimientoReporteResponse(a.getCreatedAt()==null?null:a.getCreatedAt().atOffset(ZoneOffset.UTC),a.getAction(),a.getEntityType(),a.getEntityId(),a.getActorId(),"%s %s".formatted(a.getEntityType(),a.getAction()),a.getOldValues(),a.getNewValues())); return PageResponse.from(m);}    
-    private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=cuotasMinimas(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}
+    private PorcentajesMorosidadResponse reportePorcentajesMorosidad(){int min=parametroSeguimientoRulesService.cuotasMinimasMorosidad(); List<Inmueble> activos=inmuebleRepository.findAll().stream().filter(Inmueble::isActivo).toList(); Map<UUID,Object[]> deuda=deudaUltimaCarga(); long con=0,mor=0; BigDecimal monto=BigDecimal.ZERO; for(Inmueble i:activos){Object[] x=deuda.get(i.getId()); if(x!=null){con++; Integer c=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; monto=monto.add(b==null?BigDecimal.ZERO:b); if(c!=null&&c>=min)mor++;}}
         List<PorcentajesMorosidadDetalleResponse> pg=buildDetalle(activos,deuda,min,true); List<PorcentajesMorosidadDetalleResponse> pd=buildDetalle(activos,deuda,min,false); long t=activos.size(); return new PorcentajesMorosidadResponse(t,con,mor,t-mor,t==0?0:con*100d/t,t==0?0:mor*100d/t,t==0?0:(t-mor)*100d/t,monto,pg,pd);}    
     private List<PorcentajesMorosidadDetalleResponse> buildDetalle(List<Inmueble> activos,Map<UUID,Object[]> deuda,int min,boolean grupo){Map<UUID,List<Inmueble>> map=activos.stream().collect(Collectors.groupingBy(i->grupo?i.getGrupo().getId():i.getDistrito().getId())); List<PorcentajesMorosidadDetalleResponse> out=new ArrayList<>(); for(List<Inmueble> v:map.values()){Inmueble r=v.get(0); long t=v.size(),c=0,m=0; BigDecimal mt=BigDecimal.ZERO; for(Inmueble i:v){Object[] x=deuda.get(i.getId()); if(x!=null){c++; Integer cc=(Integer)x[1]; BigDecimal b=(BigDecimal)x[2]; mt=mt.add(b==null?BigDecimal.ZERO:b); if(cc!=null&&cc>=min)m++;}} out.add(new PorcentajesMorosidadDetalleResponse(grupo?r.getGrupo().getId():r.getDistrito().getId(),grupo?r.getGrupo().getNombre():r.getDistrito().getNombre(),t,c,m,t-m,t==0?0:c*100d/t,t==0?0:m*100d/t,t==0?0:(t-m)*100d/t,mt));} return out;}
-    private int cuotasMinimas() {
-        return parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN)
-                .or(() -> parametroSeguimientoRepository.findByCodigoIgnoreCase(PARAM_CUOTAS_MIN_LEGACY))
-                .map(p -> {
-                    String valor = p.getValor();
-                    if (valor == null || valor.isBlank()) {
-                        return CUOTAS_MIN_DEFAULT;
-                    }
-                    try {
-                        return Integer.parseInt(valor.trim());
-                    } catch (NumberFormatException ex) {
-                        return CUOTAS_MIN_DEFAULT;
-                    }
-                })
-                .orElse(CUOTAS_MIN_DEFAULT);
-    }
-
 
     private AccionesFechasResponse reporteAccionesFechas(LocalDate fechaDesde, LocalDate fechaHasta, String tipoAccion, UUID grupoId, UUID distritoId, UUID actorId, Pageable pageable) {
         Instant inicio = (fechaDesde == null ? LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1) : fechaDesde).atStartOfDay().toInstant(ZoneOffset.UTC);
@@ -301,7 +285,7 @@ public class ReporteService {
                        d.id, d.nombre,
                        eo.id, eo.codigo, eo.nombre,
                        ed.id, ed.codigo, ed.nombre,
-                       e.createdBy, e.observacion, mc.codigo
+                       e.createdBy, e.observacion, mc.codigo, pc.montoAbonado, pp.cantidadCuotas, pp.cuotasPagadasIniciales, pp.montoTotalPlan, pp.montoPagadoInicial, pp.valorCuota
                 from CasoEvento e
                 join e.casoSeguimiento c
                 join c.inmueble i
@@ -311,6 +295,7 @@ public class ReporteService {
                 left join e.etapaDestino ed
                 left join ProcesoCierre pc on pc.casoSeguimiento.id = c.id
                 left join pc.motivoCierre mc
+                left join ProcesoCierrePlanPago pp on pp.procesoCierre.id = pc.id
                 where e.fechaEvento >= :inicio and e.fechaEvento < :fin
                   and (:grupoId is null or g.id = :grupoId)
                   and (:distritoId is null or d.id = :distritoId)
@@ -323,6 +308,7 @@ public class ReporteService {
 
         List<AccionesFechasDetalleResponse> mapped = baseRows.stream()
                 .map(this::toDetalleAccionesFecha)
+                .filter(Objects::nonNull)
                 .filter(r -> tipoAccion == null || tipoAccion.isBlank() || r.tipoAccion().equalsIgnoreCase(tipoAccion))
                 .toList();
 
@@ -363,9 +349,30 @@ public class ReporteService {
         Instant fecha = (Instant) r[0];
         String tipoEvento = ((Enum<?>) r[1]).name();
         String etapaOrigenCodigo = (String) r[11];
+        String etapaOrigenNombre = (String) r[12];
         String etapaDestinoCodigo = (String) r[14];
+        String etapaDestinoNombre = (String) r[15];
         String motivoCierreCodigo = (String) r[18];
-        String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaDestinoCodigo, motivoCierreCodigo);
+        BigDecimal montoAbonadoRegularizacion = (BigDecimal) r[19];
+        String tipoAccion = mapTipoAccion(tipoEvento, etapaOrigenCodigo, etapaOrigenNombre, etapaDestinoCodigo, etapaDestinoNombre, motivoCierreCodigo);
+        if (tipoAccion == null || tipoAccion.isBlank()) {
+            return null;
+        }
+        Integer cantidadCuotas = (Integer) r[20];
+        Integer cuotasPagadas = (Integer) r[21];
+        BigDecimal montoTotalPlan = (BigDecimal) r[22];
+        BigDecimal montoPagado = (BigDecimal) r[23];
+        BigDecimal valorCuota = (BigDecimal) r[24];
+        if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) {
+            montoPagado = montoAbonadoRegularizacion;
+        }
+        if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+            montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
+        }
+        Integer cuotasPendientes = (cantidadCuotas != null && cuotasPagadas != null) ? Math.max(cantidadCuotas - cuotasPagadas, 0) : null;
+        BigDecimal montoPendiente = (montoTotalPlan != null && montoPagado != null) ? montoTotalPlan.subtract(montoPagado) : null;
+        UUID actorId = (UUID) r[16];
+        String usuarioResponsable = actorId == null ? "Sistema" : actorId.toString();
         return new AccionesFechasDetalleResponse(
                 fecha.atOffset(ZoneOffset.UTC),
                 tipoAccion,
@@ -382,29 +389,35 @@ public class ReporteService {
                 (String) r[12],
                 (UUID) r[13],
                 (String) r[15],
-                (UUID) r[16],
-                (String) r[17]);
+                actorId,
+                (String) r[17],
+                cuotasPagadas,
+                montoPagado,
+                cuotasPendientes,
+                montoPendiente,
+                usuarioResponsable);
     }
 
-    private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaDestinoCodigo, String motivoCierreCodigo) {
-        if ("REPETICION_ETAPA".equals(tipoEvento)) return "REPETICION_ETAPA";
-        if ("OBSERVACION".equals(tipoEvento)) return "PAUSA";
-        if ("CAMBIO_PARAMETRO".equals(tipoEvento)) return "REAPERTURA";
-        if ("COMPROMISO_REGISTRADO".equals(tipoEvento)) return "COMPROMISO_PAGO";
+    private String mapTipoAccion(String tipoEvento, String etapaOrigenCodigo, String etapaOrigenNombre, String etapaDestinoCodigo, String etapaDestinoNombre, String motivoCierreCodigo) {
         if ("CIERRE_PROCESO".equals(tipoEvento)) {
             if ("REGULARIZACION".equalsIgnoreCase(motivoCierreCodigo)) return "REGULARIZACION";
             if ("PLAN_DE_PAGO".equalsIgnoreCase(motivoCierreCodigo)) return "PLAN_DE_PAGO";
-            return "CIERRE";
+            return null;
+        }
+        if (!EVENTOS_OPERATIVOS_ETAPA.contains(tipoEvento)) {
+            return null;
+        }
+        if ("REPETICION_ETAPA".equals(tipoEvento)) {
+            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
+            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
+            return null;
         }
         if ("AVANCE_ETAPA".equals(tipoEvento) || "INICIO_PROCESO".equals(tipoEvento)) {
-            String codigo = (etapaDestinoCodigo != null ? etapaDestinoCodigo : etapaOrigenCodigo);
-            String c = codigo == null ? "" : codigo.toUpperCase(Locale.ROOT);
-            if (c.contains("AVISO_DEUDA")) return "AVISO_DEUDA";
-            if (c.contains("INTIMACION")) return "INTIMACION";
-            if (c.contains("AVISO_CORTE")) return "AVISO_CORTE";
-            if (c.contains("CORTE")) return "CORTE";
+            if (etapaDestinoNombre != null && !etapaDestinoNombre.isBlank()) return etapaDestinoNombre.trim();
+            if (etapaOrigenNombre != null && !etapaOrigenNombre.isBlank()) return etapaOrigenNombre.trim();
+            return null;
         }
-        return "CIERRE";
+        return null;
     }
 
     private String labelTipoAccion(String tipoAccion) {
@@ -414,7 +427,9 @@ public class ReporteService {
             case "AVISO_CORTE" -> "Aviso de corte";
             case "CORTE" -> "Corte";
             case "REPETICION_ETAPA" -> "Repetición de etapa";
-            case "PAUSA" -> "Pausa";
+            case "INICIO_PROCESO" -> "Inicio de proceso";
+            case "AVANCE_ETAPA" -> "Avance de etapa";
+            case "PAUSA" -> "Pausa de proceso";
             case "REAPERTURA" -> "Reapertura";
             case "CIERRE" -> "Cierre";
             case "REGULARIZACION" -> "Regularización";
@@ -429,7 +444,7 @@ public class ReporteService {
         Instant fin = (fechaHasta == null ? LocalDate.now(ZoneOffset.UTC) : fechaHasta.plusDays(1)).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AccionesRegularizacionItemRegularizacionResponse> regs = entityManager.createQuery("""
-                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre, p.createdBy, p.observacion
+                select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre, p.montoAbonado, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -449,12 +464,12 @@ public class ReporteService {
                         ((Instant) r[0]).atOffset(ZoneOffset.UTC),
                         (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
                         (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
-                        (UUID) r[9], (String) r[10]))
+                        (BigDecimal) r[9], (UUID) r[10], (String) r[11]))
                 .toList();
 
         List<AccionesRegularizacionItemPlanPagoResponse> planes = entityManager.createQuery("""
                 select p.fechaCierre, i.cuenta, i.titular, i.id, c.id, g.id, g.nombre, d.id, d.nombre,
-                       pp.cantidadCuotas, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
+                       pp.montoTotalPlan, pp.cantidadCuotas, pp.valorCuota, pp.cuotasPagadasIniciales, pp.montoPagadoInicial, pp.cuotasPendientes, pp.montoPendiente, pp.saldoPendiente, pp.fechaVencimientoPrimeraCuota, p.createdBy, p.observacion
                 from ProcesoCierre p
                 join p.motivoCierre m
                 join p.casoSeguimiento c
@@ -471,11 +486,33 @@ public class ReporteService {
                 .setParameter("inicio", inicio).setParameter("fin", fin)
                 .setParameter("grupoId", grupoId).setParameter("distritoId", distritoId)
                 .getResultList().stream()
-                .map(r -> new AccionesRegularizacionItemPlanPagoResponse(
-                        ((Instant) r[0]).atOffset(ZoneOffset.UTC),
-                        (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
-                        (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
-                        (Integer) r[9], (LocalDate) r[10], (UUID) r[11], (String) r[12]))
+                .map(r -> {
+                    Integer cantidadCuotas = (Integer) r[10];
+                    Integer cuotasPagadas = (Integer) r[12];
+                    BigDecimal montoTotalPlan = (BigDecimal) r[9];
+                    BigDecimal montoPagado = (BigDecimal) r[13];
+                    Integer cuotasPendientes = (Integer) r[14];
+                    BigDecimal montoPendiente = (BigDecimal) r[15];
+                    BigDecimal valorCuota = (BigDecimal) r[11];
+                    if (montoPagado == null && valorCuota != null && cuotasPagadas != null) {
+                        montoPagado = valorCuota.multiply(BigDecimal.valueOf(cuotasPagadas.longValue()));
+                    }
+                    if (cuotasPendientes == null && cantidadCuotas != null && cuotasPagadas != null) {
+                        cuotasPendientes = Math.max(cantidadCuotas - cuotasPagadas, 0);
+                    }
+                    if (montoPendiente == null && montoTotalPlan != null && montoPagado != null) {
+                        montoPendiente = montoTotalPlan.subtract(montoPagado);
+                    }
+                    UUID actorId = (UUID) r[18];
+                    String usuarioResponsable = actorId == null ? "Sistema" : actorId.toString();
+                    return new AccionesRegularizacionItemPlanPagoResponse(
+                            ((Instant) r[0]).atOffset(ZoneOffset.UTC),
+                            (String) r[1], (String) r[2], (UUID) r[3], (UUID) r[4],
+                            (UUID) r[5], (String) r[6], (UUID) r[7], (String) r[8],
+                            montoTotalPlan, cantidadCuotas, valorCuota, cuotasPagadas, montoPagado,
+                            cuotasPendientes, montoPendiente, (BigDecimal) r[16],
+                            (LocalDate) r[17], null, "ACTIVO", actorId, (String) r[19], usuarioResponsable);
+                })
                 .toList();
 
         List<AccionesRegularizacionItemCompromisoResponse> compromisos = entityManager.createQuery("""
@@ -548,7 +585,7 @@ public class ReporteService {
         int totalPages = pageable.getPageSize() == 0 ? 1 : (int) Math.ceil((double) items.size() / pageable.getPageSize());
         return new PageResponse<>(items.subList(from, to), pageable.getPageNumber(), pageable.getPageSize(), items.size(), totalPages);
     }
-    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); if(c.isEmpty()) return Map.of(); return cargaDeudaDetalleRepository.findDeudaByCarga(c.get().getId()).stream().filter(v -> v != null && v.length > 0 && v[0] instanceof UUID).collect(Collectors.toMap(v->(UUID)v[0],v->v,(a,b)->a));}
+    private Map<UUID,Object[]> deudaUltimaCarga(){Optional<CargaDeuda> c=cargaDeudaRepository.findFirstByEstadoInOrderByCreatedAtDesc(List.of(CargaDeudaEstado.COMPLETADA,CargaDeudaEstado.COMPLETADA_CON_ERRORES)); Map<UUID,Object[]> base = c.map(carga -> cargaDeudaDetalleRepository.findDeudaByCarga(carga.getId()).stream().filter(v -> v != null && v.length > 0 && v[0] instanceof UUID).collect(Collectors.toMap(v->(UUID)v[0],v->v,(a,b)->a))).orElseGet(HashMap::new); deudaEfectivaActualRepository.findAll().forEach(d -> base.put(d.getInmueble().getId(), new Object[]{d.getInmueble().getId(), d.getCuotasAdeudadas(), d.getMontoAdeudado()})); return base;}
 
     private UUID grupoId(Inmueble i) {
         return i == null || i.getGrupo() == null ? null : i.getGrupo().getId();

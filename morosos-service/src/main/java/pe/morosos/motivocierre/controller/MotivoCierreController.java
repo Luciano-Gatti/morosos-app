@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,27 +28,32 @@ public class MotivoCierreController {
 
     private final MotivoCierreService service;
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_VER_MOTIVOS_CIERRE)")
     @GetMapping
     public List<MotivoCierreResponse> findAll() {
         return service.findAll();
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_CREAR_MOTIVO_CIERRE)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public MotivoCierreResponse create(@Valid @RequestBody MotivoCierreRequest request) {
         return service.create(request);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_EDITAR_MOTIVO_CIERRE)")
     @PutMapping("/{id}")
     public MotivoCierreResponse update(@PathVariable UUID id, @Valid @RequestBody MotivoCierreRequest request) {
         return service.update(id, request);
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_ACTIVAR_DESACTIVAR_MOTIVO_CIERRE)")
     @PatchMapping("/{id}/activo")
     public MotivoCierreResponse updateActivo(@PathVariable UUID id, @Valid @RequestBody ToggleActivoRequest request) {
         return service.updateActivo(id, request.activo());
     }
 
+    @PreAuthorize("hasAuthority(T(pe.morosos.security.PermissionCodes).CONFIG_ELIMINAR_MOTIVO_CIERRE)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {

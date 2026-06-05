@@ -11,10 +11,15 @@ import org.springframework.util.StringUtils;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import pe.morosos.deuda.entity.CargaDeudaEstado;
+import pe.morosos.deuda.service.DeudaEfectivaService;
 import pe.morosos.seguimiento.dto.*;
 import org.springframework.transaction.annotation.Transactional;
 import pe.morosos.audit.service.AuditService;
 import pe.morosos.common.exception.BusinessRuleException;
+import pe.morosos.common.exception.ConflictException;
+import pe.morosos.common.exception.ResourceNotFoundException;
+import pe.morosos.common.exception.ValidationException;
+import pe.morosos.common.api.ErrorResponse;
 import pe.morosos.etapa.entity.EtapaConfig;
 import pe.morosos.etapa.repository.EtapaConfigRepository;
 import pe.morosos.inmueble.entity.Inmueble;
@@ -47,6 +52,8 @@ public class SeguimientoService {
     private final pe.morosos.seguimiento.repository.CompromisoPagoRepository compromisoPagoRepository;
     private final InmuebleRepository inmuebleRepository;
     private final ParametroSeguimientoRulesService parametroRulesService;
+    private final DeudaEfectivaService deudaEfectivaService;
+    private final SeguimientoFechaProgramadaService fechaProgramadaService;
 
     
 
@@ -64,23 +71,59 @@ public class SeguimientoService {
             return Page.empty(pageable);
         }
 
+        Pageable sanitizedPageable = sanitizeSort(pageable);
+
         Page<pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection> page;
         if (qNormalizada == null) {
             page = cargaDeudaDetalleRepository.findBandejaSinBusqueda(
-                    cargaId, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+                    cargaId, grupoId, distritoId, etapaId, estado, minCuotas, sanitizedPageable);
         } else {
             String searchPattern = "%" + qNormalizada + "%";
             page = cargaDeudaDetalleRepository.findBandejaConBusqueda(
-                    cargaId, searchPattern, grupoId, distritoId, etapaId, estado, minCuotas, pageable);
+                    cargaId, searchPattern, grupoId, distritoId, etapaId, estado, minCuotas, sanitizedPageable);
         }
 
         return page.map(this::toRow);
+    }
+
+
+    private Pageable sanitizeSort(Pageable pageable) {
+        Map<String, String> allowlist = Map.ofEntries(
+                Map.entry("cuenta", "cuenta"),
+                Map.entry("titular", "titular"),
+                Map.entry("direccion", "direccion"),
+                Map.entry("grupoNombre", "grupoNombre"),
+                Map.entry("distritoNombre", "distritoNombre"),
+                Map.entry("cuotasAdeudadas", "cuotasAdeudadas"),
+                Map.entry("montoAdeudado", "montoAdeudado"),
+                Map.entry("etapaActualNombre", "etapaActualNombre"),
+                Map.entry("fechaUltimoMovimiento", "fechaUltimoMovimiento"),
+                Map.entry("fechaProgramada", "fechaUltimoMovimiento"),
+                Map.entry("estado", "estado")
+        );
+
+        Sort.Order selected = pageable.getSort().stream()
+                .filter(order -> allowlist.containsKey(order.getProperty()))
+                .findFirst()
+                .map(order -> order.withProperty(allowlist.get(order.getProperty())))
+                .orElse(Sort.Order.asc("cuenta"));
+
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(selected));
     }
 
     private SeguimientoBandejaRowResponse toRow(pe.morosos.deuda.repository.CargaDeudaDetalleRepository.SeguimientoBandejaProjection row) {
         Instant ultimo = row.getFechaUltimoMovimiento();
         Long dias = ultimo == null ? null : Duration.between(ultimo, Instant.now()).toDays();
         CasoSeguimientoEstado estado = row.getEstado();
+        SeguimientoFechaProgramadaService.FechaProgramadaResultado fechaProgramada = fechaProgramadaService.calcular(
+                new SeguimientoFechaProgramadaService.UUIDCasoEtapa(
+                        row.getCasoId(),
+                        row.getEtapaActualId(),
+                        row.getEtapaActualOrden(),
+                        estado,
+                        row.getEtapaFinal()
+                )
+        );
         return new SeguimientoBandejaRowResponse(
                 row.getCasoId(),
                 row.getInmuebleId(),
@@ -98,6 +141,9 @@ public class SeguimientoService {
                 estado == null ? "NO_INICIADO" : estado.name(),
                 ultimo,
                 dias,
+                fechaProgramada.fechaEntradaEtapaActual(),
+                fechaProgramada.fechaProgramada(),
+                fechaProgramada.diasEntreEtapasAplicado(),
                 estado == null
                         ? new SeguimientoBandejaAccionesResponse(true, false, false, false, false, false, false)
                         : accionesDisponibles(estado, Boolean.TRUE.equals(row.getEtapaFinal()))
@@ -111,10 +157,10 @@ public class SeguimientoService {
         return new SeguimientoBandejaAccionesResponse(
                 false,
                 abierto && !esFinal,
-                !cerrado,
+                abierto,
                 abierto,
                 pausado,
-                abierto,
+                !cerrado,
                 !cerrado
         );
     }
@@ -131,7 +177,7 @@ public class SeguimientoService {
                 c.setFechaInicio(Instant.now()); c.setFechaUltimoMovimiento(Instant.now()); c.setObservacion(observacion);
                 c.setCreatedAt(Instant.now());
                 c = casoRepository.save(c);
-                casoEventoService.crearEvento(c, CasoEventoTipo.INICIO_PROCESO, null, primera, observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(c, CasoEventoTipo.INICIO_PROCESO, null, primera, observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", c.getId(), "INICIAR_SEGUIMIENTO", null, null, null, null, null);
                 result.aplicado(id, "Seguimiento iniciado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -149,7 +195,7 @@ public class SeguimientoService {
                 EtapaConfig siguiente = motor.validarAvanceEtapa(caso);
                 caso.setEtapaActual(siguiente); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now());
                 casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, origen, siguiente, observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, origen, siguiente, observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "AVANZAR_ETAPA", null, null, null, null, null);
                 result.aplicado(id, "Etapa avanzada");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -159,65 +205,85 @@ public class SeguimientoService {
 
     @Transactional
     public BulkActionResultResponse enviarEtapa(EnviarEtapaRequest request) {
+        validarEnviarEtapaRequest(request);
         BulkActionResultResponse result = new BulkActionResultResponse(request.casoIds().size());
         EtapaConfig etapaDestino = etapaRepository.findById(request.etapaDestinoId())
-                .orElseThrow(() -> new BusinessRuleException("La etapa destino no existe."));
+                .orElseThrow(() -> new ResourceNotFoundException("La etapa destino no existe."));
         if (!etapaDestino.isActivo()) {
-            throw new BusinessRuleException("La etapa destino está inactiva.");
+            throw new ConflictException("La etapa destino está inactiva.");
         }
         EtapaConfig primeraEtapa = etapaRepository.findFirstByActivoTrueOrderByOrdenAsc()
-                .orElseThrow(() -> new BusinessRuleException("No existe etapa activa para operar seguimiento"));
+                .orElseThrow(() -> new ConflictException("No existe etapa activa para operar seguimiento"));
 
+        Map<UUID, CasoSeguimiento> casos = new LinkedHashMap<>();
         for (UUID id : request.casoIds()) {
-            try {
-                CasoSeguimiento caso = casoRepository.findById(id)
-                        .orElseThrow(() -> new BusinessRuleException("Caso de seguimiento no encontrado."));
-                if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
-                    result.omitido(id, "No se permiten acciones sobre procesos cerrados.");
-                    continue;
-                }
+            CasoSeguimiento caso = casoRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Caso de seguimiento no encontrado: " + id));
+            if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
+                throw new ConflictException("No se permiten acciones sobre procesos cerrados: " + id);
+            }
+            casos.put(id, caso);
+        }
 
-                EtapaConfig etapaActual = caso.getEtapaActual();
-                if (etapaActual == null) {
-                    if (primeraEtapa.getId().equals(etapaDestino.getId())) {
-                        caso.setEtapaActual(etapaDestino);
-                        caso.setFechaUltimoMovimiento(Instant.now());
-                        caso.setUpdatedAt(Instant.now());
-                        casoRepository.save(caso);
-                        casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, null, etapaDestino, request.observacion(), null);
-                        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
-                        result.aplicado(id, "Enviado a etapa destino.");
-                    } else {
-                        result.omitido(id, "No se puede iniciar directamente en una etapa avanzada.");
-                    }
-                    continue;
-                }
-
-                if (etapaActual.getOrden() < etapaDestino.getOrden()) {
-                    caso.setEtapaActual(etapaDestino);
-                    caso.setFechaUltimoMovimiento(Instant.now());
-                    caso.setUpdatedAt(Instant.now());
-                    casoRepository.save(caso);
-                    casoEventoService.crearEvento(caso, CasoEventoTipo.AVANCE_ETAPA, etapaActual, etapaDestino, request.observacion(), null);
+        for (Map.Entry<UUID, CasoSeguimiento> entry : casos.entrySet()) {
+            UUID id = entry.getKey();
+            CasoSeguimiento caso = entry.getValue();
+            EtapaConfig etapaActual = caso.getEtapaActual();
+            if (etapaActual == null) {
+                if (primeraEtapa.getId().equals(etapaDestino.getId())) {
+                    aplicarMovimientoEtapa(caso, CasoEventoTipo.ENVIAR_ETAPA, null, etapaDestino, request.observacion());
                     auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
                     result.aplicado(id, "Enviado a etapa destino.");
-                } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
-                    result.omitido(id, "No se puede retroceder.");
-                } else if (request.repetirMismaEtapa()) {
-                    caso.setFechaUltimoMovimiento(Instant.now());
-                    caso.setUpdatedAt(Instant.now());
-                    casoRepository.save(caso);
-                    casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion(), null);
-                    auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
-                    result.aplicado(id, "Etapa repetida.");
                 } else {
-                    result.omitido(id, "El caso ya se encuentra en la etapa destino.");
+                    throw new ConflictException("No se puede iniciar directamente en una etapa avanzada: " + id);
                 }
-            } catch (Exception ex) {
-                result.error(id, ex.getMessage());
+                continue;
+            }
+
+            if (etapaActual.getOrden() == null || etapaDestino.getOrden() == null) {
+                throw new ConflictException("La etapa actual o destino no tiene orden configurado.");
+            }
+
+            if (etapaActual.getOrden() < etapaDestino.getOrden()) {
+                aplicarMovimientoEtapa(caso, CasoEventoTipo.ENVIAR_ETAPA, etapaActual, etapaDestino, request.observacion());
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "ENVIAR_ETAPA_DETERMINADA", null, null, null, null, null);
+                result.aplicado(id, "Enviado a etapa destino.");
+            } else if (etapaActual.getOrden() > etapaDestino.getOrden()) {
+                throw new ConflictException("No se puede retroceder: " + id);
+            } else if (request.repetirMismaEtapa()) {
+                aplicarMovimientoEtapa(caso, CasoEventoTipo.REPETICION_ETAPA, etapaActual, etapaActual, request.observacion());
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
+                result.aplicado(id, "Etapa repetida.");
+            } else {
+                throw new ConflictException("El caso ya se encuentra en la etapa destino: " + id);
             }
         }
         return result;
+    }
+
+    private void validarEnviarEtapaRequest(EnviarEtapaRequest request) {
+        if (request == null) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("request", "Requerido")));
+        }
+        if (request.casoIds() == null || request.casoIds().isEmpty()) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("casoIds", "Debe incluir al menos un caso")));
+        }
+        if (request.casoIds().stream().anyMatch(Objects::isNull)) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("casoIds", "No debe contener valores nulos")));
+        }
+        if (request.etapaDestinoId() == null) {
+            throw new ValidationException("Request inválido", List.of(new ErrorResponse.Detail("etapaDestinoId", "Requerido")));
+        }
+    }
+
+    private void aplicarMovimientoEtapa(CasoSeguimiento caso, CasoEventoTipo tipoEvento, EtapaConfig etapaOrigen,
+                                        EtapaConfig etapaDestino, String observacion) {
+        Instant fechaMovimiento = Instant.now();
+        caso.setEtapaActual(etapaDestino);
+        caso.setFechaUltimoMovimiento(fechaMovimiento);
+        caso.setUpdatedAt(fechaMovimiento);
+        casoRepository.save(caso);
+        casoEventoService.crearEvento(caso, tipoEvento, etapaOrigen, etapaDestino, observacion, null, fechaMovimiento);
     }
 
     @Transactional
@@ -228,7 +294,7 @@ public class SeguimientoService {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarRepeticionEtapa(caso);
                 caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, caso.getEtapaActual(), caso.getEtapaActual(), observacion, null);
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REPETICION_ETAPA, caso.getEtapaActual(), caso.getEtapaActual(), observacion, null);
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REPETIR_ETAPA", null, null, null, null, null);
                 result.aplicado(id, "Etapa repetida");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -237,14 +303,14 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public BulkActionResultResponse pausar(List<UUID> casoIds, String observacion) {
+    public BulkActionResultResponse pausar(List<UUID> casoIds, String motivoPausa, String observacion) {
         BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
         for (UUID id : casoIds) {
             try {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
                 motor.validarPausar(caso);
                 caso.setEstado(CasoSeguimientoEstado.PAUSADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA")));
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.PAUSA_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "PAUSA", "motivoPausa", motivoPausa)));
                 auditService.log("CASO_SEGUIMIENTO", caso.getId(), "PAUSAR_CASO", null, null, null, null, null);
                 result.aplicado(id, "Caso pausado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
@@ -253,16 +319,23 @@ public class SeguimientoService {
     }
 
     @Transactional
-    public BulkActionResultResponse reabrir(List<UUID> casoIds, String observacion) {
+    public BulkActionResultResponse reanudar(List<UUID> casoIds, String observacion) {
         BulkActionResultResponse result = new BulkActionResultResponse(casoIds.size());
         for (UUID id : casoIds) {
             try {
                 CasoSeguimiento caso = motor.validarCasoOperable(id);
-                motor.validarReabrir(caso);
+                motor.validarReanudar(caso);
+                compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(caso.getId()).stream()
+                        .filter(compromiso -> compromiso.getEstado() == CompromisoPagoEstado.PENDIENTE)
+                        .findFirst()
+                        .ifPresent(compromiso -> {
+                            compromiso.setEstado(CompromisoPagoEstado.INCUMPLIDO);
+                            compromisoPagoRepository.save(compromiso);
+                        });
                 caso.setEstado(CasoSeguimientoEstado.ABIERTO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-                casoEventoService.crearEvento(caso, CasoEventoTipo.OBSERVACION, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REAPERTURA")));
-                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REABRIR_CASO", null, null, null, null, null);
-                result.aplicado(id, "Caso reabierto");
+                CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.REANUDAR_PROCESO, caso.getEtapaActual(), caso.getEtapaActual(), observacion, objectMapper.valueToTree(Map.of("accion", "REANUDAR")));
+                auditService.log("CASO_SEGUIMIENTO", caso.getId(), "REANUDAR_PROCESO", null, null, null, null, null);
+                result.aplicado(id, "Caso reanudado");
             } catch (Exception ex) { result.error(id, ex.getMessage()); }
         }
         return result;
@@ -286,12 +359,14 @@ public class SeguimientoService {
                 )).toList();
 
         List<CasoEventoResponse> eventosResponse = new ArrayList<>();
+        List<CasoEventoResponse> eventosPrincipalesResponse = new ArrayList<>();
+        List<CasoEventoResponse> observacionesEtapaResponse = new ArrayList<>();
         List<HistorialCierreResponse> cierresResponse = new ArrayList<>();
         List<HistorialCompromisoResponse> compromisosResponse = new ArrayList<>();
 
         for (CasoSeguimiento caso : casos) {
-            casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento ->
-                    eventosResponse.add(new CasoEventoResponse(
+            casoEventoRepository.findByCasoSeguimientoIdOrderByFechaEventoAsc(caso.getId()).forEach(evento -> {
+                    CasoEventoResponse eventoResponse = new CasoEventoResponse(
                             evento.getId(),
                             caso == null ? null : caso.getId(),
                             evento.getTipoEvento().name(),
@@ -300,7 +375,14 @@ public class SeguimientoService {
                             evento.getFechaEvento(),
                             evento.getObservacion(),
                             evento.getMetadata()
-                    )));
+                    );
+                    eventosResponse.add(eventoResponse);
+                    if (evento.getTipoEvento() == CasoEventoTipo.OBSERVACION_ETAPA) {
+                        observacionesEtapaResponse.add(eventoResponse);
+                    } else {
+                        eventosPrincipalesResponse.add(eventoResponse);
+                    }
+            });
 
             procesoCierreRepository.findByCasoSeguimientoId(caso.getId()).ifPresent(cierre -> {
                 Object planPago = procesoCierrePlanPagoRepository.findAll().stream()
@@ -324,9 +406,12 @@ public class SeguimientoService {
                 cierresResponse.add(new HistorialCierreResponse(
                         cierre.getId(),
                         caso == null ? null : caso.getId(),
-                        cierre.getMotivoCierre().getCodigo(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getId(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getCodigo(),
+                        cierre.getMotivoCierre() == null ? null : cierre.getMotivoCierre().getNombre(),
                         cierre.getFechaCierre(),
                         cierre.getObservacion(),
+                        cierre.getCreatedBy(),
                         planPago,
                         cambioParametro
                 ));
@@ -340,7 +425,8 @@ public class SeguimientoService {
                             compromiso.getFechaHasta(),
                             compromiso.getMontoComprometido(),
                             compromiso.getEstado().name(),
-                            compromiso.getObservacion()
+                            compromiso.getObservacion(),
+                            compromiso.getCreatedBy()
                     )));
         }
 
@@ -353,17 +439,29 @@ public class SeguimientoService {
                 inmueble.getDistrito() == null ? null : inmueble.getDistrito().getNombre()
         );
 
-        return new HistorialSeguimientoResponse(inmuebleResponse, casosResponse, eventosResponse, cierresResponse, compromisosResponse);
+        return new HistorialSeguimientoResponse(inmuebleResponse, casosResponse, eventosResponse, eventosPrincipalesResponse, observacionesEtapaResponse, cierresResponse, compromisosResponse);
     }
 
     @Transactional
     public CasoSeguimiento cerrar(UUID casoId, String motivoCodigo, String observacion, java.math.BigDecimal montoAbonado, ProcesoCierreService.PlanPagoData planPago,
                                   ProcesoCierreService.CambioParametroData cambioParametro) {
-        CasoSeguimiento caso = motor.validarCasoAbierto(casoId);
+        CasoSeguimiento caso = motor.validarCasoCerrable(casoId);
         MotivoCierre motivo = motor.validarCierre(caso, motivoCodigo, planPago, cambioParametro);
+        String codigoMotivo = motivo.getCodigo() == null ? "" : motivo.getCodigo().toUpperCase(java.util.Locale.ROOT);
+        if ("REGULARIZACION".equals(codigoMotivo)) {
+            if (montoAbonado == null) {
+                throw new pe.morosos.common.exception.ValidationException("REGULARIZACION requiere montoAbonado", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("montoAbonado", "Requerido")));
+            }
+            if (montoAbonado.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                throw new pe.morosos.common.exception.ValidationException("montoAbonado debe ser mayor a 0", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("montoAbonado", "Valor inválido")));
+            }
+        }
         procesoCierreService.crearCierre(caso, motivo, observacion, montoAbonado, planPago, cambioParametro);
+        if ("REGULARIZACION".equals(codigoMotivo) || "PLAN_DE_PAGO".equals(codigoMotivo)) {
+            deudaEfectivaService.resolverPorCierre(caso, codigoMotivo);
+        }
         caso.setEstado(CasoSeguimientoEstado.CERRADO); caso.setFechaUltimoMovimiento(Instant.now()); caso.setUpdatedAt(Instant.now()); casoRepository.save(caso);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
+        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.CIERRE_PROCESO, caso.getEtapaActual(), null, observacion, objectMapper.valueToTree(Map.of("motivoCodigo", motivo.getCodigo())));
         auditService.log("CASO_SEGUIMIENTO", caso.getId(), "CERRAR_PROCESO", null, null, null, null, null);
         return caso;
     }
@@ -388,12 +486,30 @@ public class SeguimientoService {
     public CompromisoPago registrarCompromiso(UUID casoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
         CasoSeguimiento caso = motor.validarCasoOperable(casoId);
         motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
-        CompromisoPago c = compromisoPagoService.crear(caso, fechaDesde, fechaHasta, monto, observacion);
+        java.util.Optional<CompromisoPago> vigenteOpt = compromisoPagoRepository.findByCasoSeguimientoIdOrderByFechaDesdeDesc(casoId).stream()
+                .filter(compromiso -> compromiso.getEstado() == CompromisoPagoEstado.PENDIENTE)
+                .findFirst();
+
+        boolean actualizaVigente = vigenteOpt.isPresent();
+        CompromisoPago c = vigenteOpt
+                .map(compromiso -> {
+                    compromiso.setFechaDesde(fechaDesde);
+                    compromiso.setFechaHasta(fechaHasta);
+                    compromiso.setMontoComprometido(monto);
+                    compromiso.setObservacion(observacion);
+                    compromiso.setUpdatedAt(Instant.now());
+                    return compromisoPagoRepository.save(compromiso);
+                })
+                .orElseGet(() -> compromisoPagoService.crear(caso, fechaDesde, fechaHasta, monto, observacion));
         java.util.Map<String, Object> meta = new java.util.HashMap<>();
         meta.put("fechaDesde", fechaDesde.toString());
         meta.put("fechaHasta", fechaHasta.toString());
         meta.put("monto", monto);
-        casoEventoService.crearEvento(caso, CasoEventoTipo.COMPROMISO_REGISTRADO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+        caso.setEstado(CasoSeguimientoEstado.PAUSADO);
+        caso.setFechaUltimoMovimiento(Instant.now());
+        caso.setUpdatedAt(Instant.now());
+        casoRepository.save(caso);
+        CasoEvento evento = casoEventoService.crearEvento(caso, (actualizaVigente ? CasoEventoTipo.ACTUALIZAR_COMPROMISO : CasoEventoTipo.RENOVAR_COMPROMISO), caso.getEtapaActual(), caso.getEtapaActual(), observacion,
                 objectMapper.valueToTree(meta));
         auditService.log("COMPROMISO_PAGO", c.getId(), "REGISTRAR_COMPROMISO", null, null, null, null, null);
         return c;
@@ -413,4 +529,72 @@ public class SeguimientoService {
         }
         return result;
     }
+    @Transactional(readOnly = true)
+    public CompromisoPago obtenerCompromisoVigente(UUID casoId) {
+        return compromisoPagoRepository.findTopByCasoSeguimientoIdAndEstadoOrderByFechaDesdeDesc(casoId, CompromisoPagoEstado.PENDIENTE)
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("No existe compromiso vigente para el caso."));
+    }
+
+    @Transactional
+    public CompromisoPago actualizarCompromiso(UUID compromisoId, LocalDate fechaDesde, LocalDate fechaHasta, BigDecimal monto, String observacion) {
+        CompromisoPago compromiso = compromisoPagoRepository.findById(compromisoId)
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Compromiso no encontrado."));
+        CasoSeguimiento caso = casoRepository.findById(compromiso.getCasoSeguimiento().getId())
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Caso no encontrado para el compromiso."));
+        if (caso.getEstado() != CasoSeguimientoEstado.PAUSADO) {
+            throw new pe.morosos.common.exception.ValidationException("Solo se puede editar compromiso en casos pausados.", java.util.List.of(new pe.morosos.common.api.ErrorResponse.Detail("casoSeguimientoId", "El caso no está PAUSADO")));
+        }
+        motor.validarCompromiso(caso, fechaDesde, fechaHasta, monto);
+        compromiso.setFechaDesde(fechaDesde);
+        compromiso.setFechaHasta(fechaHasta);
+        compromiso.setMontoComprometido(monto);
+        compromiso.setObservacion(observacion);
+        compromiso.setUpdatedAt(Instant.now());
+        CompromisoPago actualizado = compromisoPagoRepository.save(compromiso);
+
+        java.util.Map<String, Object> meta = new java.util.HashMap<>();
+        meta.put("fechaDesde", fechaDesde.toString());
+        meta.put("fechaHasta", fechaHasta.toString());
+        meta.put("monto", monto);
+        CasoEvento evento = casoEventoService.crearEvento(caso, CasoEventoTipo.ACTUALIZAR_COMPROMISO, caso.getEtapaActual(), caso.getEtapaActual(), observacion,
+                objectMapper.valueToTree(meta));
+        auditService.log("COMPROMISO_PAGO", actualizado.getId(), "ACTUALIZAR_COMPROMISO", null, null, null, null, null);
+        return actualizado;
+    }
+
+    @Transactional
+    public ObservacionEtapaResponse agregarObservacionEtapa(UUID casoSeguimientoId, String observacion) {
+        CasoSeguimiento caso = casoRepository.findById(casoSeguimientoId)
+                .orElseThrow(() -> new pe.morosos.common.exception.ResourceNotFoundException("Caso de seguimiento no encontrado."));
+        if (caso.getEstado() == CasoSeguimientoEstado.CERRADO) {
+            throw new BusinessRuleException("No se puede agregar observación de etapa a un caso cerrado.");
+        }
+        if (caso.getEstado() != CasoSeguimientoEstado.ABIERTO && caso.getEstado() != CasoSeguimientoEstado.PAUSADO) {
+            throw new BusinessRuleException("Solo se puede agregar observación de etapa en casos iniciados o pausados.");
+        }
+        if (caso.getEtapaActual() == null) {
+            throw new BusinessRuleException("El caso no tiene una etapa actual para registrar observación.");
+        }
+
+        CasoEvento evento = casoEventoService.crearEvento(
+                caso,
+                CasoEventoTipo.OBSERVACION_ETAPA,
+                caso.getEtapaActual(),
+                null,
+                observacion,
+                objectMapper.valueToTree(Map.of("accion", "OBSERVACION_ETAPA"))
+        );
+        auditService.log("CASO_SEGUIMIENTO", caso.getId(), "OBSERVACION_ETAPA", null, null, null, null, null);
+        return new ObservacionEtapaResponse(
+                evento.getId(),
+                caso.getId(),
+                evento.getTipoEvento().name(),
+                caso.getEtapaActual().getId(),
+                caso.getEtapaActual().getNombre(),
+                java.time.OffsetDateTime.ofInstant(evento.getFechaEvento(), java.time.ZoneOffset.UTC),
+                evento.getObservacion(),
+                "Sistema"
+        );
+    }
+
 }

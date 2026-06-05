@@ -5,3 +5,10 @@ spring:
     password: morosos_test
   jpa:
     show-sql: false
+
+app:
+  security:
+    jwt:
+      issuer: http://localhost:8080
+      audience: gestion-aosc
+      secret: test_secret_32_bytes_minimum_value

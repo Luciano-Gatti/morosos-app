@@ -1,0 +1,6 @@
+app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER}
+      audience: ${JWT_AUDIENCE}
+      secret: ${JWT_SECRET}

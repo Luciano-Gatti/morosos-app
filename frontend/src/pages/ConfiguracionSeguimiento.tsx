@@ -193,13 +193,13 @@ export default function ConfiguracionSeguimiento() {
   const handleConfirmar = async () => {
     try {
       setSaving(true);
-      const cambiosMap = [
+      const cambiosMap = ([
         ["CUOTAS_PARA_MOROSO", form.cuotasParaMoroso],
         ["REANUDACION_POR_INCUMPLIMIENTO", form.reanudacionPorIncumplimiento],
         ["DIAS_ENTRE_ETAPAS", form.diasEntreEtapas],
         ["NOTIFICAR_CAMBIOS_ETAPA", form.notificarCambiosEtapa],
         ["MODO_OPERACION", form.modoOperacion],
-      ].filter(([codigo]) => parametrosDisponibles.has(codigo)) as readonly [string, string | number | boolean][];
+      ] as any[]).filter(([codigo]) => parametrosDisponibles.has(codigo));
       if (cambiosMap.length === 0) {
         toast({
           title: "Sin parámetros editables",
