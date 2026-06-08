@@ -62,7 +62,7 @@ export default function ObservacionesExpedienteInmueble() {
     <AppHeader title="Observaciones del expediente" description={data?.inmueble ? `${data.inmueble.cuenta} · ${data.inmueble.titular}` : undefined}
       breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: data?.inmueble?.cuenta ?? "Detalle", to: id ? `/inmuebles/${id}` : undefined }, { label: "Observaciones del expediente" }]}
       actions={<Button variant="outline" size="sm" onClick={() => navigate(`/inmuebles/${id}`)}><ArrowLeft className="mr-2 h-4 w-4"/>Volver al inmueble</Button>} />
-    <main className="flex-1 space-y-6 px-6 py-6">
+    <main className="flex-1 space-y-6 px-4 py-4 sm:px-6 sm:py-6">
       <section className="rounded-md border border-border bg-surface p-4 space-y-3">
         <div className="grid gap-3 md:grid-cols-4">
           <Input placeholder="Buscar por texto" value={q} onChange={(e) => setQ(e.target.value)} onBlur={load} />

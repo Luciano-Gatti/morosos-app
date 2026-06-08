@@ -3,6 +3,7 @@ package pe.morosos.auth.service;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Locale;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,6 +18,7 @@ import pe.morosos.auth.dto.GoogleCodeAuthRequest;
 import pe.morosos.auth.dto.LoginRequest;
 import pe.morosos.auth.dto.LoginResponse;
 import pe.morosos.auth.dto.MessageResponse;
+import pe.morosos.auth.dto.RefreshTokenRequest;
 import pe.morosos.auth.dto.RegisterRequest;
 import pe.morosos.auth.exception.AccountDisabledException;
 import pe.morosos.auth.exception.AuthBusinessException;
@@ -32,6 +34,10 @@ import pe.morosos.auth.identity.model.ExternalProvider;
 import pe.morosos.auth.identity.repository.IdentidadExternaRepository;
 import pe.morosos.auth.security.AuthPrincipal;
 import pe.morosos.auth.security.jwt.JwtService;
+import pe.morosos.auth.session.AuthSecurityProperties;
+import pe.morosos.auth.session.RefreshTokenService;
+import pe.morosos.auth.session.RequestThrottleService;
+import pe.morosos.auth.session.entity.RefreshToken;
 import pe.morosos.auth.user.entity.EstadoUsuario;
 import pe.morosos.auth.user.entity.Usuario;
 import pe.morosos.auth.user.repository.UsuarioRepository;
@@ -47,6 +53,9 @@ public class AuthService {
     private final UserAuthorityService userAuthorityService;
     private final JwtService jwtService;
     private final AuthAuditService authAuditService;
+    private final RefreshTokenService refreshTokenService;
+    private final RequestThrottleService requestThrottleService;
+    private final AuthSecurityProperties authSecurityProperties;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
     private final GoogleProperties googleProperties;
@@ -58,6 +67,9 @@ public class AuthService {
             UserAuthorityService userAuthorityService,
             JwtService jwtService,
             AuthAuditService authAuditService,
+            RefreshTokenService refreshTokenService,
+            RequestThrottleService requestThrottleService,
+            AuthSecurityProperties authSecurityProperties,
             GoogleTokenVerifier googleTokenVerifier,
             GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger,
             GoogleProperties googleProperties
@@ -68,6 +80,9 @@ public class AuthService {
         this.userAuthorityService = userAuthorityService;
         this.jwtService = jwtService;
         this.authAuditService = authAuditService;
+        this.refreshTokenService = refreshTokenService;
+        this.requestThrottleService = requestThrottleService;
+        this.authSecurityProperties = authSecurityProperties;
         this.googleTokenVerifier = googleTokenVerifier;
         this.googleAuthorizationCodeExchanger = googleAuthorizationCodeExchanger;
         this.googleProperties = googleProperties;
@@ -95,9 +110,10 @@ public class AuthService {
         return new MessageResponse("USER_REGISTERED_PENDING", "Registro recibido. Un administrador debe aprobar tu cuenta antes de poder ingresar.");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         String usernameOrEmail = request.usernameOrEmail().trim();
+        requestThrottleService.enforce("login", usernameOrEmail, authSecurityProperties.loginRateLimitPerMinute(), httpRequest);
         Usuario usuario = null;
         try {
             Optional<Usuario> usuarioOptional = findByUsernameOrEmail(usernameOrEmail);
@@ -179,28 +195,60 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findById(principal.userId())
                 .orElseThrow(() -> new UnauthorizedException("Usuario no autenticado."));
         ensureLoginAllowed(usuario, null, null);
+        if (usuario.getAuthVersion() != principal.authVersion()) {
+            throw new UnauthorizedException("La sesion ya no es valida.");
+        }
         return userAuthorityService.toResponse(usuario);
     }
 
-    @Transactional(readOnly = true)
-    public void logout(HttpServletRequest request) {
+    @Transactional
+    public void logout(RefreshTokenRequest refreshTokenRequest, HttpServletRequest request) {
         AuthPrincipal principal = currentPrincipal();
         Usuario usuario = usuarioRepository.findById(principal.userId()).orElse(null);
-        authAuditService.recordAuthEvent("LOGOUT", usuario, request, "{\"mode\":\"STATELESS\"}");
+        if (usuario != null) {
+            refreshTokenService.revokeAllForUser(usuario);
+        }
+        if (refreshTokenRequest != null && refreshTokenRequest.refreshToken() != null && !refreshTokenRequest.refreshToken().isBlank()) {
+            try {
+                RefreshToken refreshToken = refreshTokenService.consumeForRefresh(refreshTokenRequest.refreshToken().trim());
+                refreshTokenService.revoke(refreshToken);
+            } catch (AuthBusinessException ignored) {
+                // local logout continues even if provided refresh token is already invalid
+            }
+        }
+        authAuditService.recordAuthEvent("LOGOUT", usuario, request, "{\"mode\":\"REFRESH_REVOKED\"}");
+    }
+
+    @Transactional
+    public LoginResponse refresh(RefreshTokenRequest request, HttpServletRequest httpRequest) {
+        requestThrottleService.enforce("refresh", "refresh", authSecurityProperties.refreshRateLimitPerMinute(), httpRequest);
+        RefreshToken currentToken = refreshTokenService.consumeForRefresh(request.refreshToken().trim());
+        Usuario usuario = currentToken.getUsuario();
+        ensureLoginAllowed(usuario, usuario.getEmail(), httpRequest);
+        refreshTokenService.revoke(currentToken);
+        RefreshTokenService.IssuedRefreshToken issuedRefreshToken = refreshTokenService.issue(usuario, httpRequest);
+        currentToken.setReplacedByToken(issuedRefreshToken.entity());
+        AuthUserResponse userResponse = userAuthorityService.toResponse(usuario);
+        String accessToken = jwtService.generateAccessToken(userResponse);
+        authAuditService.recordAuthEvent("REFRESH_SUCCESS", usuario, httpRequest, "{\"refreshTokenId\":\"" + currentToken.getId() + "\"}");
+        return new LoginResponse(accessToken, issuedRefreshToken.rawToken(), "Bearer", jwtService.accessTokenSeconds(), userResponse);
     }
 
     private LoginResponse authenticate(String usernameOrEmail, String password, Usuario usuario, HttpServletRequest httpRequest) {
         if (usuario == null || !StringUtils.hasText(usuario.getPasswordHash()) || !passwordEncoder.matches(password, usuario.getPasswordHash())) {
             authAuditService.recordLoginAttempt(usuario, usernameOrEmail, LoginAttemptResult.INVALID_CREDENTIALS, httpRequest);
             authAuditService.recordAuthFailure(usuario, httpRequest, "INVALID_CREDENTIALS");
+            registerFailedLoginIfApplicable(usuario, httpRequest);
             throw new InvalidCredentialsException();
         }
         ensureLoginAllowed(usuario, usernameOrEmail, httpRequest);
         AuthUserResponse userResponse = userAuthorityService.toResponse(usuario);
         String token = jwtService.generateAccessToken(userResponse);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(usuario, httpRequest);
         authAuditService.recordLoginAttempt(usuario, usernameOrEmail, LoginAttemptResult.SUCCESS, httpRequest);
         authAuditService.recordAuthEvent("LOGIN_SUCCESS", usuario, httpRequest, "{\"authProvider\":\"LOCAL\"}");
-        return new LoginResponse(token, "Bearer", jwtService.accessTokenSeconds(), userResponse);
+        usuario.setLockedUntil(null);
+        return new LoginResponse(token, refreshToken.rawToken(), "Bearer", jwtService.accessTokenSeconds(), userResponse);
     }
 
     private Object finishExternalLogin(Usuario usuario, HttpServletRequest request, boolean linked, boolean created) {
@@ -211,14 +259,29 @@ public class AuthService {
         ensureLoginAllowed(usuario, usuario.getEmail(), request);
         AuthUserResponse userResponse = userAuthorityService.toResponse(usuario);
         String token = jwtService.generateAccessToken(userResponse);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(usuario, request);
         authAuditService.recordAuthEvent("GOOGLE_LOGIN_SUCCESS", usuario, request, "{\"provider\":\"GOOGLE\"}");
-        return new LoginResponse(token, "Bearer", jwtService.accessTokenSeconds(), userResponse);
+        return new LoginResponse(token, refreshToken.rawToken(), "Bearer", jwtService.accessTokenSeconds(), userResponse);
+    }
+
+    private void registerFailedLoginIfApplicable(Usuario usuario, HttpServletRequest request) {
+        if (usuario == null) {
+            return;
+        }
+        long recentFailures = authAuditService.countRecentFailedAttempts(usuario.getId(), authSecurityProperties.lockMinutes());
+        if (recentFailures >= authSecurityProperties.maxFailedLoginAttempts()) {
+            usuario.setLockedUntil(OffsetDateTime.now().plusMinutes(authSecurityProperties.lockMinutes()));
+            authAuditService.recordAuthEvent("ACCOUNT_TEMPORARILY_LOCKED", usuario, request, "{\"lockMinutes\":" + authSecurityProperties.lockMinutes() + "}");
+        }
     }
 
     private void ensureLoginAllowed(Usuario usuario, String usernameOrEmail, HttpServletRequest request) {
         if (usuario.getEstado() == EstadoUsuario.PENDIENTE_APROBACION) {
             if (request != null) authAuditService.recordLoginAttempt(usuario, usernameOrEmail, LoginAttemptResult.USER_DISABLED, request);
             throw new AuthBusinessException(HttpStatus.FORBIDDEN, "ACCOUNT_PENDING_APPROVAL", PENDING_MESSAGE);
+        }
+        if (usuario.getLockedUntil() != null && usuario.getLockedUntil().isAfter(OffsetDateTime.now())) {
+            throw new AuthBusinessException(HttpStatus.TOO_MANY_REQUESTS, "ACCOUNT_TEMPORARILY_LOCKED", "La cuenta se encuentra bloqueada temporalmente.");
         }
         if (usuario.getEstado() == EstadoUsuario.RECHAZADO) {
             throw new AuthBusinessException(HttpStatus.FORBIDDEN, "ACCOUNT_REJECTED", "Tu cuenta fue rechazada por un administrador.");
@@ -271,9 +334,10 @@ public class AuthService {
         boolean valid = password.length() >= 8
                 && password.chars().anyMatch(Character::isUpperCase)
                 && password.chars().anyMatch(Character::isLowerCase)
-                && password.chars().anyMatch(Character::isDigit);
+                && password.chars().anyMatch(Character::isDigit)
+                && password.chars().anyMatch(ch -> !Character.isLetterOrDigit(ch));
         if (!valid) {
-            throw new AuthBusinessException(HttpStatus.BAD_REQUEST, "WEAK_PASSWORD", "La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula y número.");
+            throw new AuthBusinessException(HttpStatus.BAD_REQUEST, "WEAK_PASSWORD", "La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo.");
         }
     }
 

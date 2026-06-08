@@ -75,7 +75,7 @@ export default function HistorialSeguimiento() {
             { label: "Historial" },
           ]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             El inmueble solicitado no existe.
             <div className="mt-4">
@@ -99,7 +99,7 @@ export default function HistorialSeguimiento() {
             { label: "Historial" },
           ]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             Cargando historial…
           </div>
@@ -118,7 +118,7 @@ export default function HistorialSeguimiento() {
             { label: "Historial" },
           ]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-status-debt">
             Error al cargar historial: {error}.
           </div>
@@ -137,7 +137,7 @@ export default function HistorialSeguimiento() {
             { label: "Historial" },
           ]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             No se encontró información del inmueble solicitado.
             <div className="mt-4">
@@ -207,7 +207,7 @@ export default function HistorialSeguimiento() {
         }
       />
 
-      <main className="flex-1 space-y-6 px-6 py-6">
+      <main className="flex-1 space-y-6 px-4 py-4 sm:px-6 sm:py-6">
                 {/* Cabecera con datos del inmueble */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <div className="border-b border-border bg-surface-muted/40 px-5 py-3">

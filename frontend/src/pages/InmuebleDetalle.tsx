@@ -273,7 +273,7 @@ export default function InmuebleDetalle() {
     return (
       <>
         <AppHeader title="Inmueble" breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: "Detalle" }]} />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             Cargando inmueble...
           </div>
@@ -286,7 +286,7 @@ export default function InmuebleDetalle() {
     return (
       <>
         <AppHeader title="Error al cargar inmueble" breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: "Detalle" }]} />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-destructive/30 bg-destructive/10 p-8 text-center text-[13px] text-destructive">
             {error}
           </div>
@@ -302,7 +302,7 @@ export default function InmuebleDetalle() {
           title="Inmueble no encontrado"
           breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: "Detalle" }]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center text-[13px] text-muted-foreground">
             El inmueble solicitado no existe o fue dado de baja.
             <div className="mt-4">
@@ -367,7 +367,7 @@ export default function InmuebleDetalle() {
         }
       />
 
-      <main className="flex-1 space-y-6 px-6 py-6">
+      <main className="flex-1 space-y-6 px-4 py-4 sm:px-6 sm:py-6">
         {/* Bloque superior: datos principales */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <SectionHeader

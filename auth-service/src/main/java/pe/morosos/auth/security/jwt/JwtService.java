@@ -93,6 +93,7 @@ public class JwtService {
                 .claim("email", user.email())
                 .claim("roles", user.roles())
                 .claim("permissions", user.permissions())
+                .claim("authVersion", user.authVersion())
                 .claim("authProvider", "LOCAL")
                 .build();
 
@@ -121,7 +122,8 @@ public class JwtService {
                     claims.getStringClaim("username"),
                     claims.getStringClaim("email"),
                     getStringListClaim(claims, "roles"),
-                    getStringListClaim(claims, "permissions")
+                    getStringListClaim(claims, "permissions"),
+                    getLongClaim(claims, "authVersion")
             );
         } catch (JwtAuthenticationException exception) {
             throw exception;
@@ -154,6 +156,14 @@ public class JwtService {
     private List<String> getStringListClaim(JWTClaimsSet claims, String claimName) throws ParseException {
         List<String> values = claims.getStringListClaim(claimName);
         return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private long getLongClaim(JWTClaimsSet claims, String claimName) {
+        Object value = claims.getClaim(claimName);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return 0L;
     }
 
     private String activeProfilesHint() {

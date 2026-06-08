@@ -1,4 +1,4 @@
-import { AuthError, type AdminUser, type AdminUserRequest, type ApiErrorResponse, type AuthUser, type ForgotPasswordRequest, type LoginRequest, type LoginResponse, type MessageResponse, type PasswordResetResponse, type PermissionOption, type RegisterRequest, type ResetPasswordRequest, type RoleOption } from "@/types/auth";
+import { AuthError, type AdminUser, type AdminUserRequest, type ApiErrorResponse, type AuthAuditItem, type AuthUser, type ForgotPasswordRequest, type LoginRequest, type LoginResponse, type MessageResponse, type PasswordResetResponse, type PermissionOption, type RegisterRequest, type ResetPasswordRequest, type RoleOption, type RoleRequest } from "@/types/auth";
 
 export { AuthError } from "@/types/auth";
 
@@ -79,12 +79,20 @@ export const authService = {
     });
   },
 
-  async logout(token: string): Promise<void> {
+  async logout(token: string, refreshToken?: string | null): Promise<void> {
     await request<void>("/api/v1/auth/logout", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+    });
+  },
+
+  refresh(refreshToken: string): Promise<LoginResponse> {
+    return request<LoginResponse>("/api/v1/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
     });
   },
 
@@ -150,12 +158,38 @@ export const authService = {
     return request<AdminUser>(`/api/v1/admin/users/${userId}/status`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ estado }) });
   },
 
-  adminRoles(token: string): Promise<RoleOption[]> {
-    return request<RoleOption[]>("/api/v1/admin/roles", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  adminRoles(token: string, options?: { includeInactive?: boolean }): Promise<RoleOption[]> {
+    const params = new URLSearchParams();
+    if (options?.includeInactive) {
+      params.set("includeInactive", "true");
+    }
+    const query = params.toString();
+    return request<RoleOption[]>(`/api/v1/admin/roles${query ? `?${query}` : ""}`, { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  },
+
+  adminCreateRole(token: string, payload: RoleRequest): Promise<RoleOption> {
+    return request<RoleOption>("/api/v1/admin/roles", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+  },
+
+  adminUpdateRole(token: string, roleId: string, payload: RoleRequest): Promise<RoleOption> {
+    return request<RoleOption>(`/api/v1/admin/roles/${roleId}`, { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+  },
+
+  adminChangeRoleStatus(token: string, roleId: string, activo: boolean): Promise<RoleOption> {
+    return request<RoleOption>(`/api/v1/admin/roles/${roleId}/status`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ activo }) });
   },
 
   adminPermissions(token: string): Promise<PermissionOption[]> {
     return request<PermissionOption[]>("/api/v1/admin/permissions", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  },
+
+  adminAuthAudit(token: string, params?: Record<string, string | number | undefined>): Promise<{ content: AuthAuditItem[]; totalElements: number; totalPages: number; number: number; size: number; }> {
+    const search = new URLSearchParams();
+    Object.entries(params ?? {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request(`/api/v1/admin/auth-audit${query ? `?${query}` : ""}`, { method: "GET", headers: { Authorization: `Bearer ${token}` } });
   },
 };
 

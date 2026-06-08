@@ -1,4 +1,5 @@
-import { clearStoredAuth, getStoredAccessToken } from "@/services/api/authStorage";
+import { clearStoredAuth, getStoredAccessToken, getStoredRefreshToken, persistSession } from "@/services/api/authStorage";
+import type { ApiErrorResponse, LoginResponse } from "@/types/auth";
 
 export class ApiError extends Error {
   status: number;
@@ -15,6 +16,7 @@ export class ApiError extends Error {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8081/api/v1";
 const API_PREFIX = "/api/v1";
+const AUTH_BASE_URL = import.meta.env.VITE_AUTH_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
 
 export const USE_API = import.meta.env.VITE_USE_API === "true";
 
@@ -40,6 +42,42 @@ function redirectToLoginAfterUnauthorized() {
   window.location.assign(`/login?from=${encodeURIComponent(currentPath)}`);
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function parseJsonSafe(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as ApiErrorResponse | LoginResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) return null;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const response = await fetch(`${AUTH_BASE_URL}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const payload = await parseJsonSafe(response);
+      if (!response.ok || !payload || !("accessToken" in payload)) {
+        clearStoredAuth();
+        return null;
+      }
+      persistSession(payload.accessToken, payload.refreshToken, payload.user);
+      return payload.accessToken;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = API_BASE_URL.endsWith(API_PREFIX) && path.startsWith(API_PREFIX)
     ? path.slice(API_PREFIX.length) || "/"
@@ -57,10 +95,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     ...init,
     headers,
   });
+
+  if (response.status === 401) {
+    const refreshedAccessToken = await refreshAccessToken();
+    if (refreshedAccessToken) {
+      headers.set("Authorization", `Bearer ${refreshedAccessToken}`);
+      response = await fetch(url, {
+        ...init,
+        headers,
+      });
+    }
+  }
 
   const contentType = response.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");

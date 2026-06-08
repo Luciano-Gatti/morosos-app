@@ -45,7 +45,7 @@ export default function Dashboard() {
         breadcrumb={[{ label: "Dashboard" }]}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {loading && <div className="mb-3 text-xs text-muted-foreground">Cargando datos del backend…</div>}
         {!loading && error && <div className="mb-3 text-xs text-status-debt">Error API: {error}.</div>}
         {!loading && !error && data && isEmpty && (
@@ -121,7 +121,7 @@ export default function Dashboard() {
 
         {!USE_API && <div className="mt-4 text-xs text-muted-foreground">Modo local sin backend activo.</div>}
 
-        <footer className="mt-8 flex items-center justify-between border-t border-border pt-4 text-[11px] text-muted-foreground">
+        <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>AOSC · Ente Regulador — Sistema interno de seguimiento</span>
           <span>Datos actualizados al {fechaActualizacion}</span>
         </footer>

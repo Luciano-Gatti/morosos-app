@@ -9,6 +9,7 @@ export interface AuthContextValue extends AuthState {
   refreshSessionFromMe: () => Promise<void>;
   hasPermission: (permissionCode: string) => boolean;
   hasAnyPermission: (permissionCodes: string[]) => boolean;
+  hasAllPermissions: (permissionCodes: string[]) => boolean;
   hasRole: (roleCode: string) => boolean;
 }
 

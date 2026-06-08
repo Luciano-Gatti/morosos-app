@@ -36,13 +36,21 @@ public class AdminUsersController {
     public AdminUserResponse get(@PathVariable UUID id) { return adminUserService.get(id); }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('USUARIOS_CREAR')")
+    @PreAuthorize("""
+            hasAuthority('USUARIOS_CREAR')
+            and (#request.roles == null or #request.roles.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_ROLES'))
+            and (#request.permissions == null or #request.permissions.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_PERMISOS'))
+            """)
     public AdminUserResponse create(@Valid @RequestBody AdminUserRequest request, HttpServletRequest httpRequest) {
         return adminUserService.create(request, httpRequest);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('USUARIOS_EDITAR')")
+    @PreAuthorize("""
+            hasAuthority('USUARIOS_EDITAR')
+            and (#request.roles == null or #request.roles.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_ROLES'))
+            and (#request.permissions == null or #request.permissions.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_PERMISOS'))
+            """)
     public AdminUserResponse update(@PathVariable UUID id, @Valid @RequestBody AdminUserRequest request, HttpServletRequest httpRequest) {
         return adminUserService.update(id, request, httpRequest);
     }
@@ -54,7 +62,11 @@ public class AdminUsersController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAuthority('USUARIOS_APROBAR')")
+    @PreAuthorize("""
+            hasAuthority('USUARIOS_APROBAR')
+            and (#request == null or #request.roles == null or #request.roles.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_ROLES'))
+            and (#request == null or #request.permissions == null or #request.permissions.isEmpty() or hasAuthority('USUARIOS_ASIGNAR_PERMISOS'))
+            """)
     public AdminUserResponse approve(@PathVariable UUID id, @RequestBody(required = false) ApproveUserRequest request, HttpServletRequest httpRequest) {
         return adminUserService.approve(id, request, httpRequest);
     }

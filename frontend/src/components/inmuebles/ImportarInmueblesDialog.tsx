@@ -167,7 +167,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         className={cn(
-          "max-w-2xl gap-0 p-0 overflow-hidden",
+          "grid-rows-[auto_minmax(0,1fr)_auto] max-w-2xl gap-0 overflow-hidden p-0",
           fase === "resultado" && "max-w-3xl",
         )}
       >
@@ -186,7 +186,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
         </div>
 
         {fase === "seleccion" && (
-          <div className="space-y-4 px-6 py-5">
+          <div className="space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             {/* Instrucciones */}
             <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -217,7 +217,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
                 seleccionar(e.dataTransfer.files?.[0]);
               }}
               className={cn(
-                "flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed px-6 py-8 text-center transition-colors",
+                "flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed px-4 py-6 text-center transition-colors sm:px-6 sm:py-8",
                 dragOver
                   ? "border-primary bg-primary-soft/40"
                   : "border-border bg-surface hover:bg-surface-muted/50",
@@ -276,7 +276,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
         )}
 
         {fase === "procesando" && (
-          <div className="flex flex-col items-center justify-center gap-3 px-6 py-12">
+          <div className="flex flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-10 sm:px-6 sm:py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-[13px] font-medium text-foreground">Procesando archivo…</p>
             <p className="text-[12px] text-muted-foreground">
@@ -326,7 +326,7 @@ export function ImportarInmueblesDialog({ open, onOpenChange, onImported }: Prop
 function ResultadoView({ resultado, file }: { resultado: Resultado; file: File | null }) {
   const huboErrores = resultado.errores > 0 || resultado.noEncontradas > 0;
   return (
-    <div className="space-y-4 px-6 py-5">
+    <div className="space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
       {/* Estado general */}
       <div
         className={cn(
@@ -356,7 +356,7 @@ function ResultadoView({ resultado, file }: { resultado: Resultado; file: File |
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Metric label="Procesados" value={resultado.procesados} tone="neutral" />
         <Metric label="Creados" value={resultado.creados} tone="active" />
         <Metric label="Actualizados" value={resultado.actualizados} tone="info" />
@@ -387,8 +387,8 @@ function ResultadoView({ resultado, file }: { resultado: Resultado; file: File |
               Descargar detalle (.csv)
             </Button>
           </div>
-          <div className="max-h-[260px] overflow-y-auto">
-            <table className="w-full">
+          <div className="max-h-[260px] overflow-auto">
+            <table className="min-w-[560px] w-full">
               <thead className="sticky top-0 bg-surface-muted/60">
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Fila</th>

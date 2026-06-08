@@ -11,7 +11,7 @@ export function PlaceholderPage({ title, description, breadcrumb }: Props) {
   return (
     <>
       <AppHeader title={title} description={description} breadcrumb={breadcrumb} />
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         <div className="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
             <Construction className="h-5 w-5" />

@@ -6,6 +6,7 @@ export interface AuthUser {
   apellido?: string | null;
   roles: string[];
   permissions: string[];
+  authVersion: number;
 }
 
 export interface LoginRequest {
@@ -37,6 +38,7 @@ export interface PasswordResetResponse {
 
 export interface LoginResponse {
   accessToken: string;
+  refreshToken: string;
   tokenType: string;
   expiresIn: number;
   user: AuthUser;
@@ -122,6 +124,8 @@ export interface RoleOption {
   nombre: string;
   descripcion?: string;
   activo: boolean;
+  systemRole: boolean;
+  permissions: string[];
 }
 
 export interface PermissionOption {
@@ -133,4 +137,24 @@ export interface PermissionOption {
   recurso: string;
   accion: string;
   activo: boolean;
+}
+
+export interface RoleRequest {
+  codigo: string;
+  nombre: string;
+  descripcion: string;
+  permissions: string[];
+}
+
+export interface AuthAuditItem {
+  id: string;
+  entityType: string;
+  entityId?: string | null;
+  action: string;
+  actorId?: string | null;
+  traceId?: string | null;
+  requestPath?: string | null;
+  oldValues?: string | null;
+  newValues?: string | null;
+  createdAt: string;
 }

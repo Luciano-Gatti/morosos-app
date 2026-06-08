@@ -184,7 +184,8 @@ class JwtServiceTest {
                 "Administrador",
                 "Local",
                 List.of("ADMIN"),
-                List.of("INMUEBLES_VER_LISTADO")
+                List.of("INMUEBLES_VER_LISTADO"),
+                0L
         );
     }
 

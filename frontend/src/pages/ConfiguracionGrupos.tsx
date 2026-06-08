@@ -502,13 +502,13 @@ const filtered = useMemo(() => {
         ]}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando configuración…</div>}
         {error && <div className="mb-2 text-xs text-destructive">{error}</div>}
         <div className="rounded-md border border-border bg-surface shadow-sm">
           {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
-            <div className="relative min-w-[220px] flex-1 sm:max-w-[320px]">
+          <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-[320px]">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
@@ -518,7 +518,7 @@ const filtered = useMemo(() => {
               />
             </div>
 
-            <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-3 sm:ml-auto">
               <div className="hidden items-center gap-3 text-[12px] text-muted-foreground sm:flex">
                 <span>
                   Total:{" "}

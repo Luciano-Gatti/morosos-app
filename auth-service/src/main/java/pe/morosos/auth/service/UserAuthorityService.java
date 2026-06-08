@@ -40,7 +40,8 @@ public class UserAuthorityService {
                 usuario.getNombre(),
                 usuario.getApellido(),
                 authorities.roles(),
-                authorities.permissions()
+                authorities.permissions(),
+                usuario.getAuthVersion()
         );
     }
 }

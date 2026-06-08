@@ -1,6 +1,7 @@
 import type { AuthUser } from "@/types/auth";
 
 const ACCESS_TOKEN_KEY = "morosos.auth.accessToken";
+const REFRESH_TOKEN_KEY = "morosos.auth.refreshToken";
 const USER_KEY = "morosos.auth.user";
 const STORAGE_KIND_KEY = "morosos.auth.storageKind";
 const LEGACY_ACCESS_TOKEN_KEY = "morosos_access_token";
@@ -35,6 +36,7 @@ export function setStoredAccessToken(token: string, rememberMe?: boolean): void 
   const other = getBrowserStorage(otherKind);
 
   other?.removeItem(ACCESS_TOKEN_KEY);
+  other?.removeItem(REFRESH_TOKEN_KEY);
   other?.removeItem(USER_KEY);
   other?.removeItem(STORAGE_KIND_KEY);
   other?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
@@ -44,10 +46,25 @@ export function setStoredAccessToken(token: string, rememberMe?: boolean): void 
   target?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
 }
 
+export function getStoredRefreshToken(): string | null {
+  return getBrowserStorage("local")?.getItem(REFRESH_TOKEN_KEY)
+    ?? getBrowserStorage("session")?.getItem(REFRESH_TOKEN_KEY)
+    ?? null;
+}
+
+export function setStoredRefreshToken(token: string, rememberMe?: boolean): void {
+  const targetKind: StorageKind = rememberMe ? "local" : "session";
+  const otherKind: StorageKind = rememberMe ? "session" : "local";
+  getBrowserStorage(otherKind)?.removeItem(REFRESH_TOKEN_KEY);
+  getBrowserStorage(targetKind)?.setItem(REFRESH_TOKEN_KEY, token);
+  getBrowserStorage(targetKind)?.setItem(STORAGE_KIND_KEY, targetKind);
+}
+
 export function clearStoredAuth(): void {
   (["local", "session"] as StorageKind[]).forEach((kind) => {
     const storage = getBrowserStorage(kind);
     storage?.removeItem(ACCESS_TOKEN_KEY);
+    storage?.removeItem(REFRESH_TOKEN_KEY);
     storage?.removeItem(USER_KEY);
     storage?.removeItem(STORAGE_KIND_KEY);
     storage?.removeItem(LEGACY_ACCESS_TOKEN_KEY);
@@ -82,8 +99,9 @@ export function clearStoredUser(): void {
   });
 }
 
-export function persistSession(accessToken: string, user: AuthUser, rememberMe?: boolean): void {
+export function persistSession(accessToken: string, refreshToken: string, user: AuthUser, rememberMe?: boolean): void {
   setStoredAccessToken(accessToken, rememberMe);
+  setStoredRefreshToken(refreshToken, rememberMe);
   setStoredUser(user, rememberMe);
 }
 

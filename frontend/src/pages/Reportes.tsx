@@ -264,7 +264,7 @@ export default function Reportes() {
         breadcrumb={breadcrumb}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {!reporteId ? (
           <ReportesCatalogo onSelect={(id) => navigate(`/reportes/${id}`)} />
         ) : (
@@ -595,10 +595,10 @@ function ReportePanel({ reporte }: { reporte: ReporteDef }) {
           </h2>
           <p className="mt-0.5 text-[12.5px] text-muted-foreground">{reporte.descripcion}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {showDistritoFilter && (
             <Select value={distritoId || "all"} onValueChange={(v) => setDistritoId(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-8 w-[220px] text-[12.5px]" disabled={distritosLoading}>
+              <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[220px]" disabled={distritosLoading}>
                 <SelectValue placeholder="Distrito" />
               </SelectTrigger>
               <SelectContent>
@@ -1584,7 +1584,7 @@ function ReporteHistorialMovimientos({
             setPage(1);
           }}
         >
-          <SelectTrigger className="h-8 w-[200px] text-[12.5px]">
+          <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[200px]">
             <SelectValue placeholder="Tipo de movimiento" />
           </SelectTrigger>
           <SelectContent>
@@ -1603,7 +1603,7 @@ function ReporteHistorialMovimientos({
             setPage(1);
           }}
           placeholder="Buscar por usuario, cuenta, titular o acción…"
-          className="h-8 w-[280px] text-[12.5px]"
+          className="h-8 w-full text-[12.5px] sm:w-[280px]"
         />
       </div>
 

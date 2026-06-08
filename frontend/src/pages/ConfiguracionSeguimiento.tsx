@@ -260,7 +260,7 @@ export default function ConfiguracionSeguimiento() {
         }
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto max-w-4xl space-y-5">
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[12.5px] text-destructive">{error}</div>}
           {loading && <div className="rounded-md border border-border bg-surface-muted/40 px-4 py-3 text-[12.5px] text-muted-foreground">Cargando parámetros...</div>}

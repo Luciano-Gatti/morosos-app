@@ -38,4 +38,11 @@ public interface UsuarioRolRepository extends JpaRepository<UsuarioRol, UUID> {
             order by p.codigo
             """)
     List<String> findActivePermissionCodesByUsuarioId(@Param("usuarioId") UUID usuarioId);
+
+    @Query("""
+            select distinct ur.usuario.id
+            from UsuarioRol ur
+            where ur.rol.id = :rolId
+            """)
+    List<UUID> findUsuarioIdsByRolId(@Param("rolId") UUID rolId);
 }

@@ -63,7 +63,7 @@ export default function HistorialDeudaInmueble() {
         breadcrumb={[{ label: "Inmuebles", to: "/inmuebles" }, { label: inmueble?.cuenta ?? "Detalle", to: id ? `/inmuebles/${id}` : undefined }, { label: "Historial de deuda" }]}
         actions={<Button variant="outline" size="sm" onClick={() => navigate(`/inmuebles/${id}`)}><ArrowLeft className="mr-2 h-4 w-4" />Volver al inmueble</Button>}
       />
-      <main className="flex-1 space-y-6 px-6 py-6">
+      <main className="flex-1 space-y-6 px-4 py-4 sm:px-6 sm:py-6">
         <section className="rounded-md border border-border bg-surface p-4">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Período</div>
           <div className="flex flex-wrap gap-2">

@@ -21,6 +21,8 @@ import pe.morosos.auth.exception.PasswordResetException;
 import pe.morosos.auth.password.entity.PasswordResetToken;
 import pe.morosos.auth.password.repository.PasswordResetTokenRepository;
 import pe.morosos.auth.service.AuthAuditService;
+import pe.morosos.auth.session.AuthSecurityProperties;
+import pe.morosos.auth.session.RequestThrottleService;
 import pe.morosos.auth.user.entity.Usuario;
 import pe.morosos.auth.user.repository.UsuarioRepository;
 
@@ -34,7 +36,7 @@ public class PasswordResetService {
     private static final int TOKEN_RANDOM_BYTES = 32;
     private static final String TOKEN_ERROR_MESSAGE = "El token de restablecimiento es inválido o expiró.";
     private static final String PASSWORD_POLICY_MESSAGE =
-            "La contraseña debe tener al menos 8 caracteres, una letra y un número.";
+            "La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo.";
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -42,6 +44,8 @@ public class PasswordResetService {
     private final PasswordResetEmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuthAuditService authAuditService;
+    private final RequestThrottleService requestThrottleService;
+    private final AuthSecurityProperties authSecurityProperties;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PasswordResetService(
@@ -50,7 +54,9 @@ public class PasswordResetService {
             AppMailProperties appMailProperties,
             PasswordResetEmailService emailService,
             PasswordEncoder passwordEncoder,
-            AuthAuditService authAuditService
+            AuthAuditService authAuditService,
+            RequestThrottleService requestThrottleService,
+            AuthSecurityProperties authSecurityProperties
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -58,11 +64,14 @@ public class PasswordResetService {
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.authAuditService = authAuditService;
+        this.requestThrottleService = requestThrottleService;
+        this.authSecurityProperties = authSecurityProperties;
     }
 
     @Transactional
     public PasswordResetResponse requestPasswordReset(ForgotPasswordRequest request, HttpServletRequest httpRequest) {
         String usernameOrEmail = resolveUsernameOrEmail(request);
+        requestThrottleService.enforce("forgot-password", usernameOrEmail, authSecurityProperties.forgotPasswordRateLimitPerMinute(), httpRequest);
         if (!StringUtils.hasText(usernameOrEmail)) {
             return new PasswordResetResponse(FORGOT_PASSWORD_MESSAGE);
         }
@@ -76,6 +85,7 @@ public class PasswordResetService {
 
     @Transactional
     public PasswordResetResponse resetPassword(ResetPasswordRequest request, HttpServletRequest httpRequest) {
+        requestThrottleService.enforce("reset-password", "token", authSecurityProperties.resetPasswordRateLimitPerMinute(), httpRequest);
         String token = request.token().trim();
         validatePasswordFields(request, httpRequest);
 
@@ -123,6 +133,8 @@ public class PasswordResetService {
         }
 
         usuario.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        usuario.setAuthVersion(usuario.getAuthVersion() + 1);
+        usuario.setLockedUntil(null);
         passwordResetToken.setUsedAt(OffsetDateTime.now());
         passwordResetTokenRepository.markOtherActiveTokensAsUsed(usuario.getId(), passwordResetToken.getId(), passwordResetToken.getUsedAt());
         authAuditService.recordAuthEvent("PASSWORD_RESET_SUCCESS", usuario, httpRequest, "{\"method\":\"PASSWORD_RESET_TOKEN\"}");
@@ -196,9 +208,11 @@ public class PasswordResetService {
         if (!StringUtils.hasText(password) || password.trim().length() < 8) {
             return false;
         }
-        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
+        boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
+        boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        return hasLetter && hasDigit;
+        boolean hasSymbol = password.chars().anyMatch(ch -> !Character.isLetterOrDigit(ch));
+        return hasUpper && hasLower && hasDigit && hasSymbol;
     }
 
     private String generateToken() {

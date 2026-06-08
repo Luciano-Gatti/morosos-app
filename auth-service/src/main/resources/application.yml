@@ -70,6 +70,14 @@ app:
       password: ${AUTH_SEED_ADMIN_PASSWORD:}
       nombre: ${AUTH_SEED_ADMIN_NOMBRE:Administrador}
       apellido: ${AUTH_SEED_ADMIN_APELLIDO:Local}
+  security:
+    max-failed-login-attempts: ${AUTH_MAX_FAILED_LOGIN_ATTEMPTS:5}
+    lock-minutes: ${AUTH_LOCK_MINUTES:15}
+    login-rate-limit-per-minute: ${AUTH_LOGIN_RATE_LIMIT_PER_MINUTE:10}
+    forgot-password-rate-limit-per-minute: ${AUTH_FORGOT_RATE_LIMIT_PER_MINUTE:5}
+    reset-password-rate-limit-per-minute: ${AUTH_RESET_RATE_LIMIT_PER_MINUTE:10}
+    refresh-rate-limit-per-minute: ${AUTH_REFRESH_RATE_LIMIT_PER_MINUTE:30}
+    refresh-token-days: ${AUTH_REFRESH_TOKEN_DAYS:7}
 
   google:
     client-id: ${GOOGLE_CLIENT_ID:}

@@ -33,6 +33,9 @@ import pe.morosos.auth.identity.entity.IdentidadExterna;
 import pe.morosos.auth.identity.model.ExternalProvider;
 import pe.morosos.auth.identity.repository.IdentidadExternaRepository;
 import pe.morosos.auth.security.jwt.JwtService;
+import pe.morosos.auth.session.AuthSecurityProperties;
+import pe.morosos.auth.session.RefreshTokenService;
+import pe.morosos.auth.session.RequestThrottleService;
 import pe.morosos.auth.user.entity.EstadoUsuario;
 import pe.morosos.auth.user.entity.Usuario;
 import pe.morosos.auth.user.repository.UsuarioRepository;
@@ -57,6 +60,10 @@ class AuthServiceGoogleTest {
     @Mock
     private AuthAuditService authAuditService;
     @Mock
+    private RefreshTokenService refreshTokenService;
+    @Mock
+    private RequestThrottleService requestThrottleService;
+    @Mock
     private GoogleTokenVerifier googleTokenVerifier;
     @Mock
     private GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
@@ -66,6 +73,13 @@ class AuthServiceGoogleTest {
     @BeforeEach
     void setUp() {
         authService = service(new GoogleProperties(CLIENT_ID, CLIENT_SECRET, true));
+        when(refreshTokenService.issue(any(), any())).thenAnswer(invocation -> {
+            Usuario usuario = invocation.getArgument(0);
+            pe.morosos.auth.session.entity.RefreshToken entity = new pe.morosos.auth.session.entity.RefreshToken();
+            entity.setId(UUID.randomUUID());
+            entity.setUsuario(usuario);
+            return new RefreshTokenService.IssuedRefreshToken("refresh-token", entity);
+        });
     }
 
     @Test
@@ -259,6 +273,9 @@ class AuthServiceGoogleTest {
                 userAuthorityService,
                 jwtService,
                 authAuditService,
+                refreshTokenService,
+                requestThrottleService,
+                new AuthSecurityProperties(5, 15, 10, 5, 10, 30, 7),
                 googleTokenVerifier,
                 googleAuthorizationCodeExchanger,
                 properties
@@ -306,7 +323,8 @@ class AuthServiceGoogleTest {
                 usuario.getNombre(),
                 usuario.getApellido(),
                 roles,
-                permissions
+                permissions,
+                usuario.getAuthVersion()
         );
     }
 }

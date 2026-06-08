@@ -1,7 +1,11 @@
 package pe.morosos.auth.service;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +15,7 @@ import pe.morosos.auth.audit.model.LoginAttemptResult;
 import pe.morosos.auth.audit.repository.AuditLogRepository;
 import pe.morosos.auth.audit.repository.LoginAttemptRepository;
 import pe.morosos.auth.common.HttpHeadersConstants;
+import pe.morosos.auth.security.AuthPrincipal;
 import pe.morosos.auth.user.entity.Usuario;
 
 @Service
@@ -41,9 +46,9 @@ public class AuthAuditService {
         auditLog.setEntityType(usuario == null ? "AUTH" : "USER");
         auditLog.setEntityId(usuario == null ? null : usuario.getId().toString());
         auditLog.setAction(action);
-        auditLog.setActorId(usuario == null ? null : usuario.getId().toString());
+        auditLog.setActorId(resolveActorId(usuario));
         auditLog.setTraceId(MDC.get(HttpHeadersConstants.TRACE_ID_MDC_KEY));
-        auditLog.setRequestPath(trim(request.getRequestURI(), 300));
+        auditLog.setRequestPath(trim(request == null ? null : request.getRequestURI(), 300));
         auditLog.setOldValues(null);
         auditLog.setNewValues(safeJsonValues);
         auditLogRepository.save(auditLog);
@@ -55,12 +60,32 @@ public class AuthAuditService {
         recordAuthEvent("LOGIN_FAILURE", usuario, request, safeJson);
     }
 
+    @Transactional(readOnly = true)
+    public long countRecentFailedAttempts(UUID usuarioId, int lastMinutes) {
+        return loginAttemptRepository.countByUsuarioIdAndResultadoSince(
+                usuarioId,
+                LoginAttemptResult.INVALID_CREDENTIALS,
+                OffsetDateTime.now().minusMinutes(lastMinutes)
+        );
+    }
+
     private String resolveClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {
             return trim(forwardedFor.split(",")[0].trim(), 80);
         }
         return trim(request.getRemoteAddr(), 80);
+    }
+
+    private String resolveActorId(Usuario usuario) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AuthPrincipal principal) {
+            return principal.userId().toString();
+        }
+        return usuario == null ? null : usuario.getId().toString();
     }
 
     private String trim(String value, int maxLength) {

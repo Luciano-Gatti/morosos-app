@@ -57,7 +57,8 @@ class JwtAuthenticationFilterTest {
                 "admin",
                 "admin@local.test",
                 List.of("ADMIN"),
-                List.of("INMUEBLES_VER_LISTADO", "REPORTES_EXPORTAR_PDF")
+                List.of("INMUEBLES_VER_LISTADO", "REPORTES_EXPORTAR_PDF"),
+                0L
         );
         when(jwtService.validateAccessToken("valid-token")).thenReturn(principal);
         MockHttpServletRequest request = new MockHttpServletRequest();

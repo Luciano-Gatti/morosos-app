@@ -300,7 +300,7 @@ export default function ConfiguracionMotivosCierre() {
         ]}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto max-w-6xl space-y-5">
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[12.5px] text-destructive">
@@ -352,25 +352,25 @@ export default function ConfiguracionMotivosCierre() {
 
           {/* Listado */}
           <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm">
-            <header className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-muted/40 px-4 py-2.5">
-              <div className="flex flex-wrap items-center gap-2">
+            <header className="flex flex-col gap-3 border-b border-border bg-surface-muted/40 px-3 py-2.5 sm:px-4 lg:flex-row lg:flex-wrap lg:items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="flex items-center gap-2 pr-1">
                   <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Motivos de cierre
                   </span>
                 </div>
-                <div className="relative">
+                <div className="relative min-w-0 flex-1 sm:min-w-[220px]">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Buscar por nombre o descripción…"
-                    className="h-8 w-[260px] pl-8 text-[12.5px]"
+                    className="h-8 w-full pl-8 text-[12.5px] sm:w-[260px]"
                   />
                 </div>
                 <Select value={filtro} onValueChange={(v) => setFiltro(v as Filtro)}>
-                  <SelectTrigger className="h-8 w-[180px] text-[12.5px]">
+                  <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

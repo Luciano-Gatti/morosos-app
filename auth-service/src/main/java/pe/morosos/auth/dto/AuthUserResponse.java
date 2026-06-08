@@ -10,6 +10,7 @@ public record AuthUserResponse(
         String nombre,
         String apellido,
         List<String> roles,
-        List<String> permissions
+        List<String> permissions,
+        long authVersion
 ) {
 }

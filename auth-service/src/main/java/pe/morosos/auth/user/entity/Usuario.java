@@ -57,6 +57,12 @@ public class Usuario {
     @Column(name = "provider_principal", length = 80)
     private String providerPrincipal;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion = 0L;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -195,5 +201,21 @@ public class Usuario {
 
     public void setUpdatedBy(String updatedBy) {
         this.updatedBy = updatedBy;
+    }
+
+    public long getAuthVersion() {
+        return authVersion;
+    }
+
+    public void setAuthVersion(long authVersion) {
+        this.authVersion = authVersion;
+    }
+
+    public OffsetDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void setLockedUntil(OffsetDateTime lockedUntil) {
+        this.lockedUntil = lockedUntil;
     }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCircle2, Filter, Loader2, MoreHorizontal, Pencil, Plus, Search, XCircle } from "lucide-react";
+import { Filter, Loader2, MoreHorizontal, Pencil, Plus, Search } from "lucide-react";
+
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -34,20 +36,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import { authService, isAuthError } from "@/services/api/authService";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import type { AdminUser, PermissionOption, RoleOption, UserStatus } from "@/types/auth";
+import { authService, isAuthError } from "@/services/api/authService";
+import type { AdminUser, RoleOption, UserStatus } from "@/types/auth";
 
-const emptyForm = {
+interface UserFormState {
+  username: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  estado: UserStatus;
+  roleCode: string;
+}
+
+const emptyForm: UserFormState = {
   username: "",
   email: "",
   nombre: "",
   apellido: "",
-  estado: "PENDIENTE_APROBACION" as UserStatus,
-  roles: "",
-  permissions: "",
+  estado: "PENDIENTE_APROBACION",
+  roleCode: "",
 };
 
 const statusLabels: Record<UserStatus, string> = {
@@ -71,9 +80,8 @@ export default function AdminUsuarios() {
   const { accessToken, hasAnyPermission } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
-  const [permissions, setPermissions] = useState<PermissionOption[]>([]);
   const [selected, setSelected] = useState<AdminUser | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<UserFormState>(emptyForm);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
   const [formOpen, setFormOpen] = useState(false);
@@ -85,7 +93,11 @@ export default function AdminUsuarios() {
   const canUpdate = hasAnyPermission(["USUARIOS_EDITAR"]);
   const canApprove = hasAnyPermission(["USUARIOS_APROBAR"]);
   const canReject = hasAnyPermission(["USUARIOS_RECHAZAR"]);
+  const canOpenPendingEditor = canApprove || canReject || canUpdate;
+  const isPendingSelection = selected?.estado === "PENDIENTE_APROBACION";
   const canSaveForm = selected ? canUpdate : canCreate;
+  const canEditIdentityFields = canSaveForm && !isPendingSelection;
+  const canEditRoleInModal = canUpdate || Boolean(isPendingSelection && canApprove);
 
   const userCounts = useMemo(
     () => ({
@@ -114,7 +126,6 @@ export default function AdminUsuarios() {
         user.apellido,
         user.estado,
         ...user.roles,
-        ...user.permissions,
       ]
         .filter(Boolean)
         .join(" ")
@@ -124,21 +135,39 @@ export default function AdminUsuarios() {
     });
   }, [search, statusFilter, users]);
 
+  const formRoleOptions = useMemo(() => {
+    if (!selected?.roles?.[0]) return roles;
+    const currentRole = selected.roles[0];
+    if (roles.some((role) => role.codigo === currentRole)) return roles;
+    return [
+      {
+        id: `inactive-${currentRole}`,
+        codigo: currentRole,
+        nombre: `${currentRole} (inactivo)`,
+        descripcion: "",
+        activo: false,
+        systemRole: false,
+        permissions: [],
+      },
+      ...roles,
+    ];
+  }, [roles, selected]);
+
   const load = useCallback(async () => {
     if (!accessToken) return;
+
     setLoading(true);
     setError(null);
+
     try {
-      const [loadedUsers, loadedRoles, loadedPermissions] = await Promise.all([
+      const [loadedUsers, loadedRoles] = await Promise.all([
         authService.adminUsers(accessToken),
         authService.adminRoles(accessToken).catch(() => []),
-        authService.adminPermissions(accessToken).catch(() => []),
       ]);
       setUsers(loadedUsers);
       setRoles(loadedRoles);
-      setPermissions(loadedPermissions);
     } catch (err) {
-      setError(isAuthError(err) ? err.message : "No se pudo cargar la gestión de usuarios.");
+      setError(isAuthError(err) ? err.message : "No se pudo cargar la gestion de usuarios.");
     } finally {
       setLoading(false);
     }
@@ -157,6 +186,7 @@ export default function AdminUsuarios() {
   };
 
   const openEdit = (user: AdminUser) => {
+    const roleCode = user.roles[0] ?? "";
     setSelected(user);
     setForm({
       username: user.username,
@@ -164,8 +194,7 @@ export default function AdminUsuarios() {
       nombre: user.nombre,
       apellido: user.apellido,
       estado: user.estado,
-      roles: user.roles.join(", "),
-      permissions: user.permissions.join(", "),
+      roleCode,
     });
     setMessage(null);
     setError(null);
@@ -178,24 +207,28 @@ export default function AdminUsuarios() {
     setForm(emptyForm);
   };
 
-  const payload = () => ({
+  const buildPayload = () => ({
     username: form.username,
     email: form.email,
     nombre: form.nombre,
     apellido: form.apellido,
     estado: form.estado,
-    roles: splitCodes(form.roles),
-    permissions: splitCodes(form.permissions),
+    roles: form.roleCode ? [form.roleCode] : [],
+    permissions: [] as string[],
   });
 
   const save = async () => {
     if (!accessToken) return;
+
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      if (selected) await authService.adminUpdateUser(accessToken, selected.id, payload());
-      else await authService.adminCreateUser(accessToken, payload());
+      if (selected) {
+        await authService.adminUpdateUser(accessToken, selected.id, buildPayload());
+      } else {
+        await authService.adminCreateUser(accessToken, buildPayload());
+      }
       setMessage(selected ? "Usuario actualizado." : "Usuario creado.");
       closeForm();
       await load();
@@ -206,17 +239,23 @@ export default function AdminUsuarios() {
     }
   };
 
-  const approve = async (user: AdminUser) => {
-    if (!accessToken) return;
+  const approveSelected = async () => {
+    if (!accessToken || !selected) return;
+    if (!form.roleCode) {
+      setError("Debes asignar un rol antes de aprobar al usuario.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      await authService.adminApproveUser(accessToken, user.id, {
-        roles: user.roles,
-        permissions: user.permissions,
+      await authService.adminApproveUser(accessToken, selected.id, {
+        roles: [form.roleCode],
+        permissions: [],
       });
       setMessage("Usuario aprobado.");
+      closeForm();
       await load();
     } catch (err) {
       setError(isAuthError(err) ? err.message : "No se pudo aprobar el usuario.");
@@ -225,17 +264,16 @@ export default function AdminUsuarios() {
     }
   };
 
-  const reject = async (user: AdminUser) => {
-    if (!accessToken) return;
-    const reason = window.prompt("Motivo de rechazo", "Rechazado por administración");
-    if (reason === null) return;
+  const rejectSelected = async () => {
+    if (!accessToken || !selected) return;
 
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      await authService.adminRejectUser(accessToken, user.id, reason.trim() || "Rechazado por administración");
+      await authService.adminRejectUser(accessToken, selected.id, "Rechazado por administracion");
       setMessage("Usuario rechazado.");
+      closeForm();
       await load();
     } catch (err) {
       setError(isAuthError(err) ? err.message : "No se pudo rechazar el usuario.");
@@ -247,12 +285,12 @@ export default function AdminUsuarios() {
   return (
     <>
       <AppHeader
-        title="Gestión de usuarios"
-        description="Aprobación, creación manual y asignación administrativa de roles/permisos."
-        breadcrumb={[{ label: "Usuarios" }]}
+        title="Gestion de usuarios"
+        description="Alta administrativa, aprobacion pendiente y asignacion de un rol por usuario."
+        breadcrumb={[{ label: "Administracion" }, { label: "Usuarios" }]}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {loading && <div className="mb-2 text-xs text-muted-foreground">Cargando usuarios...</div>}
         {message && (
           <div className="mb-2 rounded-md border border-status-closed/30 bg-status-closed-soft px-3 py-2 text-xs text-status-closed">
@@ -266,17 +304,17 @@ export default function AdminUsuarios() {
         )}
 
         <div className="rounded-md border border-border bg-surface shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <Filter className="h-3.5 w-3.5" />
                 Filtros
               </div>
-              <div className="relative min-w-[240px] flex-1 sm:max-w-sm">
+              <div className="relative min-w-0 flex-1 sm:min-w-[240px] sm:max-w-sm">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="h-8 pl-8 text-[12.5px]"
-                  placeholder="Buscar..."
+                  placeholder="Buscar usuario, email o rol..."
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
@@ -294,7 +332,7 @@ export default function AdminUsuarios() {
                 </SelectContent>
               </Select>
             </div>
-            <Button size="sm" className="h-8 gap-2" onClick={openCreate} disabled={!canCreate}>
+            <Button size="sm" className="h-8 w-full gap-2 sm:w-auto" onClick={openCreate} disabled={!canCreate}>
               <Plus className="h-4 w-4" />
               Nuevo usuario
             </Button>
@@ -312,161 +350,223 @@ export default function AdminUsuarios() {
               <CountPill tone="debt">{userCounts.rejected} rechazados</CountPill>
             </div>
           </div>
-          <div className="overflow-x-auto">
+
+          <div className="space-y-3 p-3 md:hidden">
+            {filteredUsers.map((user) => (
+              <UserCard
+                key={user.id}
+                user={user}
+                canOpenEditor={canUpdate || (user.estado === "PENDIENTE_APROBACION" && canOpenPendingEditor)}
+                onEdit={openEdit}
+              />
+            ))}
+            {filteredUsers.length === 0 && (
+              <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-[13px] text-muted-foreground">
+                No hay usuarios para los filtros seleccionados.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <Table className="min-w-[980px]">
-            <TableHeader>
-              <TableRow className="border-border bg-surface-muted/60 hover:bg-surface-muted/60">
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Cuenta
-                </TableHead>
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Email
-                </TableHead>
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Estado
-                </TableHead>
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Roles
-                </TableHead>
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Verificación
-                </TableHead>
-                <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Registro
-                </TableHead>
-                <TableHead className="h-9 w-[72px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Opciones
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id} className="border-border hover:bg-surface-muted/40">
-                  <TableCell className="py-2.5">
-                    <div className="text-[13px] font-medium text-foreground">
-                      {user.nombre} {user.apellido}
-                    </div>
-                    <div className="text-[12px] text-muted-foreground">{user.username}</div>
-                  </TableCell>
-                  <TableCell className="max-w-[240px] truncate py-2.5 text-[13px] text-foreground">{user.email}</TableCell>
-                  <TableCell className="py-2.5">
-                    <StatusBadge status={user.estado} />
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    <RoleList roles={user.roles} />
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    <EmailVerificationPill verified={user.emailVerificado} />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap py-2.5 text-[13px] text-muted-foreground">
-                    {formatDate(user.createdAt)}
-                  </TableCell>
-                  <TableCell className="py-2 text-right">
-                    <UserActions
-                      user={user}
-                      loading={loading}
-                      canUpdate={canUpdate}
-                      canApprove={canApprove}
-                      canReject={canReject}
-                      onEdit={openEdit}
-                      onApprove={approve}
-                      onReject={reject}
-                    />
-                  </TableCell>
+              <TableHeader>
+                <TableRow className="border-border bg-surface-muted/60 hover:bg-surface-muted/60">
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Cuenta
+                  </TableHead>
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </TableHead>
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Estado
+                  </TableHead>
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Rol
+                  </TableHead>
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Verificacion
+                  </TableHead>
+                  <TableHead className="h-9 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Registro
+                  </TableHead>
+                  <TableHead className="h-9 w-[72px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Opciones
+                  </TableHead>
                 </TableRow>
-              ))}
-              {filteredUsers.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-[13px] text-muted-foreground">
-                    No hay usuarios para los filtros seleccionados.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id} className="border-border hover:bg-surface-muted/40">
+                    <TableCell className="py-2.5">
+                      <div className="text-[13px] font-medium text-foreground">
+                        {user.nombre} {user.apellido}
+                      </div>
+                      <div className="text-[12px] text-muted-foreground">{user.username}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[240px] truncate py-2.5 text-[13px] text-foreground">
+                      {user.email}
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <StatusBadge status={user.estado} />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <RoleList roles={user.roles} />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <EmailVerificationPill verified={user.emailVerificado} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap py-2.5 text-[13px] text-muted-foreground">
+                      {formatDate(user.createdAt)}
+                    </TableCell>
+                    <TableCell className="py-2 text-right">
+                      <UserActions
+                        user={user}
+                        canOpenEditor={canUpdate || (user.estado === "PENDIENTE_APROBACION" && canOpenPendingEditor)}
+                        onEdit={openEdit}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-32 text-center text-[13px] text-muted-foreground">
+                      No hay usuarios para los filtros seleccionados.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
             </Table>
           </div>
         </div>
       </main>
 
       <Dialog open={formOpen} onOpenChange={(open) => (open ? setFormOpen(true) : closeForm())}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-w-2xl overflow-hidden p-0">
+          <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
             <DialogTitle>{selected ? "Editar usuario" : "Crear usuario"}</DialogTitle>
             <DialogDescription>
-              Completá los datos administrativos de la cuenta y sus accesos.
+              {isPendingSelection
+                ? "Revisa los datos de la solicitud y decide si apruebas o deniegas la cuenta."
+                : "Edita los datos administrativos de la cuenta y define el rol asociado."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3">
+          <div className="grid gap-4 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                placeholder="Usuario"
-                value={form.username}
-                onChange={(event) => setForm({ ...form, username: event.target.value })}
-                disabled={!canSaveForm}
-              />
-              <Input
-                placeholder="Email"
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-                disabled={!canSaveForm}
-              />
+              <div className="grid gap-2">
+                <Label htmlFor="user-username">Usuario</Label>
+                <Input
+                  id="user-username"
+                  value={form.username}
+                  onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
+                  disabled={!canEditIdentityFields}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="user-email">Email</Label>
+                <Input
+                  id="user-email"
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  disabled={!canEditIdentityFields}
+                />
+              </div>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                placeholder="Nombre"
-                value={form.nombre}
-                onChange={(event) => setForm({ ...form, nombre: event.target.value })}
-                disabled={!canSaveForm}
-              />
-              <Input
-                placeholder="Apellido"
-                value={form.apellido}
-                onChange={(event) => setForm({ ...form, apellido: event.target.value })}
-                disabled={!canSaveForm}
-              />
+              <div className="grid gap-2">
+                <Label htmlFor="user-nombre">Nombre</Label>
+                <Input
+                  id="user-nombre"
+                  value={form.nombre}
+                  onChange={(event) => setForm((current) => ({ ...current, nombre: event.target.value }))}
+                  disabled={!canEditIdentityFields}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="user-apellido">Apellido</Label>
+                <Input
+                  id="user-apellido"
+                  value={form.apellido}
+                  onChange={(event) => setForm((current) => ({ ...current, apellido: event.target.value }))}
+                  disabled={!canEditIdentityFields}
+                />
+              </div>
             </div>
-            <Select
-              value={form.estado}
-              onValueChange={(value) => setForm({ ...form, estado: value as UserStatus })}
-              disabled={!canSaveForm}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PENDIENTE_APROBACION">Pendiente</SelectItem>
-                <SelectItem value="ACTIVO">Activo</SelectItem>
-                <SelectItem value="INACTIVO">Inactivo</SelectItem>
-                <SelectItem value="RECHAZADO">Rechazado</SelectItem>
-              </SelectContent>
-            </Select>
-            <Textarea
-              placeholder="Roles separados por coma (ej.: OPERADOR)"
-              value={form.roles}
-              onChange={(event) => setForm({ ...form, roles: event.target.value })}
-              disabled={!canSaveForm}
-            />
-            <Textarea
-              placeholder="Permisos directos separados por coma"
-              value={form.permissions}
-              onChange={(event) => setForm({ ...form, permissions: event.target.value })}
-              disabled={!canSaveForm}
-            />
-            <div className="grid max-h-24 gap-1 overflow-y-auto rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p>Roles disponibles: {roles.map((role) => role.codigo).join(", ") || "sin datos"}</p>
-              <p>Permisos disponibles: {permissions.map((permission) => permission.codigo).join(", ") || "sin datos"}</p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Estado actual</Label>
+                <div className="flex h-10 items-center rounded-md border border-input bg-background px-3">
+                  <StatusBadge status={form.estado} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Rol</Label>
+                <Select
+                  value={form.roleCode || undefined}
+                  onValueChange={(value) => setForm((current) => ({ ...current, roleCode: value }))}
+                  disabled={!canEditRoleInModal}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formRoleOptions.length === 0 && (
+                      <SelectItem value="__sin_roles__" disabled>
+                        No hay roles activos
+                      </SelectItem>
+                    )}
+                    {formRoleOptions.map((role) => (
+                      <SelectItem key={role.id} value={role.codigo} disabled={!role.activo}>
+                        {role.nombre || role.codigo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {selected?.roles.length && selected.roles.length > 1 && (
+              <div className="rounded-md border border-status-paused/30 bg-status-paused-soft px-3 py-2 text-xs text-status-paused">
+                El usuario tenia multiples roles. Al guardar o aprobar, quedara normalizado a un solo rol.
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={closeForm}>
+          <DialogFooter className="border-t border-border px-4 py-3 sm:justify-between sm:px-6">
+            <Button variant="outline" onClick={closeForm} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={save} disabled={loading || !canSaveForm}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar
-            </Button>
+            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+              {selected?.estado === "PENDIENTE_APROBACION" && (
+                <Button
+                  variant="outline"
+                  onClick={rejectSelected}
+                  disabled={loading || !canReject}
+                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Denegar usuario
+                </Button>
+              )}
+              {!isPendingSelection && (
+                <Button onClick={save} disabled={loading || !canSaveForm} className="w-full sm:w-auto">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {selected ? "Guardar cambios" : "Crear usuario"}
+                </Button>
+              )}
+              {selected?.estado === "PENDIENTE_APROBACION" && (
+                <Button
+                  onClick={approveSelected}
+                  disabled={loading || !canApprove || !form.roleCode}
+                  className="w-full sm:w-auto"
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Aceptar usuario
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -474,7 +574,13 @@ export default function AdminUsuarios() {
   );
 }
 
-function CountPill({ children, tone = "neutral" }: { children: ReactNode; tone?: "active" | "paused" | "debt" | "neutral" }) {
+function CountPill({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "active" | "paused" | "debt" | "neutral";
+}) {
   return (
     <span
       className={cn(
@@ -508,24 +614,12 @@ function StatusBadge({ status }: { status: UserStatus }) {
 }
 
 function RoleList({ roles }: { roles: string[] }) {
-  if (roles.length === 0) return <span className="text-[13px] text-muted-foreground">Sin roles</span>;
-
-  const visibleRoles = roles.slice(0, 2);
-  const hiddenCount = roles.length - visibleRoles.length;
+  if (roles.length === 0) return <span className="text-[13px] text-muted-foreground">Sin rol</span>;
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {visibleRoles.map((role) => (
-        <span key={role} className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
-          {role}
-        </span>
-      ))}
-      {hiddenCount > 0 && (
-        <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          +{hiddenCount}
-        </span>
-      )}
-    </div>
+    <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+      {roles[0]}
+    </span>
   );
 }
 
@@ -544,22 +638,15 @@ function EmailVerificationPill({ verified }: { verified: boolean }) {
 
 interface UserActionsProps {
   user: AdminUser;
-  loading: boolean;
-  canUpdate: boolean;
-  canApprove: boolean;
-  canReject: boolean;
+  canOpenEditor: boolean;
   onEdit: (user: AdminUser) => void;
-  onApprove: (user: AdminUser) => void;
-  onReject: (user: AdminUser) => void;
 }
 
-function UserActions({ user, loading, canUpdate, canApprove, canReject, onEdit, onApprove, onReject }: UserActionsProps) {
-  const isPending = user.estado === "PENDIENTE_APROBACION";
-
+function UserActions({ user, canOpenEditor, onEdit }: UserActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canOpenEditor}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -568,29 +655,50 @@ function UserActions({ user, loading, canUpdate, canApprove, canReject, onEdit, 
           Acciones
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onEdit(user)} disabled={!canUpdate} className="text-[13px]">
+        <DropdownMenuItem onSelect={() => onEdit(user)} disabled={!canOpenEditor} className="text-[13px]">
           <Pencil className="mr-2 h-3.5 w-3.5" />
           Editar
         </DropdownMenuItem>
-        {isPending && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onApprove(user)} disabled={loading || !canApprove} className="text-[13px]">
-              <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-              Aprobar
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => onReject(user)}
-              disabled={loading || !canReject}
-              className="text-[13px] text-destructive focus:text-destructive"
-            >
-              <XCircle className="mr-2 h-3.5 w-3.5" />
-              Rechazar
-            </DropdownMenuItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function UserCard({ user, canOpenEditor, onEdit }: UserActionsProps) {
+  return (
+    <article className="rounded-md border border-border bg-background p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-medium text-foreground">
+            {user.nombre} {user.apellido}
+          </div>
+          <div className="text-[12px] text-muted-foreground">{user.username}</div>
+          <div className="mt-1 break-all text-[12px] text-muted-foreground">{user.email}</div>
+        </div>
+        <StatusBadge status={user.estado} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+        <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+          <div className="text-muted-foreground">Rol</div>
+          <div className="font-medium text-foreground">{user.roles[0] ?? "Sin rol"}</div>
+        </div>
+        <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+          <div className="text-muted-foreground">Verificacion</div>
+          <div className="font-medium text-foreground">
+            {user.emailVerificado ? "Email verificado" : "Sin verificar"}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2">
+        <div className="text-[11.5px] text-muted-foreground">Registro: {formatDate(user.createdAt)}</div>
+        <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => onEdit(user)} disabled={!canOpenEditor}>
+          <Pencil className="h-4 w-4" />
+          Editar
+        </Button>
+      </div>
+    </article>
   );
 }
 
@@ -599,11 +707,4 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(date);
-}
-
-function splitCodes(value: string) {
-  return value
-    .split(",")
-    .map((code) => code.trim())
-    .filter(Boolean);
 }

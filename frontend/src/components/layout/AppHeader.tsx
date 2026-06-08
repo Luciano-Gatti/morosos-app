@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, ChevronRight, LogOut, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, ChevronRight, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { useAppLayout } from "./AppLayoutContext";
 
 export interface Crumb {
   label: string;
@@ -48,6 +49,7 @@ function buildInitials(nombre?: string, apellido?: string | null, username?: str
 
 export function AppHeader({ title, description, breadcrumb, actions }: Props) {
   const { user, logout } = useAuth();
+  const layout = useAppLayout();
   const navigate = useNavigate();
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -64,22 +66,35 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
       {/* Top utility bar */}
-      <div className="flex h-12 items-center justify-between gap-4 border-b border-border/60 px-6">
-        <nav aria-label="Migas de pan" className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">Inicio</Link>
-          {breadcrumb?.map((c, i) => (
-            <span key={i} className="flex items-center gap-1.5">
-              <ChevronRight className="h-3 w-3 opacity-60" />
-              {c.to ? (
-                <Link to={c.to} className="hover:text-foreground">{c.label}</Link>
-              ) : (
-                <span className={cn(i === breadcrumb.length - 1 && "text-foreground font-medium")}>{c.label}</span>
-              )}
-            </span>
-          ))}
-        </nav>
+      <div className="flex h-12 items-center justify-between gap-2 border-b border-border/60 px-4 sm:gap-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          {layout?.isMobileViewport && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 lg:hidden"
+              aria-label="Abrir menu"
+              onClick={layout.openMobileMenu}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          )}
+          <nav aria-label="Migas de pan" className="flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap pr-2 text-[12px] text-muted-foreground">
+            <Link to="/" className="shrink-0 hover:text-foreground">Inicio</Link>
+            {breadcrumb?.map((c, i) => (
+              <span key={i} className="flex shrink-0 items-center gap-1.5">
+                <ChevronRight className="h-3 w-3 opacity-60" />
+                {c.to ? (
+                  <Link to={c.to} className="hover:text-foreground">{c.label}</Link>
+                ) : (
+                  <span className={cn(i === breadcrumb.length - 1 && "text-foreground font-medium")}>{c.label}</span>
+                )}
+              </span>
+            ))}
+          </nav>
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Notificaciones">
             <Bell className="h-4 w-4" />
           </Button>
@@ -125,8 +140,8 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
       </div>
 
       {/* Title row */}
-      <div className="flex flex-col gap-3 px-6 py-5 md:flex-row md:items-end md:justify-between">
-        <div>
+      <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 sm:py-5 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
           <h1 className="font-serif text-[26px] font-semibold leading-tight text-foreground">
             {title}
           </h1>
@@ -134,7 +149,7 @@ export function AppHeader({ title, description, breadcrumb, actions }: Props) {
             <p className="mt-1 max-w-2xl text-[13px] text-muted-foreground">{description}</p>
           )}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">{actions}</div>}
       </div>
 
       <Dialog open={sessionDialogOpen} onOpenChange={setSessionDialogOpen}>

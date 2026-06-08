@@ -601,7 +601,7 @@ export default function GestionEtapas() {
         breadcrumb={[{ label: "Gestión de etapas" }]}
       />
 
-      <main className="flex-1 px-6 py-6">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {catalogLoading && <div className="mb-2 text-xs text-muted-foreground">Cargando catálogos de seguimiento...</div>}
         {catalogError && <div className="mb-2 text-xs text-destructive">{catalogError}</div>}
         {!catalogError && catalogWarnings.length > 0 && (
@@ -636,13 +636,13 @@ export default function GestionEtapas() {
 
         <div className="rounded-md border border-border bg-surface shadow-sm">
           {/* Barra de filtros */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+          <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />
               Filtros
             </div>
 
-            <div className="relative min-w-[220px] flex-1 sm:max-w-[280px]">
+            <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-[280px]">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
@@ -664,7 +664,7 @@ export default function GestionEtapas() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-8 w-[180px] text-[12.5px]" disabled={USE_API && (catalogError !== null || etapasApi.length === 0)}>
+              <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[180px]" disabled={USE_API && (catalogError !== null || etapasApi.length === 0)}>
                 <SelectValue placeholder="Etapa actual" />
               </SelectTrigger>
               <SelectContent>
@@ -683,7 +683,7 @@ export default function GestionEtapas() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-8 w-[160px] text-[12.5px]">
+              <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[160px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -701,7 +701,7 @@ export default function GestionEtapas() {
             <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
             <Select value={grupo} onValueChange={(v) => { setGrupo(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && (catalogError !== null || gruposApi.length === 0)}>
+              <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[140px]" disabled={USE_API && (catalogError !== null || gruposApi.length === 0)}>
                 <SelectValue placeholder="Grupo" />
               </SelectTrigger>
               <SelectContent>
@@ -715,7 +715,7 @@ export default function GestionEtapas() {
             </Select>
 
             <Select value={distrito} onValueChange={(v) => { setDistrito(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[140px] text-[12.5px]" disabled={USE_API && (catalogError !== null || distritosApi.length === 0)}>
+              <SelectTrigger className="h-8 w-full text-[12.5px] sm:w-[140px]" disabled={USE_API && (catalogError !== null || distritosApi.length === 0)}>
                 <SelectValue placeholder="Distrito" />
               </SelectTrigger>
               <SelectContent>
@@ -728,7 +728,7 @@ export default function GestionEtapas() {
               </SelectContent>
             </Select>
 
-            <div className="relative w-[130px]">
+            <div className="relative w-full sm:w-[130px]">
               <Input
                 type="number"
                 inputMode="numeric"
@@ -800,8 +800,23 @@ export default function GestionEtapas() {
           )}
 
           {/* Tabla */}
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="space-y-3 p-3 md:hidden">
+            {pageRows.length === 0 && (
+              <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-[13px] text-muted-foreground">
+                {loading ? "Cargando bandeja..." : error ?? "No se encontraron inmuebles con los filtros aplicados."}
+              </div>
+            )}
+            {pageRows.map((m) => (
+              <InmuebleCard
+                key={m.id}
+                m={m}
+                checked={selected.has(m.id)}
+                onToggle={() => toggleOne(m.id)}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <Table className="min-w-[1180px]">
               <TableHeader>
                 <TableRow className="border-border bg-surface-muted/60 hover:bg-surface-muted/60">
                   <TableHead className="h-9 w-[44px] pl-4">
@@ -983,6 +998,90 @@ function InmuebleRow({
         <EstadoPill estado={m.estado} />
       </TableCell>
     </TableRow>
+  );
+}
+
+function InmuebleCard({
+  m,
+  checked,
+  onToggle,
+}: {
+  m: InmuebleMoroso;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const fecha = parseBackendDate(m.fechaProgramada);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const vencida = fecha ? fecha.getTime() < today.getTime() : false;
+  const hoy = fecha ? fecha.getTime() === today.getTime() : false;
+
+  return (
+    <article
+      className={cn(
+        "rounded-md border border-border bg-background p-3 shadow-sm",
+        checked && "border-primary/40 bg-primary-soft/30",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <Checkbox checked={checked} onCheckedChange={onToggle} aria-label={`Seleccionar ${m.cuenta}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="font-mono text-[12px] font-semibold text-foreground">{m.cuenta}</div>
+              <div className="mt-1 text-[13px] font-medium text-foreground">{m.titular}</div>
+              <div className="mt-1 text-[12px] text-muted-foreground">{m.direccion}</div>
+            </div>
+            <EstadoPill estado={m.estado} />
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+              <div className="text-muted-foreground">Grupo</div>
+              <div className="font-medium text-foreground">{m.grupo}</div>
+            </div>
+            <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+              <div className="text-muted-foreground">Distrito</div>
+              <div className="font-medium text-foreground">{m.distrito}</div>
+            </div>
+            <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+              <div className="text-muted-foreground">Cuotas</div>
+              <div className="font-medium tabular text-foreground">{numberFmt.format(m.cuotasAdeudadas)}</div>
+            </div>
+            <div className="rounded-md bg-surface-muted/50 px-2.5 py-2">
+              <div className="text-muted-foreground">Monto</div>
+              <div className="font-medium tabular text-foreground">{moneyFmt.format(m.montoAdeudado)}</div>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            <div>
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Etapa actual
+              </div>
+              <EtapaPill etapa={m.etapa} />
+            </div>
+            <div className="text-[12px]">
+              {fecha ? (
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-1.5 tabular",
+                    vencida && "text-destructive",
+                    hoy && "font-medium text-amber-700 dark:text-amber-400",
+                    !vencida && !hoy && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarClock className="h-3.5 w-3.5 opacity-80" />
+                  {dateFmt.format(fecha)}
+                </div>
+              ) : (
+                <span className="italic text-muted-foreground">â€”</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1478,8 +1577,8 @@ function ConfirmarEtapaDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
-        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-6 py-4 text-left">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-4 py-4 text-left sm:px-6">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Icon className="h-3.5 w-3.5" />
             Gestión de etapas
@@ -1494,7 +1593,7 @@ function ConfirmarEtapaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
             <div className="flex items-center gap-2.5">
@@ -1592,7 +1691,7 @@ function ConfirmarEtapaDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-row items-center justify-between gap-3 border-t border-border bg-surface-muted/40 px-6 py-3 sm:justify-between">
+        <DialogFooter className="flex-col-reverse gap-2 border-t border-border bg-surface-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="text-[12px] text-muted-foreground">
             Se aplicará a <span className="tabular font-semibold text-foreground">{numberFmt.format(aplicables)}</span> de {numberFmt.format(total)}
           </div>
@@ -1757,9 +1856,9 @@ function CerrarProcesoDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl">
         {/* Header institucional */}
-        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-6 py-4 text-left">
+        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-4 py-4 text-left sm:px-6">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <StopCircle className="h-3.5 w-3.5" />
             Seguimiento de morosidad
@@ -1772,7 +1871,7 @@ function CerrarProcesoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
@@ -2037,7 +2136,7 @@ function CerrarProcesoDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="flex-row items-center justify-end gap-2 border-t border-border bg-surface-muted/40 px-6 py-3">
+        <DialogFooter className="flex-col-reverse gap-2 border-t border-border bg-surface-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6">
           <Button variant="outline" onClick={onCancel} className="h-9">
             Cancelar
           </Button>
@@ -2133,9 +2232,9 @@ onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl">
         {/* Header institucional */}
-        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-6 py-4 text-left">
+        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-4 py-4 text-left sm:px-6">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <HandCoins className="h-3.5 w-3.5" />
             Seguimiento de morosidad
@@ -2148,7 +2247,7 @@ onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
@@ -2290,7 +2389,7 @@ onConfirm({ kind: "compromiso", payload: { compromisoId: compromisoVigente?.id, 
         </div>
 
         {/* Footer institucional */}
-        <DialogFooter className="flex-row items-center justify-between gap-3 border-t border-border bg-surface-muted/40 px-6 py-3 sm:justify-between">
+        <DialogFooter className="flex-col-reverse gap-2 border-t border-border bg-surface-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="text-[12px] text-muted-foreground">
             {desde && hasta && !rangoInvalido ? (
               <>
@@ -2448,9 +2547,9 @@ function MoverEtapaDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-xl">
         {/* Header institucional */}
-        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-6 py-4 text-left">
+        <DialogHeader className="space-y-1 border-b border-border bg-surface-muted/40 px-4 py-4 text-left sm:px-6">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Layers className="h-3.5 w-3.5" />
             Gestión de etapas
@@ -2463,7 +2562,7 @@ function MoverEtapaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {compromisoLoading && <div className="text-sm text-muted-foreground">Cargando compromiso vigente...</div>}
           {/* Cantidad seleccionada */}
           <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted/40 px-3 py-2.5">
@@ -2641,7 +2740,7 @@ function MoverEtapaDialog({
         </div>
 
         {/* Footer institucional con resumen */}
-        <DialogFooter className="flex-row items-center justify-between gap-3 border-t border-border bg-surface-muted/40 px-6 py-3 sm:justify-between">
+        <DialogFooter className="flex-col-reverse gap-2 border-t border-border bg-surface-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="text-[12px] text-muted-foreground">
             Se aplicará a{" "}
             <span className="tabular font-semibold text-foreground">

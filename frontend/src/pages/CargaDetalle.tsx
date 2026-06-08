@@ -194,7 +194,7 @@ export default function CargaDetalle() {
           title="Carga no encontrada"
           breadcrumb={[{ label: "Gestión de deuda", to: "/deuda" }, { label: "Detalle" }]}
         />
-        <main className="flex-1 px-6 py-10">
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-md border border-border bg-surface p-8 text-center">
             <p className="text-[13px] text-muted-foreground">
               La carga solicitada no existe o fue eliminada.
@@ -249,7 +249,7 @@ export default function CargaDetalle() {
         }
       />
 
-      <main className="flex-1 space-y-4 px-6 py-6">
+      <main className="flex-1 space-y-4 px-4 py-4 sm:px-6 sm:py-6">
         {/* Cabecera de la carga */}
         <section className="rounded-md border border-border bg-surface shadow-sm">
           <div className="flex flex-wrap items-start gap-x-8 gap-y-3 px-5 py-4">
@@ -334,12 +334,12 @@ export default function CargaDetalle() {
           </div>
 
           {/* Filtros */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-muted/40 px-3 py-2.5">
+          <div className="flex flex-col gap-2 border-b border-border bg-surface-muted/40 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />
               Filtros
             </div>
-            <div className="relative min-w-[240px] flex-1 sm:max-w-xs">
+            <div className="relative min-w-0 flex-1 sm:min-w-[240px] sm:max-w-xs">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}

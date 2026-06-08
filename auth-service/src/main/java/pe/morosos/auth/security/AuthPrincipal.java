@@ -8,6 +8,7 @@ public record AuthPrincipal(
         String username,
         String email,
         List<String> roles,
-        List<String> permissions
+        List<String> permissions,
+        long authVersion
 ) {
 }

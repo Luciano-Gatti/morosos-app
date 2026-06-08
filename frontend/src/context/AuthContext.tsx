@@ -5,12 +5,13 @@ import { AuthError, authService } from "@/services/api/authService";
 import {
   clearStoredSession,
   getStoredAccessToken,
+  getStoredRefreshToken,
   getStoredUser,
   persistSession,
   persistUser,
 } from "@/services/api/authStorage";
 import { AuthContext, type AuthContextValue } from "@/context/authContextCore";
-import type { AuthState } from "@/types/auth";
+import type { AuthState, LoginRequest } from "@/types/auth";
 
 function normalizeCode(code: string) {
   return code.trim().toUpperCase();
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (payload: LoginRequest) => {
     const response = await authService.login(payload);
-    persistSession(response.accessToken, response.user, payload.rememberMe);
+    persistSession(response.accessToken, response.refreshToken, response.user, payload.rememberMe);
     setState({
       user: response.user,
       accessToken: response.accessToken,
@@ -92,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogleToken = useCallback(async (idToken: string) => {
     const response = await authService.googleLogin(idToken);
     if ("accessToken" in response) {
-      persistSession(response.accessToken, response.user, false);
+      persistSession(response.accessToken, response.refreshToken, response.user, false);
       setState({
         user: response.user,
         accessToken: response.accessToken,
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogleCode = useCallback(async (code: string, redirectUri: string) => {
     const response = await authService.googleLoginWithCode(code, redirectUri);
     if ("accessToken" in response) {
-      persistSession(response.accessToken, response.user, false);
+      persistSession(response.accessToken, response.refreshToken, response.user, false);
       setState({
         user: response.user,
         accessToken: response.accessToken,
@@ -121,11 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const accessToken = getStoredAccessToken();
+    const refreshToken = getStoredRefreshToken();
     if (accessToken) {
       try {
-        await authService.logout(accessToken);
+        await authService.logout(accessToken, refreshToken);
       } catch {
-        // Logout is stateless. Local cleanup must happen even if the network call fails.
+        // Local cleanup must happen even if the network call fails.
       }
     }
 
@@ -143,6 +145,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [hasPermission],
   );
 
+  const hasAllPermissions = useCallback(
+    (permissionCodes: string[]) => permissionCodes.every((permissionCode) => hasPermission(permissionCode)),
+    [hasPermission],
+  );
+
   const hasRole = useCallback(
     (roleCode: string) => state.user?.roles.some((role) => normalizeCode(role) === normalizeCode(roleCode)) ?? false,
     [state.user],
@@ -157,8 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshSessionFromMe,
     hasPermission,
     hasAnyPermission,
+    hasAllPermissions,
     hasRole,
-  }), [state, login, loginWithGoogleToken, loginWithGoogleCode, logout, refreshSessionFromMe, hasPermission, hasAnyPermission, hasRole]);
+  }), [state, login, loginWithGoogleToken, loginWithGoogleCode, logout, refreshSessionFromMe, hasPermission, hasAnyPermission, hasAllPermissions, hasRole]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
